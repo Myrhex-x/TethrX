@@ -84,6 +84,9 @@ function load() {
     token: stored.token,
     grokBin: resolveGrokBin(),
     name: "TethrX",
+    // Optional APNs push. Set via config.json { "apns": { "keyPath", "keyId", "teamId" } }
+    // or GROK_REMOTE_APNS_KEY / _KEY_ID / _TEAM_ID env vars.
+    apns: stored.apns || null,
     ...DEFAULTS,
     // Allow the stored file to override any default (e.g. a pinned cwd).
     ...pickOverrides(stored),

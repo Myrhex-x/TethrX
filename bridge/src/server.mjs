@@ -28,10 +28,12 @@ import { config } from "./config.mjs";
 import { SessionStore } from "./sessions.mjs";
 import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
+import { loadApns } from "./apns.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
 const store = new SessionStore(join(config.stateDir, "sessions.json"));
+const apns = loadApns(config);   // native push (disabled unless an APNs key is configured)
 
 // Single-use, decision-bound tokens for lock-screen approval links, so the full
 // pairing token is never embedded in an ntfy notification.
@@ -181,13 +183,18 @@ async function serveStatic(res, urlPath) {
 // Push a notification via ntfy, but only when nobody is actively watching this
 // session (so you're alerted precisely when the app is backgrounded).
 async function pushNotify(session, { title, message, priority = "default", tags, actions }) {
-  if (!config.ntfy || session.subscriberCount > 0) return;
-  try {
-    const headers = { Title: title, Priority: priority };
-    if (tags) headers.Tags = tags;
-    if (actions) headers.Actions = actions;
-    await fetch(config.ntfy, { method: "POST", headers, body: message });
-  } catch { /* best-effort */ }
+  if (session.subscriberCount > 0) return;   // someone's watching live — no need to alert
+  // Native push straight to the phone (when an APNs key is configured).
+  apns.send({ title, body: message, sessionId: session.id }).catch(() => {});
+  // Optional ntfy fallback.
+  if (config.ntfy) {
+    try {
+      const headers = { Title: title, Priority: priority };
+      if (tags) headers.Tags = tags;
+      if (actions) headers.Actions = actions;
+      await fetch(config.ntfy, { method: "POST", headers, body: message });
+    } catch { /* best-effort */ }
+  }
 }
 
 // Push an approval alert with Approve/Reject buttons (when a public URL is set) so
@@ -388,6 +395,13 @@ async function handle(req, res) {
     return send(res, 200, { totals, sessionCount: sessions.length, contextWindow });
   }
 
+  // Register this phone's APNs device token so the bridge can push alerts.
+  if (pathname === "/api/devices" && req.method === "POST") {
+    const body = await readJson(req).catch(() => ({}));
+    const ok = apns.addDevice(body.token);
+    return send(res, ok ? 200 : 400, { ok, push: apns.enabled });
+  }
+
   // /api/sessions
   if (pathname === "/api/sessions" && req.method === "GET") {
     return send(res, 200, { sessions: store.list() });
@@ -531,6 +545,7 @@ server.listen(config.port, listenHost, async () => {
   console.log(`  ├─ default cwd ${config.defaultCwd}`);
   console.log(`  ├─ web client  ${scheme}://${reachable}:${config.port}/`);
   console.log(`  ├─ pair phone  ${scheme}://localhost:${config.port}/pair  (open here, scan in the app)`);
+  console.log(`  ├─ push (apns) ${apns.enabled ? `on  (${apns.tokens.length} device${apns.tokens.length === 1 ? "" : "s"})` : "off  (set apns key in config.json)"}`);
   console.log(`  ├─ push (ntfy) ${config.ntfy || "off  (set GROK_REMOTE_NTFY)"}`);
   if (config.publicUrl) console.log(`  ├─ public url  ${config.publicUrl}  (lock-screen approve/reject)`);
   console.log(`  └─ pairing token:\n\n     ${config.token}\n`);

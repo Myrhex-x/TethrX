@@ -25,6 +25,9 @@ final class AppState: ObservableObject {
     /// Set by a debug launch argument to auto-open a session (UI testing only).
     @Published var pendingOpenSessionId: String?
 
+    /// Latest APNs device token (from PushManager); re-sent to the bridge on connect.
+    var pushToken: String?
+
     init() {
         let d = UserDefaults.standard
         baseURLString = d.string(forKey: "bridge.baseURL") ?? ""
@@ -70,6 +73,7 @@ final class AppState: ObservableObject {
             health = h
             sessions = try await client.listSessions()
             connected = true
+            if let t = pushToken { try? await client.registerDevice(t) }   // (re)register for push
             if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
         } catch {
             connected = false
@@ -123,6 +127,13 @@ final class AppState: ObservableObject {
             try await client.renameSession(id, title: trimmed)
             if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].title = trimmed }
         } catch { errorMessage = friendly(error) }
+    }
+
+    /// Store the APNs token and push it to the bridge (if we're connected).
+    func registerDevice(_ token: String) async {
+        pushToken = token
+        guard let client, connected else { return }
+        try? await client.registerDevice(token)
     }
 
     /// Distinct non-empty folder names across sessions, for the "move to folder" menu.

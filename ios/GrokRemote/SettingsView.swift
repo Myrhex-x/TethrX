@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var lock: AppLock
     @EnvironmentObject var snippets: SnippetStore
+    @ObservedObject private var push = PushManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var revealToken = false
     @State private var report: UsageReport?
@@ -19,6 +20,7 @@ struct SettingsView: View {
                     connection
                     usage
                     defaults
+                    notifications
                     security
                     snippetsSection
                     about
@@ -138,6 +140,17 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("SECURITY")
             toggleRow("Require \(lock.biometryName)", "Lock the app on open — it can run commands on your computer", $lock.enabled)
+        }
+    }
+
+    private var notifications: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("NOTIFICATIONS")
+            toggleRow("Push notifications",
+                      "Get alerted when Grok finishes a turn or needs approval — even with the app closed",
+                      Binding(get: { push.enabled }, set: { $0 ? push.enable() : push.disable() }))
+            Text("Requires an APNs key configured on your bridge. Delivered to this phone when it isn't actively watching a session.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
         }
     }
 

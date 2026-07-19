@@ -2,9 +2,11 @@ import SwiftUI
 
 @main
 struct TethrXApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var app = AppState()
     @StateObject private var lock = AppLock()
     @StateObject private var snippets = SnippetStore()
+    @StateObject private var push = PushManager.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -21,6 +23,10 @@ struct TethrXApp: App {
             .tint(.white)                          // outline-pill language: white, not a color accent
             .preferredColorScheme(.dark)
             .animation(.easeInOut(duration: 0.2), value: lock.locked)
+            .task {
+                push.onToken = { token in Task { await app.registerDevice(token) } }
+                push.refreshIfEnabled()            // re-register if the user enabled push before
+            }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .background: lock.lockIfEnabled()   // also hides content in the app switcher
