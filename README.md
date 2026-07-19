@@ -38,13 +38,15 @@ bash bridge/scripts/install-service.sh
 # token is printed once in ~/.grok-remote/bridge.log
 ```
 
+**Easiest pairing:** open **`http://localhost:4180/pair`** on the computer running the bridge. It shows a scannable QR code (one for Wi-Fi, one for Tailscale) plus the token to copy. That page is **loopback-only** — the token never leaves the machine.
+
 ### 2. Run the app
 
 ```bash
 open ios/GrokRemote.xcodeproj      # Xcode 26.3+ / 27
 ```
 
-Pick a simulator (or set your Team + a device), Run. Enter the **bridge address** + **pairing token**, tap **Connect**, then **＋** to start a session.
+Pick a simulator (or set your Team + a device), Run. Tap **Scan to pair** and point at a code on `localhost:4180/pair` — or enter the **bridge address** + **pairing token** by hand — then **＋** to start a session.
 
 ---
 

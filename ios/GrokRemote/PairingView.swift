@@ -4,6 +4,7 @@ import SwiftUI
 struct PairingView: View {
     @EnvironmentObject var app: AppState
     @FocusState private var focus: Field?
+    @State private var showScanner = false
 
     private enum Field { case address, token }
 
@@ -53,6 +54,14 @@ struct PairingView: View {
                 .buttonStyle(PillButton(kind: .prominent))
                 .disabled(app.connecting)
 
+                Button {
+                    focus = nil
+                    showScanner = true
+                } label: {
+                    Label("Scan to pair", systemImage: "qrcode.viewfinder").tracking(0.5)
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+
                 tips
             }
             .padding(24)
@@ -60,6 +69,26 @@ struct PairingView: View {
         }
         .background(Grok.bg)
         .scrollDismissesKeyboard(.interactively)
+        .sheet(isPresented: $showScanner) {
+            ScanSheet { code in
+                showScanner = false
+                handleScanned(code)
+            }
+        }
+    }
+
+    /// Parse a scanned `tethrx://pair?addr=…&token=…` code, fill the fields, and connect.
+    private func handleScanned(_ s: String) {
+        guard let c = URLComponents(string: s), c.scheme == "tethrx", c.host == "pair",
+              let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
+              let tok = c.queryItems?.first(where: { $0.name == "token" })?.value,
+              !addr.isEmpty, !tok.isEmpty else {
+            app.errorMessage = "That doesn't look like a TethrX pairing code."
+            return
+        }
+        app.baseURLString = addr
+        app.token = tok
+        Task { await app.connect() }
     }
 
     // MARK: Pieces
@@ -115,9 +144,9 @@ struct PairingView: View {
         VStack(alignment: .leading, spacing: 10) {
             Rectangle().fill(Grok.hairline).frame(height: 1).padding(.bottom, 6)
             Eyebrow("TO CONNECT")
-            tip("start the bridge on your computer — it prints a bridge address and a pairing token")
-            tip("enter both above, then tap connect — on the same wi-fi this just works")
-            tip("away from home? add both devices to Tailscale, then use the Mac's 100.x address")
+            tip("on your computer open  localhost:4180/pair  — then tap Scan to pair above")
+            tip("no camera? type the address + token the bridge prints, then tap connect")
+            tip("away from home? the pair page has a Tailscale code that works anywhere")
         }
         .padding(.top, 4)
     }

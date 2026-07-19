@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize as normPath, sep } from "node:path";
 import { timingSafeEqual, randomBytes } from "node:crypto";
+import { networkInterfaces } from "node:os";
 
 import { config } from "./config.mjs";
 import { SessionStore } from "./sessions.mjs";
@@ -48,6 +49,82 @@ const grokHome = config.transport === "acp" && config.askPermission
   : null;
 
 // ---- helpers ---------------------------------------------------------------
+
+// Reachable IPv4 addresses for the pairing-page QR codes. Tailscale (100.x) first,
+// since that's the "works from anywhere" one.
+function reachableAddresses() {
+  const out = [];
+  const ifaces = networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const ni of ifaces[name] || []) {
+      if (ni.family !== "IPv4" || ni.internal) continue;
+      out.push({ ip: ni.address, kind: ni.address.startsWith("100.") ? "Tailscale" : "Wi-Fi / LAN" });
+    }
+  }
+  return out.sort((a, b) => (b.kind === "Tailscale") - (a.kind === "Tailscale"));
+}
+
+// True only for requests from THIS machine — the pairing page reveals the token,
+// so it must never be served to the LAN/Tailscale.
+function isLoopback(req) {
+  const a = req.socket?.remoteAddress || "";
+  return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+}
+
+// The local pairing page: shows the token + a scannable QR per address. Rendered
+// client-side by the vendored qrcode.js. Payload is a tethrx://pair deep link.
+function pairPageHTML() {
+  const addrs = reachableAddresses();
+  const port = config.port;
+  const data = JSON.stringify({ token: config.token, port, addrs });
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pair TethrX</title><script src="/qrcode.js"></script>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0a0a0a;color:#fff;font-family:-apple-system,system-ui,sans-serif;padding:32px 20px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:560px;margin:0 auto}
+.mark{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:22px}
+h1{font-size:26px;letter-spacing:-.5px;margin:14px 0 6px}
+p.sub{color:rgba(255,255,255,.55);margin:0 0 26px;line-height:1.5}
+.card{border:1px solid rgba(255,255,255,.13);border-radius:16px;padding:20px;margin:14px 0;background:rgba(255,255,255,.02)}
+.eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:1.5px;color:rgba(255,255,255,.55);text-transform:uppercase}
+.qr{background:#fff;border-radius:12px;padding:12px;width:220px;margin:12px 0}
+.qr svg{display:block;width:100%;height:auto}
+.addr{font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.dim{color:rgba(255,255,255,.5)}
+.tokrow{display:flex;gap:10px;align-items:center;margin-top:8px}
+code{font-family:ui-monospace,Menlo,monospace;background:rgba(255,255,255,.06);padding:8px 10px;border-radius:8px;font-size:13px;word-break:break-all;flex:1}
+button{font:inherit;font-size:13px;color:#000;background:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}
+.note{color:rgba(255,255,255,.32);font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-top:22px;line-height:1.6}
+</style></head><body><div class="wrap">
+<div class="mark">&gt;_</div>
+<h1>Pair your phone</h1>
+<p class="sub">In TethrX, tap <b>Scan to pair</b> and point your phone at a code below. Wi-Fi works at home; Tailscale works from anywhere.</p>
+<div id="cards"></div>
+<div class="card">
+  <div class="eyebrow">Pairing token</div>
+  <div class="tokrow"><code id="tok"></code><button onclick="navigator.clipboard.writeText(D.token)">Copy</button></div>
+  <p class="dim" style="margin:10px 0 0;font-size:12px">Or type it by hand with the address above.</p>
+</div>
+<p class="note">this page is only reachable from this computer · the token grants full access to run commands here — don't share a screenshot of it</p>
+</div>
+<script>
+var D = ${data};
+document.getElementById('tok').textContent = D.token;
+var host = document.getElementById('cards');
+if (!D.addrs.length) { host.innerHTML = '<div class="card dim">No network address found. Connect to Wi-Fi or start Tailscale, then reload.</div>'; }
+D.addrs.forEach(function(a){
+  var addr = a.ip + ':' + D.port;
+  var payload = 'tethrx://pair?addr=' + encodeURIComponent(addr) + '&token=' + encodeURIComponent(D.token);
+  var card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = '<div class="eyebrow">'+a.kind+'</div><div class="qr" id="q'+a.ip.replace(/\\./g,'_')+'"></div><div class="addr">'+addr+'</div>';
+  host.appendChild(card);
+  var qr = qrcode(0, 'M'); qr.addData(payload); qr.make();
+  document.getElementById('q'+a.ip.replace(/\\./g,'_')).innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+});
+</script>
+</body></html>`;
+}
 
 function send(res, status, body, headers = {}) {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
@@ -270,6 +347,14 @@ async function handle(req, res) {
     });
   }
 
+  // Local pairing page — reveals the token + QR codes, so it is LOOPBACK-ONLY.
+  if (pathname === "/pair") {
+    if (!isLoopback(req)) {
+      return send(res, 403, "Open this on the computer running the bridge: http://localhost:" + config.port + "/pair");
+    }
+    return send(res, 200, pairPageHTML(), { "content-type": "text/html; charset=utf-8" });
+  }
+
   // Static test client (unauthenticated shell; it asks for the token in-page).
   if (!pathname.startsWith("/api/")) return serveStatic(res, pathname);
 
@@ -441,6 +526,7 @@ server.listen(config.port, config.host, async () => {
   console.log(`  ├─ transport   ${config.transport}${config.transport === "acp" ? ` (approve/reject: ${grokHome ? "on" : "off"})` : ""}`);
   console.log(`  ├─ default cwd ${config.defaultCwd}`);
   console.log(`  ├─ web client  ${scheme}://${reachable}:${config.port}/`);
+  console.log(`  ├─ pair phone  ${scheme}://localhost:${config.port}/pair  (open here, scan in the app)`);
   console.log(`  ├─ push (ntfy) ${config.ntfy || "off  (set GROK_REMOTE_NTFY)"}`);
   if (config.publicUrl) console.log(`  ├─ public url  ${config.publicUrl}  (lock-screen approve/reject)`);
   console.log(`  └─ pairing token:\n\n     ${config.token}\n`);
