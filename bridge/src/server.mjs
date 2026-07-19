@@ -517,7 +517,10 @@ const server = useTls
   : createServer(handler);
 const scheme = useTls ? "https" : "http";
 
-server.listen(config.port, config.host, async () => {
+// Bind dual-stack when host is 0.0.0.0 so `localhost` works in browsers that try
+// IPv6 (::1) first (e.g. Safari). "::" still accepts IPv4, so LAN/Tailscale work.
+const listenHost = config.host === "0.0.0.0" ? "::" : config.host;
+server.listen(config.port, listenHost, async () => {
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);
