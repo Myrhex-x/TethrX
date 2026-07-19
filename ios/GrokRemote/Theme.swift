@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// xAI / Grok Build design language: a near-black canvas, white outline pills for
 /// interactive elements, a grotesque display face with negative tracking, mono
@@ -145,5 +146,36 @@ extension View {
             .toolbarBackground(Grok.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
+// MARK: - Brand mark (the "T" logo)
+
+/// The TethrX "T" logo, tinted to the current ink color. It's a template image, so
+/// it follows `foregroundStyle` exactly like the ">_" glyph it replaces throughout.
+struct TethrXMark: View {
+    var size: CGFloat
+    var color: Color = Grok.accent
+    var body: some View {
+        Image("TethrXLogo")
+            .resizable()
+            .renderingMode(.template)
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundStyle(color)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Haptics
+
+/// Thin wrapper over UIKit feedback generators for light interaction polish.
+enum Haptics {
+    static func tap(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+    static func success() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }

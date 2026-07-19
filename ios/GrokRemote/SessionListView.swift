@@ -62,7 +62,7 @@ struct SessionListView: View {
     private var header: some View {
         HStack(alignment: .center) {
             HStack(spacing: 10) {
-                Text(">_").font(Grok.mono(18, .bold)).foregroundStyle(Grok.accent)
+                TethrXMark(size: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("TETHRX").font(Grok.mono(13, .semibold)).tracking(1.2).foregroundStyle(Grok.text)
                     if let grok = app.health?.grok {

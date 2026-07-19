@@ -60,8 +60,7 @@ struct PairingView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 13) {
-                Text(">_")
-                    .font(Grok.mono(22, .bold)).foregroundStyle(Grok.accent)
+                TethrXMark(size: 30)
                     .frame(width: 52, height: 52)
                     .overlay(RoundedRectangle(cornerRadius: 13).stroke(Grok.hairlineStrong, lineWidth: 1))
                 VStack(alignment: .leading, spacing: 4) {
@@ -112,14 +111,15 @@ struct PairingView: View {
             }
         case .tsMac:
             cardShell("Install Tailscale on your computer") {
-                para("Tailscale is a free private network that lets your phone reach your computer from anywhere. Install it on the computer and sign in.")
-                note("Mac App Store, or tailscale.com/download. A menu-bar icon appears once it's on.")
-                nav("Tailscale is on my computer")
+                para("Tailscale is a free private network that links this phone to your computer from anywhere. Install it on your computer, then sign in to create a free account — you can use Google, Apple, GitHub, or email.")
+                note("Get it from the Mac App Store or tailscale.com/download. Once you're signed in, a menu-bar icon shows it's connected.")
+                nav("Installed and signed in")
             }
         case .tsPhone:
             cardShell("Install Tailscale on this phone") {
-                para("Install Tailscale from the App Store on this phone and sign in with the same account. Now both devices share one private network.")
-                nav("Tailscale is on my phone")
+                para("Now install Tailscale from the App Store on this phone and sign in with the same account you just used on your computer. Using the same account on both is what links the two devices.")
+                note("Open the Tailscale app and check that both your computer and this phone show up in the list and appear connected.")
+                nav("Signed in with the same account")
             }
         case .page:
             cardShell("Open the pairing page") {
@@ -189,24 +189,11 @@ struct PairingView: View {
         Text(s).font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
     }
-    private func codeLine(_ s: String) -> some View {
-        HStack(spacing: 8) {
-            Text(s).font(Grok.mono(13)).foregroundStyle(Grok.text)
-                .lineLimit(1).minimumScaleFactor(0.6).textSelection(.enabled)
-            Spacer(minLength: 0)
-            Button { UIPasteboard.general.string = s } label: {
-                Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .medium))
-            }.foregroundStyle(Grok.textDim)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(Grok.bg)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
+    private func codeLine(_ s: String) -> some View { CopyableCode(text: s) }
     private var divider: some View { Rectangle().fill(Grok.hairline).frame(height: 1) }
 
     private func choice(_ title: String, _ sub: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { Haptics.tap(); action() } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
@@ -225,7 +212,7 @@ struct PairingView: View {
 
     /// Advance control: a "completed" pill, plus a back link when not on step 1.
     @ViewBuilder private func nav(_ label: String) -> some View {
-        Button { focus = nil; idx = min(idx + 1, steps.count - 1) } label: {
+        Button { focus = nil; Haptics.tap(.medium); idx = min(idx + 1, steps.count - 1) } label: {
             HStack(spacing: 8) { Text(label); Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)) }
         }
         .buttonStyle(PillButton(kind: .prominent))
@@ -251,23 +238,40 @@ struct PairingView: View {
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    /// Shown on step 1 when credentials are already saved — reconnect in one tap
-    /// instead of walking the whole wizard again.
+    /// Shown on step 1 when credentials are already saved — a tidy "welcome back"
+    /// card so returning users reconnect in one tap instead of walking the wizard.
     private var reconnectShortcut: some View {
-        Button {
-            focus = nil
-            Task { await app.connect() }
-        } label: {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                if app.connecting { ProgressView().controlSize(.small).tint(.white) }
-                Image(systemName: "bolt.horizontal.circle").font(.system(size: 14, weight: .semibold))
-                Text(app.connecting ? "Reconnecting…" : "Already set up? Reconnect")
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.right").font(.system(size: 12, weight: .semibold))
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 14)).foregroundStyle(Grok.textDim)
+                Text("Welcome back").font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
             }
+            Text("This phone is already paired. Reconnect to the same computer — or set it up again below.")
+                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                focus = nil
+                Haptics.tap()
+                Task { await app.connect() }
+            } label: {
+                HStack(spacing: 9) {
+                    if app.connecting {
+                        ProgressView().controlSize(.small).tint(.white)
+                    } else {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                    }
+                    Text(app.connecting ? "Reconnecting…" : "Reconnect").tracking(0.3)
+                }
+            }
+            .buttonStyle(PillButton(kind: .prominent))
+            .disabled(app.connecting)
         }
-        .buttonStyle(PillButton(kind: .subtle))
-        .disabled(app.connecting)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private func field(label: String, placeholder: String, text: Binding<String>, secure: Bool) -> some View {
@@ -300,5 +304,35 @@ struct PairingView: View {
         app.baseURLString = addr
         app.token = tok
         Task { await app.connect() }
+    }
+}
+
+/// A monospaced command row with a copy button that flips to a checkmark on tap.
+private struct CopyableCode: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text).font(Grok.mono(13)).foregroundStyle(Grok.text)
+                .lineLimit(1).minimumScaleFactor(0.6).textSelection(.enabled)
+            Spacer(minLength: 0)
+            Button {
+                UIPasteboard.general.string = text
+                Haptics.tap()
+                withAnimation(.easeOut(duration: 0.15)) { copied = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+                    withAnimation(.easeIn(duration: 0.2)) { copied = false }
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(copied ? Grok.accent : Grok.textDim)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Grok.bg)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

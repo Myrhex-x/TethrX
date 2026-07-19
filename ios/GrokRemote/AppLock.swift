@@ -53,8 +53,7 @@ struct LockView: View {
         ZStack {
             Grok.bg.ignoresSafeArea()
             VStack(spacing: 20) {
-                Text(">_")
-                    .font(Grok.mono(30, .bold)).foregroundStyle(Grok.accent)
+                TethrXMark(size: 40)
                     .frame(width: 68, height: 68)
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
                 Text("TethrX is locked").font(Grok.sans(18, .semibold)).foregroundStyle(Grok.text)

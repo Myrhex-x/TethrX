@@ -70,6 +70,7 @@ final class AppState: ObservableObject {
             health = h
             sessions = try await client.listSessions()
             connected = true
+            if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
         } catch {
             connected = false
             errorMessage = friendly(error)

@@ -26,7 +26,7 @@ struct ChatView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 7) {
-                    Text(">_").font(Grok.mono(13, .bold)).foregroundStyle(Grok.accent)
+                    TethrXMark(size: 15)
                     Text(name).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text)
                 }
             }

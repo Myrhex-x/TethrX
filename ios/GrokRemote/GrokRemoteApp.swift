@@ -57,9 +57,7 @@ struct RootView: View {
 struct ReconnectSplash: View {
     var body: some View {
         VStack(spacing: 18) {
-            Text(">_")
-                .font(Grok.mono(30, .bold))
-                .foregroundStyle(Grok.accent)
+            TethrXMark(size: 40)
                 .frame(width: 68, height: 68)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
             HStack(spacing: 8) {

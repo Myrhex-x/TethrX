@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01157F16C4621AAF133D1ACC /* TethrXWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6589C5324A6E475E382F477D /* TethrXWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		02A622E230CFE8C5AADFCFA7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 852618810ACCDC91D9A97489 /* Assets.xcassets */; };
 		14BB01978075A3752C580A80 /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
 		4F9776BF65B0B102CF1FC7BF /* TethrXLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */; };
 		8303E04D875CC1FAECD4B00E /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
@@ -43,6 +44,7 @@
 		226D0756A8150867A0263A25 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		583894DD06DF65740766468F /* TethrXWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXWidgetBundle.swift; sourceTree = "<group>"; };
 		6589C5324A6E475E382F477D /* TethrXWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TethrXWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		852618810ACCDC91D9A97489 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXLiveActivity.swift; sourceTree = "<group>"; };
 		A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXActivityAttributes.swift; sourceTree = "<group>"; };
 		DEADBEEF0000000000000006 /* GrokRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -100,6 +102,7 @@
 				A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */,
 				8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */,
 				583894DD06DF65740766468F /* TethrXWidgetBundle.swift */,
+				852618810ACCDC91D9A97489 /* Assets.xcassets */,
 			);
 			name = TethrXWidget;
 			path = TethrXWidget;
@@ -214,6 +217,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				02A622E230CFE8C5AADFCFA7 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,7 +262,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -286,7 +290,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -418,7 +422,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -444,7 +448,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

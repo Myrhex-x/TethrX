@@ -9,7 +9,7 @@ struct TethrXLiveActivity: Widget {
         ActivityConfiguration(for: TethrXActivityAttributes.self) { context in
             // Lock screen / banner
             HStack(spacing: 12) {
-                Text(">_").font(.system(size: 20, weight: .bold, design: .monospaced)).foregroundStyle(.white)
+                mark(22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.sessionName)
                         .font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
@@ -25,7 +25,7 @@ struct TethrXLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Text(">_").font(.system(size: 18, weight: .bold, design: .monospaced)).foregroundStyle(.white)
+                    mark(20)
                 }
                 DynamicIslandExpandedRegion(.trailing) { badge(context.state.phase) }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -36,13 +36,20 @@ struct TethrXLiveActivity: Widget {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                Text(">_").font(.system(size: 13, weight: .bold, design: .monospaced))
+                mark(16)
             } compactTrailing: {
                 Image(systemName: glyph(context.state.phase))
             } minimal: {
                 Image(systemName: glyph(context.state.phase))
             }
         }
+    }
+
+    /// The "T" logo, tinted white for the dark Live Activity surface.
+    @ViewBuilder private func mark(_ size: CGFloat) -> some View {
+        Image("TethrXLogo")
+            .resizable().renderingMode(.template).interpolation(.high).scaledToFit()
+            .frame(width: size, height: size).foregroundStyle(.white)
     }
 
     @ViewBuilder private func badge(_ phase: String) -> some View {
