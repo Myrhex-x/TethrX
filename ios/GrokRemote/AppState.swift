@@ -11,6 +11,9 @@ final class AppState: ObservableObject {
     @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort) } }   // "", high, medium, low
     @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
     @Published var defaultAutoApprove: Bool { didSet { UserDefaults.standard.set(defaultAutoApprove, forKey: "bridge.autoApprove") } }
+    /// True after the user taps Disconnect — suppresses launch auto-reconnect until they
+    /// manually Connect again. Persisted so an explicit Disconnect survives relaunch.
+    @Published var userDisconnected: Bool { didSet { UserDefaults.standard.set(userDisconnected, forKey: "bridge.userDisconnected") } }
 
     @Published var health: HealthInfo?
     @Published var sessions: [SessionInfo] = []
@@ -31,6 +34,7 @@ final class AppState: ObservableObject {
         defaultEffort = d.string(forKey: "bridge.effort") ?? ""
         defaultPlanMode = d.bool(forKey: "bridge.planMode")
         defaultAutoApprove = d.bool(forKey: "bridge.autoApprove")
+        userDisconnected = d.bool(forKey: "bridge.userDisconnected")
     }
 
     private func store(_ key: String, _ value: String) {
@@ -57,6 +61,7 @@ final class AppState: ObservableObject {
             errorMessage = "Enter the bridge address and pairing token."
             return
         }
+        userDisconnected = false     // an explicit Connect re-enables launch auto-reconnect
         connecting = true
         errorMessage = nil
         defer { connecting = false }
@@ -75,7 +80,7 @@ final class AppState: ObservableObject {
     /// "logged in" across relaunches and TestFlight updates (token lives in the
     /// Keychain, address in UserDefaults — both survive updates).
     func bootstrap() async {
-        guard !connected, client != nil else { return }
+        guard !connected, client != nil, !userDisconnected else { return }
         bootstrapping = true
         await connect()
         bootstrapping = false
@@ -124,6 +129,7 @@ final class AppState: ObservableObject {
         health = nil
         sessions = []
         errorMessage = nil
+        userDisconnected = true       // stay on the pairing screen next launch, don't auto-reconnect
     }
 
     /// Debug-only: `-autoconnect` connects on launch, `-openSession <id>` deep-opens
