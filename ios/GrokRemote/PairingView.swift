@@ -1,17 +1,28 @@
 import SwiftUI
 import UIKit
 
-/// First-run setup as a 3-step wizard: run the bridge → open the pairing page →
-/// scan (or type) to connect. Each step is confirmed before advancing, so it's
-/// clear where the bridge, the QR, and the token come from.
+/// First-run setup as a precise, branching wizard. Prerequisites (Grok Build,
+/// Node, the bridge) → start the bridge → choose Wi-Fi or Tailscale (which adds
+/// its own steps) → open the pairing page → scan the matching QR (or type it).
 struct PairingView: View {
     @EnvironmentObject var app: AppState
     @FocusState private var focus: Field?
     @State private var showScanner = false
-    @State private var step = 0
+    @State private var idx = 0
+    @State private var path: NetPath = .undecided
 
     private enum Field { case address, token }
-    private let stepCount = 3
+    private enum NetPath { case undecided, wifi, tailscale }
+    private enum WStep { case grok, node, bridge, run, choose, tsMac, tsPhone, page, scan }
+
+    /// The ordered steps — the tail depends on the chosen network path.
+    private var steps: [WStep] {
+        let base: [WStep] = [.grok, .node, .bridge, .run, .choose]
+        let tail: [WStep] = path == .tailscale ? [.tsMac, .tsPhone, .page, .scan] : [.page, .scan]
+        return base + tail
+    }
+    private var current: WStep { steps[max(0, min(idx, steps.count - 1))] }
+    private var firstTailIndex: Int { 5 }   // index right after `choose`
 
     var body: some View {
         ScrollView {
@@ -23,7 +34,8 @@ struct PairingView: View {
             }
             .padding(24)
             .padding(.top, 24)
-            .animation(.easeInOut(duration: 0.22), value: step)
+            .animation(.easeInOut(duration: 0.22), value: idx)
+            .animation(.easeInOut(duration: 0.22), value: path)
         }
         .background(Grok.bg)
         .scrollDismissesKeyboard(.interactively)
@@ -33,12 +45,15 @@ struct PairingView: View {
         .onAppear {
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
+            if args.contains("-tsPath") { path = .tailscale }
             if let i = args.firstIndex(of: "-startStep"), i + 1 < args.count, let n = Int(args[i + 1]) {
-                step = max(0, min(n, stepCount - 1)); return   // UI screenshots only
+                idx = max(0, min(n, steps.count - 1)); return
             }
             #endif
-            // Returning / disconnected user with saved details → jump to the pair step.
-            if step == 0 && !app.token.isEmpty && !app.normalizedBase.isEmpty { step = 2 }
+            // Returning / disconnected user with saved details → jump to the final step.
+            if idx == 0 && !app.token.isEmpty && !app.normalizedBase.isEmpty {
+                path = .wifi; idx = steps.count - 1
+            }
         }
     }
 
@@ -56,9 +71,9 @@ struct PairingView: View {
                     Text("Set up your phone").font(Grok.sans(20, .semibold)).foregroundStyle(Grok.text)
                 }
             }
-            HStack(spacing: 6) {
-                ForEach(0..<stepCount, id: \.self) { i in
-                    Capsule().fill(i <= step ? Grok.accent : Grok.hairlineStrong)
+            HStack(spacing: 5) {
+                ForEach(0..<steps.count, id: \.self) { i in
+                    Capsule().fill(i <= idx ? Grok.accent : Grok.hairlineStrong)
                         .frame(height: 3).frame(maxWidth: .infinity)
                 }
             }
@@ -68,71 +83,101 @@ struct PairingView: View {
     // MARK: Steps
 
     @ViewBuilder private var card: some View {
-        switch step {
-        case 0: stepBridge
-        case 1: stepPage
-        default: stepPair
-        }
-    }
-
-    private var stepBridge: some View {
-        cardShell(1, "Start the bridge on your computer") {
-            para("TethrX drives Grok Build running on your computer. Install the small bridge program there and start it — it can run as an always-on service, so it's ready whenever your computer is on.")
-            codeLine("node bridge/src/server.mjs")
-            note("Get it, and the full setup, from the TethrX project's README on your computer.")
-            nextButton("The bridge is running")
-        }
-    }
-
-    private var stepPage: some View {
-        cardShell(2, "Open the pairing page") {
-            para("On that same computer, open this address in any browser:")
-            codeLine("http://localhost:4180/pair")
-            note("It shows a QR code — one for home Wi-Fi, one for Tailscale — plus your pairing token. That page only opens on the computer running the bridge, so the token stays on your machine.")
-            nextButton("I see the QR code")
-            backButton
-        }
-    }
-
-    private var stepPair: some View {
-        cardShell(3, "Pair your phone") {
-            para("Point your camera at the QR code on your computer screen.")
-            Button { focus = nil; showScanner = true } label: {
-                Label("Scan to pair", systemImage: "qrcode.viewfinder")
+        switch current {
+        case .grok:
+            cardShell("Install Grok Build") {
+                para("TethrX drives Grok Build — xAI's terminal coding agent. Install it on your computer and run it once to sign in.")
+                codeLine("grok --version")
+                note("That should print a version once it's installed and you're signed in.")
+                nav("Grok Build is installed")
             }
-            .buttonStyle(PillButton(kind: .prominent))
-
-            HStack(spacing: 12) {
-                divider
-                Text("or enter by hand").font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
-                divider
+        case .node:
+            cardShell("Install Node.js") {
+                para("The bridge runs on Node.js 20 or newer. Install it from nodejs.org if you don't already have it.")
+                codeLine("node --version")
+                note("Should print v20 or higher.")
+                nav("Node is installed")
             }
-            .padding(.vertical, 2)
-
-            field(label: "BRIDGE ADDRESS", placeholder: "192.168.1.10:4180  or  100.x", text: $app.baseURLString, secure: false)
-                .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                .focused($focus, equals: .address).submitLabel(.next).onSubmit { focus = .token }
-            field(label: "PAIRING TOKEN", placeholder: "from the pairing page", text: $app.token, secure: true)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .focused($focus, equals: .token).submitLabel(.go).onSubmit { focus = nil; Task { await app.connect() } }
-
-            Button { focus = nil; Task { await app.connect() } } label: {
-                HStack(spacing: 10) {
-                    if app.connecting { ProgressView().controlSize(.small).tint(.white) }
-                    Text(app.connecting ? "CONNECTING" : "CONNECT").tracking(1.5)
+        case .bridge:
+            cardShell("Download the TethrX bridge") {
+                para("Put the TethrX project on your computer — the bridge is the `bridge/` folder inside it. There are no dependencies to install.")
+                note("Get it from the TethrX project page (or the repo you were given).")
+                nav("I have the project")
+            }
+        case .run:
+            cardShell("Start the bridge") {
+                para("In the project folder, start the bridge. It prints a pairing token and keeps running.")
+                codeLine("node bridge/src/server.mjs")
+                note("Want it always-on? Run  bash bridge/scripts/install-service.sh  so it starts with your computer.")
+                nav("The bridge is running")
+            }
+        case .choose:
+            cardShell("How will your phone reach it?") {
+                para("Pick how this phone connects to the bridge:")
+                choice("Same Wi-Fi", "phone + computer on one network — simplest") { path = .wifi; idx = firstTailIndex }
+                choice("From anywhere", "works on cellular too, via Tailscale") { path = .tailscale; idx = firstTailIndex }
+                if idx > 0 { backButton }
+            }
+        case .tsMac:
+            cardShell("Install Tailscale on your computer") {
+                para("Tailscale is a free private network that lets your phone reach your computer from anywhere. Install it on the computer and sign in.")
+                note("Mac App Store, or tailscale.com/download. A menu-bar icon appears once it's on.")
+                nav("Tailscale is on my computer")
+            }
+        case .tsPhone:
+            cardShell("Install Tailscale on this phone") {
+                para("Install Tailscale from the App Store on this phone and sign in with the same account. Now both devices share one private network.")
+                nav("Tailscale is on my phone")
+            }
+        case .page:
+            cardShell("Open the pairing page") {
+                para("On your computer, open this address in any browser:")
+                codeLine("http://localhost:4180/pair")
+                note("It shows two QR codes — one for Wi-Fi, one for Tailscale — plus your token. It only opens on the computer running the bridge.")
+                nav("I see the QR codes")
+            }
+        case .scan:
+            cardShell(path == .tailscale ? "Scan the Tailscale code" : "Scan the Wi-Fi code") {
+                para(path == .tailscale
+                     ? "On the pairing page, tap Scan to pair and aim at the code labelled TAILSCALE."
+                     : "On the pairing page, tap Scan to pair and aim at the code labelled WI-FI / LAN.")
+                Button { focus = nil; showScanner = true } label: {
+                    Label("Scan to pair", systemImage: "qrcode.viewfinder")
                 }
-            }
-            .buttonStyle(PillButton(kind: .prominent)).disabled(app.connecting)
+                .buttonStyle(PillButton(kind: .prominent))
 
-            backButton
+                HStack(spacing: 12) {
+                    divider
+                    Text("or enter by hand").font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                    divider
+                }
+                .padding(.vertical, 2)
+
+                field(label: "BRIDGE ADDRESS", placeholder: path == .tailscale ? "100.x.y.z:4180" : "192.168.1.10:4180", text: $app.baseURLString, secure: false)
+                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .focused($focus, equals: .address).submitLabel(.next).onSubmit { focus = .token }
+                field(label: "PAIRING TOKEN", placeholder: "from the pairing page", text: $app.token, secure: true)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .focused($focus, equals: .token).submitLabel(.go).onSubmit { focus = nil; Task { await app.connect() } }
+
+                Button { focus = nil; Task { await app.connect() } } label: {
+                    HStack(spacing: 10) {
+                        if app.connecting { ProgressView().controlSize(.small).tint(.white) }
+                        Text(app.connecting ? "CONNECTING" : "CONNECT").tracking(1.5)
+                    }
+                }
+                .buttonStyle(PillButton(kind: .prominent)).disabled(app.connecting)
+
+                backButton
+            }
         }
     }
 
     // MARK: Card shell + pieces
 
-    private func cardShell<C: View>(_ n: Int, _ title: String, @ViewBuilder _ content: () -> C) -> some View {
+    private func cardShell<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Eyebrow("STEP \(n) / \(stepCount)")
+            Eyebrow("STEP \(idx + 1) / \(steps.count)")
             Text(title).font(Grok.sans(23, .semibold)).tracking(-0.4)
                 .foregroundStyle(Grok.text).fixedSize(horizontal: false, vertical: true)
             content()
@@ -168,14 +213,34 @@ struct PairingView: View {
     }
     private var divider: some View { Rectangle().fill(Grok.hairline).frame(height: 1) }
 
-    private func nextButton(_ label: String) -> some View {
-        Button { focus = nil; step = min(step + 1, stepCount - 1) } label: {
+    private func choice(_ title: String, _ sub: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
+                    Text(sub).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Grok.textFaint)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(RoundedRectangle(cornerRadius: 13).stroke(Grok.hairlineStrong, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 13))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Advance control: a "completed" pill, plus a back link when not on step 1.
+    @ViewBuilder private func nav(_ label: String) -> some View {
+        Button { focus = nil; idx = min(idx + 1, steps.count - 1) } label: {
             HStack(spacing: 8) { Text(label); Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)) }
         }
         .buttonStyle(PillButton(kind: .prominent))
+        if idx > 0 { backButton }
     }
     private var backButton: some View {
-        Button { step = max(step - 1, 0) } label: {
+        Button { path = idx == firstTailIndex ? .undecided : path; idx = max(idx - 1, 0) } label: {
             Label("back", systemImage: "chevron.left").font(Grok.mono(12))
         }
         .buttonStyle(.plain).foregroundStyle(Grok.textFaint)
