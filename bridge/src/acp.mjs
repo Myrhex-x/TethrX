@@ -229,9 +229,16 @@ export class AcpSession {
           readOnly: u._meta?.["x.ai/tool"]?.read_only,
         });
         break;
-      case "tool_call_update":
-        this.onEvent({ kind: "tool_update", id: u.toolCallId, status: u.status, title: u.title, exitCode: u.rawOutput?.exit_code });
+      case "tool_call_update": {
+        // Grok's edit tools attach a structured before/after diff in the update content.
+        const d = Array.isArray(u.content) ? u.content.find((c) => c?.type === "diff") : null;
+        this.onEvent({
+          kind: "tool_update", id: u.toolCallId, status: u.status, title: u.title,
+          exitCode: u.rawOutput?.exit_code,
+          diff: d ? { path: d.path, oldText: d.oldText ?? "", newText: d.newText ?? "" } : undefined,
+        });
         break;
+      }
       case "plan":
         this.onEvent({ kind: "plan", entries: u.entries });
         break;

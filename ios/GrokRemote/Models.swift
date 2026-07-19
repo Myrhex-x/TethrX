@@ -114,6 +114,16 @@ struct PermissionOption: Identifiable, Equatable, Codable {
     var isAllow: Bool { kind.lowercased().contains("allow") }
 }
 
+/// A before/after edit Grok made to a file (from an edit tool's diff).
+struct FileDiff: Equatable {
+    var path: String
+    var oldText: String
+    var newText: String
+    var filename: String { (path as NSString).lastPathComponent }
+    var oldLines: [String] { oldText.isEmpty ? [] : oldText.components(separatedBy: "\n") }
+    var newLines: [String] { newText.isEmpty ? [] : newText.components(separatedBy: "\n") }
+}
+
 /// One rendered line in the conversation. Streaming text is appended into the
 /// `text` of the current assistant/thought item, so bubbles grow token-by-token.
 struct ChatItem: Identifiable, Equatable {
@@ -124,6 +134,7 @@ struct ChatItem: Identifiable, Equatable {
     // Tool activity (ACP transport)
     var toolCallId: String? = nil
     var toolStatus: String? = nil        // "running" | "completed" | "failed"
+    var diff: FileDiff? = nil            // for edit tools
 
     // Permission request (ACP transport)
     var requestId: String? = nil

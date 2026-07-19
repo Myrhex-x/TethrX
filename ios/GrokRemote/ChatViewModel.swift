@@ -159,8 +159,13 @@ final class ChatViewModel: ObservableObject {
         case "tool_update":
             if let id = event["id"] as? String,
                let idx = items.lastIndex(where: { $0.toolCallId == id }) {
-                items[idx].toolStatus = event["status"] as? String
+                if let st = event["status"] as? String, !st.isEmpty { items[idx].toolStatus = st }
                 if let code = event["exitCode"] as? Int, code != 0 { items[idx].toolStatus = "failed" }
+                if let d = event["diff"] as? [String: Any], let path = d["path"] as? String {
+                    items[idx].diff = FileDiff(path: path,
+                                               oldText: d["oldText"] as? String ?? "",
+                                               newText: d["newText"] as? String ?? "")
+                }
             }
 
         case "plan":

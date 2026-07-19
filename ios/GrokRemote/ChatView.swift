@@ -282,16 +282,56 @@ struct ToolLine: View {
     private var tint: Color { item.toolStatus == "failed" ? Grok.danger : Grok.accent }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(glyph).font(Grok.mono(12, .bold)).foregroundStyle(tint)
-            Text(item.text).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(glyph).font(Grok.mono(12, .bold)).foregroundStyle(tint)
+                Text(item.text).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            if let diff = item.diff {
+                Rectangle().fill(Grok.hairline).frame(height: 1)
+                DiffView(diff: diff)
+            }
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// Monochrome before/after diff for an edit tool call (removed = red −, added = white +).
+struct DiffView: View {
+    let diff: FileDiff
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text").font(.system(size: 10)).foregroundStyle(Grok.textFaint)
+                Text(diff.filename).font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
+            ForEach(Array(diff.oldLines.enumerated()), id: \.offset) { _, l in row("−", l, removed: true) }
+            ForEach(Array(diff.newLines.enumerated()), id: \.offset) { _, l in row("+", l, removed: false) }
+        }
+        .padding(.bottom, 8)
+    }
+
+    private func row(_ marker: String, _ text: String, removed: Bool) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(marker).font(Grok.mono(11, .bold))
+                .foregroundStyle(removed ? Grok.danger : Grok.text).frame(width: 10, alignment: .leading)
+            Text(text.isEmpty ? " " : text)
+                .font(Grok.mono(11))
+                .foregroundStyle(removed ? Grok.danger.opacity(0.85) : Grok.text)
+                .strikethrough(removed, color: Grok.danger.opacity(0.4))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 2)
+        .background(removed ? Grok.danger.opacity(0.10) : Color.white.opacity(0.06))
     }
 }
 
