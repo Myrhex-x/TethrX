@@ -97,6 +97,13 @@ struct BridgeClient {
         try Self.check(resp)
     }
 
+    /// Set (or clear, with "") a session's folder grouping.
+    func setFolder(_ id: String, folder: String) async throws {
+        let (_, resp) = try await session.data(
+            for: try request("/api/sessions/\(id)", method: "PATCH", json: ["folder": folder]))
+        try Self.check(resp)
+    }
+
     func send(sessionId: String, text: String) async throws {
         let (_, resp) = try await session.data(
             for: try request("/api/sessions/\(sessionId)/messages", method: "POST", json: ["text": text]))

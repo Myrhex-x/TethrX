@@ -1,11 +1,14 @@
 import SwiftUI
+import UIKit
 
 /// Live conversation for one session, styled as a Grok Build console.
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
     @EnvironmentObject var snippets: SnippetStore
+    @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var showDetails = false
+    @State private var atBottom = true
     @FocusState private var composerFocused: Bool
 
     private var name: String {
@@ -57,37 +60,69 @@ struct ChatView: View {
     }
 
     private var transcript: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    ForEach(vm.items) { item in
-                        switch item.role {
-                        case .permission:
-                            PermissionCard(item: item) { optionId, always in
-                                Task { await vm.decide(item, optionId: optionId, always: always) }
-                            }.id(item.id)
-                        case .plan:
-                            PlanCard(item: item) { approved in
-                                Task { await vm.decidePlan(item, approved: approved) }
-                            }.id(item.id)
-                        default:
-                            ChatBubble(item: item).id(item.id)
+        GeometryReader { outer in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(vm.items) { item in
+                            switch item.role {
+                            case .permission:
+                                PermissionCard(item: item) { optionId, always in
+                                    Task { await vm.decide(item, optionId: optionId, always: always) }
+                                }.id(item.id)
+                            case .plan:
+                                PlanCard(item: item) { approved in
+                                    Task { await vm.decidePlan(item, approved: approved) }
+                                }.id(item.id)
+                            default:
+                                ChatBubble(item: item).id(item.id)
+                                    .contextMenu { copyButton(item.text) }
+                            }
                         }
+                        if showTyping { TypingIndicator().id("typing") }
+                        Color.clear.frame(height: 1).id(bottomID)
+                            .background(GeometryReader { g in
+                                Color.clear.preference(key: BottomOffsetKey.self,
+                                                       value: g.frame(in: .named("transcript")).minY)
+                            })
                     }
-                    if showTyping { TypingIndicator().id("typing") }
-                    Color.clear.frame(height: 1).id(bottomID)
+                    .padding(18)
                 }
-                .padding(18)
+                .coordinateSpace(name: "transcript")
+                .defaultScrollAnchor(.bottom)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+                .onPreferenceChange(BottomOffsetKey.self) { minY in
+                    let bottom = minY <= outer.size.height + 80
+                    if bottom != atBottom { atBottom = bottom }
+                }
+                .onChange(of: vm.items.count) { _, _ in if atBottom { scrollToBottom(proxy) } }
+                .onChange(of: lastText) { _, _ in if atBottom { scrollToBottom(proxy) } }
+                .onChange(of: vm.busy) { _, _ in if atBottom { scrollToBottom(proxy) } }
+                .overlay(alignment: .bottomTrailing) {
+                    if !atBottom { jumpButton(proxy) }
+                }
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: vm.items.count) { _, _ in scrollToBottom(proxy) }
-            .onChange(of: lastText) { _, _ in scrollToBottom(proxy) }
-            .onChange(of: vm.busy) { _, _ in scrollToBottom(proxy) }
-            .task {
-                // On open, wait for replayed history to lay out, then jump to the latest.
-                try? await Task.sleep(nanoseconds: 450_000_000)
-                proxy.scrollTo(bottomID, anchor: .bottom)
+        }
+    }
+
+    private func jumpButton(_ proxy: ScrollViewProxy) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+        } label: {
+            Image(systemName: "arrow.down")
+                .font(.system(size: 15, weight: .bold)).foregroundStyle(Grok.text)
+                .frame(width: 40, height: 40)
+                .background(Grok.raisedPressed, in: Circle())
+                .overlay(Circle().stroke(Grok.hairlineStrong, lineWidth: 1))
+        }
+        .padding(.trailing, 16).padding(.bottom, 12)
+    }
+
+    @ViewBuilder private func copyButton(_ text: String) -> some View {
+        if !text.isEmpty {
+            Button { UIPasteboard.general.string = text; Haptics.tap() } label: {
+                Label("Copy", systemImage: "doc.on.doc")
             }
         }
     }
@@ -95,35 +130,87 @@ struct ChatView: View {
     private var composer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Grok.hairline).frame(height: 1)
+            queuedRow
             snippetsRow
             chatControls
             commandPalette
             HStack(alignment: .bottom, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(">").font(Grok.mono(15, .bold)).foregroundStyle(Grok.accent).padding(.top, 2)
-                    TextField("", text: $draft, prompt: Text("message grok…").foregroundColor(Grok.textFaint), axis: .vertical)
+                    TextField("", text: $draft,
+                              prompt: Text(vm.busy ? "queue a follow-up…" : "message grok…").foregroundColor(Grok.textFaint),
+                              axis: .vertical)
                         .font(Grok.mono(14))
                         .foregroundStyle(Grok.text)
                         .lineLimit(1...5)
                         .focused($composerFocused)
+                    if dictation.supported {
+                        Button { dictation.toggle(base: draft) } label: {
+                            Image(systemName: dictation.isRecording ? "waveform" : "mic")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
+                                .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
+                        }
+                        .padding(.top, 1)
+                    }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 11)
                 .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairline, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 14)
+                    .stroke(dictation.isRecording ? Grok.accent.opacity(0.5) : Grok.hairline, lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
-                if vm.busy {
-                    CircleIconButton(system: "stop.fill", danger: true) { Task { await vm.cancel() } }
-                } else {
-                    CircleIconButton(system: "arrow.up", filled: !isEmptyDraft, enabled: !isEmptyDraft) {
-                        let text = draft; draft = ""
-                        Task { await vm.send(text) }
-                    }
-                }
+                trailingButtons
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
         }
         .background(Grok.bg)
+        .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
+    }
+
+    // Send when idle; when a turn is running, queue the draft (＋) or stop (■).
+    @ViewBuilder private var trailingButtons: some View {
+        if vm.busy {
+            HStack(spacing: 8) {
+                if !isEmptyDraft {
+                    CircleIconButton(system: "arrow.up") {
+                        vm.enqueue(draft); draft = ""; Haptics.tap()
+                    }
+                }
+                CircleIconButton(system: "stop.fill", danger: true) { Task { await vm.cancel() } }
+            }
+        } else {
+            CircleIconButton(system: "arrow.up", filled: !isEmptyDraft, enabled: !isEmptyDraft) {
+                if dictation.isRecording { dictation.stop() }
+                let text = draft; draft = ""
+                Task { await vm.send(text) }
+            }
+        }
+    }
+
+    // Queued follow-ups waiting for the current turn to finish; tap × to drop one.
+    @ViewBuilder private var queuedRow: some View {
+        if !vm.queued.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(vm.queued.enumerated()), id: \.offset) { i, msg in
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock").font(.system(size: 9, weight: .semibold))
+                            Text(msg.count > 22 ? String(msg.prefix(22)) + "…" : msg).lineLimit(1)
+                            Button { vm.queued.remove(at: i) } label: {
+                                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                            }
+                        }
+                        .font(Grok.mono(11, .medium))
+                        .foregroundStyle(Grok.textDim)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+            .padding(.top, 10)
+        }
     }
 
     // AI-app-style controls right by the composer: plan mode, reasoning effort, auto-approve.
@@ -274,6 +361,13 @@ struct ChatView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(bottomID, anchor: .bottom) }
     }
+}
+
+/// Tracks the bottom marker's position in the scroll viewport, so the chat view
+/// can show a "jump to latest" button once the user scrolls up from the bottom.
+private struct BottomOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 /// Animated three-dot "grok is thinking…" indicator, shown while a turn is in

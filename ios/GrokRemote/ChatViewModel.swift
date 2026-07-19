@@ -12,6 +12,7 @@ final class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var usage: SessionUsage?   // live token/context/cost meter
     @Published var commands: [SlashCommand] = []   // grok's slash commands (/compact, skills…)
+    @Published var queued: [String] = []           // follow-ups to send when the turn ends
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
@@ -94,7 +95,25 @@ final class ChatViewModel: ObservableObject {
     }
 
     func cancel() async {
+        queued.removeAll()                       // stopping drops any queued follow-ups
         await client.cancel(sessionId: session.id)
+    }
+
+    /// Queue a follow-up to send automatically once the current turn finishes.
+    func enqueue(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        queued.append(t)
+    }
+
+    /// Send the next queued follow-up (after a beat, so the bridge is idle again).
+    private func drainQueue() {
+        guard !queued.isEmpty else { return }
+        let next = queued.removeFirst()
+        Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            await send(next)
+        }
     }
 
     /// Answer a permission request (Approve/Reject). optionId nil cancels the turn.
@@ -248,6 +267,7 @@ final class ChatViewModel: ObservableObject {
             assistantIndex = nil
             thoughtIndex = nil
             liveActivity.end(phase: "done", detail: "Finished")
+            drainQueue()
 
         case "error":
             busy = false

@@ -26,12 +26,13 @@ function normalizeUsage(u) {
 }
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
     this.effort = effort;
     this.title = title || "New session";
+    this.folder = folder || "";          // optional grouping label for the phone's session list
     this.transport = transport || "acp"; // "acp" | "headless"
     this.planMode = planMode || false;
     this.autoApprove = autoApprove || false;    // "always allow" — auto-approve tool permissions
@@ -53,6 +54,7 @@ class Session {
     return {
       id: this.id,
       title: this.title,
+      folder: this.folder || "",
       cwd: this.cwd,
       model: this.model,
       transport: this.transport,
@@ -90,7 +92,7 @@ class Session {
   toMetadata() {
     return {
       id: this.id, cwd: this.cwd, model: this.model, effort: this.effort,
-      transport: this.transport, title: this.title, planMode: this.planMode,
+      transport: this.transport, title: this.title, folder: this.folder || "", planMode: this.planMode,
       autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
       createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
     };

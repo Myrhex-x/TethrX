@@ -12,6 +12,7 @@ struct HealthInfo: Codable {
 struct SessionInfo: Codable, Identifiable, Hashable {
     let id: String
     var title: String
+    var folder: String?
     var cwd: String?
     var model: String?
     var transport: String?

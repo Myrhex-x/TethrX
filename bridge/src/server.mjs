@@ -443,6 +443,7 @@ async function handle(req, res) {
     if (!sub && req.method === "PATCH") {
       const body = await readJson(req).catch(() => ({}));
       if (typeof body.title === "string" && body.title.trim()) store.rename(m[1], body.title.trim());
+      if (typeof body.folder === "string") { session.folder = body.folder.trim(); store.save(); }
       return send(res, 200, session.toJSON());
     }
 

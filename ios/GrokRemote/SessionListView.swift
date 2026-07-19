@@ -9,6 +9,10 @@ struct SessionListView: View {
     @State private var creating = false
     @State private var renaming: SessionInfo?
     @State private var renameText = ""
+    @State private var foldering: SessionInfo?   // session being moved into a new folder
+    @State private var folderText = ""
+    @State private var collapsed: Set<String> = []
+    @State private var query = ""
     @State private var showSettings = false
 
     var body: some View {
@@ -31,6 +35,16 @@ struct SessionListView: View {
                     renaming = nil
                 }
                 Button("Cancel", role: .cancel) { renaming = nil }
+            }
+            .alert("New folder", isPresented: Binding(get: { foldering != nil }, set: { if !$0 { foldering = nil } })) {
+                TextField("Folder name", text: $folderText)
+                Button("Move") {
+                    if let s = foldering, !folderText.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Task { await app.setFolder(s.id, folder: folderText) }
+                    }
+                    foldering = nil
+                }
+                Button("Cancel", role: .cancel) { foldering = nil }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView().environmentObject(app).environmentObject(lock).environmentObject(snippets)
@@ -110,22 +124,123 @@ struct SessionListView: View {
             }
             .padding(.bottom, 12)
 
+            if app.sessions.count > 6 { searchField.padding(.bottom, 14) }
+
             if app.sessions.isEmpty {
                 Text("// no sessions yet — tap + to start")
                     .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
+            } else if filteredSessions.isEmpty {
+                Text("// nothing matches \u{201C}\(query)\u{201D}")
+                    .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 24)
             } else {
-                ForEach(Array(app.sessions.enumerated()), id: \.element.id) { index, session in
-                    if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
-                    NavigationLink(value: session) { SessionRow(session: session) }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
-                            Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
+                let groups = groupedSessions
+                let hasFolders = groups.contains { !$0.folder.isEmpty }
+                ForEach(groups, id: \.folder) { group in
+                    if !group.folder.isEmpty || hasFolders {
+                        folderHeader(group.folder.isEmpty ? "Ungrouped" : group.folder,
+                                     key: group.folder, count: group.items.count)
+                    }
+                    if !collapsed.contains(group.folder) {
+                        ForEach(Array(group.items.enumerated()), id: \.element.id) { index, session in
+                            if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
+                            sessionLink(session)
                         }
+                    }
+                    if hasFolders { Color.clear.frame(height: 8) }
                 }
             }
+        }
+    }
+
+    // Session list, filtered by the search query (title, folder, working dir, id).
+    private var filteredSessions: [SessionInfo] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return app.sessions }
+        return app.sessions.filter {
+            $0.title.lowercased().contains(q)
+            || ($0.folder?.lowercased().contains(q) ?? false)
+            || ($0.cwd?.lowercased().contains(q) ?? false)
+            || $0.id.lowercased().hasPrefix(q)
+        }
+    }
+
+    // Ungrouped sessions first, then folders alphabetically; order within a group preserved.
+    private var groupedSessions: [(folder: String, items: [SessionInfo])] {
+        let groups = Dictionary(grouping: filteredSessions) { ($0.folder?.isEmpty == false) ? $0.folder! : "" }
+        var out: [(String, [SessionInfo])] = []
+        if let ungrouped = groups[""], !ungrouped.isEmpty { out.append(("", ungrouped)) }
+        for name in groups.keys.filter({ !$0.isEmpty }).sorted() { out.append((name, groups[name]!)) }
+        return out
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+            TextField("", text: $query, prompt: Text("search sessions").foregroundColor(Grok.textFaint))
+                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+                }
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func folderHeader(_ name: String, key: String, count: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: collapsed.contains(key) ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint).frame(width: 10)
+                Image(systemName: key.isEmpty ? "tray" : "folder.fill")
+                    .font(.system(size: 11)).foregroundStyle(Grok.textDim)
+                Text(name).font(Grok.mono(12, .semibold)).tracking(0.5).foregroundStyle(Grok.textDim)
+                Text("\(count)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sessionLink(_ session: SessionInfo) -> some View {
+        NavigationLink(value: session) { SessionRow(session: session) }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
+                moveMenu(session)
+                Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
+            }
+    }
+
+    private func moveMenu(_ session: SessionInfo) -> some View {
+        Menu {
+            ForEach(app.folders, id: \.self) { f in
+                if f != session.folder {
+                    Button { Task { await app.setFolder(session.id, folder: f) } } label: { Label(f, systemImage: "folder") }
+                }
+            }
+            Button { folderText = ""; foldering = session } label: { Label("New folder…", systemImage: "folder.badge.plus") }
+            if let cur = session.folder, !cur.isEmpty {
+                Button(role: .destructive) { Task { await app.setFolder(session.id, folder: "") } } label: {
+                    Label("Remove from folder", systemImage: "folder.badge.minus")
+                }
+            }
+        } label: {
+            Label("Move to folder", systemImage: "folder")
         }
     }
 

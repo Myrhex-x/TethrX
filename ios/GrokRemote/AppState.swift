@@ -125,6 +125,21 @@ final class AppState: ObservableObject {
         } catch { errorMessage = friendly(error) }
     }
 
+    /// Distinct non-empty folder names across sessions, for the "move to folder" menu.
+    var folders: [String] {
+        Array(Set(sessions.compactMap { $0.folder }.filter { !$0.isEmpty })).sorted()
+    }
+
+    /// Move a session into a folder (or clear it with an empty string).
+    func setFolder(_ id: String, folder: String) async {
+        guard let client else { return }
+        let trimmed = folder.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await client.setFolder(id, folder: trimmed)
+            if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].folder = trimmed }
+        } catch { errorMessage = friendly(error) }
+    }
+
     func disconnect() {
         connected = false
         health = nil
