@@ -114,9 +114,10 @@ struct PairingView: View {
     private var tips: some View {
         VStack(alignment: .leading, spacing: 10) {
             Rectangle().fill(Grok.hairline).frame(height: 1).padding(.bottom, 6)
-            tip("run the bridge on your computer: node bridge/src/server.mjs")
-            tip("enter the address it prints, and its pairing token")
-            tip("same network, or use Tailscale / a relay for cellular")
+            Eyebrow("TO CONNECT")
+            tip("start the bridge on your computer — it prints a bridge address and a pairing token")
+            tip("enter both above, then tap connect — on the same wi-fi this just works")
+            tip("away from home? add both devices to Tailscale, then use the Mac's 100.x address")
         }
         .padding(.top, 4)
     }
