@@ -10,8 +10,23 @@ import { join, dirname } from "node:path";
 
 const HISTORY_LIMIT = 5000;
 
+/** Zeroed usage counters. `contextTokens`/`contextWindow` describe the latest
+ *  turn's footprint vs the model's window; the rest are lifetime totals. */
+function emptyUsage() {
+  return {
+    turns: 0,
+    inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedReadTokens: 0, totalTokens: 0,
+    costUsdTicks: 0, apiDurationMs: 0,
+    contextTokens: 0, contextWindow: 0, lastModelId: "",
+  };
+}
+
+function normalizeUsage(u) {
+  return { ...emptyUsage(), ...(u && typeof u === "object" ? u : {}) };
+}
+
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -24,6 +39,7 @@ class Session {
     this.createdAt = createdAt || new Date().toISOString();
     this.status = "idle";                // "idle" | "running"
     this.turnCount = turnCount || 0;
+    this.usage = normalizeUsage(usage);  // token/cost usage, accumulated + persisted
 
     this.historyPath = null;             // set by the store; where events are persisted
     this.acp = null;                     // AcpSession (lazy, set by the server for ACP sessions)
@@ -47,7 +63,27 @@ class Session {
       turnCount: this.turnCount,
       createdAt: this.createdAt,
       lastEventId: this._nextEventId,
+      usage: this.usage,
     };
+  }
+
+  /** Fold one turn's grok-reported usage into the session totals. */
+  addUsage({ usage, contextTokens, contextWindow, modelId } = {}) {
+    const u = this.usage;
+    if (usage && typeof usage === "object") {
+      u.turns += 1;
+      u.inputTokens += usage.inputTokens || 0;
+      u.outputTokens += usage.outputTokens || 0;
+      u.reasoningTokens += usage.reasoningTokens || 0;
+      u.cachedReadTokens += usage.cachedReadTokens || 0;
+      u.totalTokens += usage.totalTokens || 0;
+      u.costUsdTicks += usage.costUsdTicks || 0;
+      u.apiDurationMs += usage.apiDurationMs || 0;
+    }
+    if (contextTokens != null) u.contextTokens = contextTokens;
+    if (contextWindow) u.contextWindow = contextWindow;
+    if (modelId) u.lastModelId = modelId;
+    return u;
   }
 
   /** Durable metadata, persisted across bridge restarts (no live/transient state). */
@@ -56,7 +92,7 @@ class Session {
       id: this.id, cwd: this.cwd, model: this.model, effort: this.effort,
       transport: this.transport, title: this.title, planMode: this.planMode,
       autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
-      createdAt: this.createdAt, turnCount: this.turnCount,
+      createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
     };
   }
 

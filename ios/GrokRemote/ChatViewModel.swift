@@ -10,6 +10,7 @@ final class ChatViewModel: ObservableObject {
     @Published var live = false
     @Published var mode: String?          // "plan" while Grok is planning
     @Published var errorMessage: String?
+    @Published var usage: SessionUsage?   // live token/context/cost meter
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
@@ -29,6 +30,7 @@ final class ChatViewModel: ObservableObject {
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
         self.autoApprove = session.autoApprove ?? false
+        self.usage = session.usage
     }
 
     /// Change plan mode / reasoning effort / auto-approve for this session, live.
@@ -210,6 +212,13 @@ final class ChatViewModel: ObservableObject {
 
         case "mode":
             mode = event["mode"] as? String
+
+        case "usage":
+            if let dict = event["usage"] as? [String: Any],
+               let data = try? JSONSerialization.data(withJSONObject: dict),
+               let u = try? JSONDecoder().decode(SessionUsage.self, from: data) {
+                usage = u
+            }
 
         case "turn_complete":
             busy = false

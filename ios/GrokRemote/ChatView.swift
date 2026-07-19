@@ -4,6 +4,7 @@ import SwiftUI
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
     @State private var draft = ""
+    @State private var showDetails = false
     @FocusState private var composerFocused: Bool
 
     private var name: String {
@@ -29,7 +30,13 @@ struct ChatView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    Button { showDetails = true } label: {
+                        Image(systemName: "chart.bar.doc.horizontal").font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Grok.textDim)
+                    .accessibilityLabel("Session details")
+
                     if vm.mode == "plan" {
                         Text("PLAN").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
                             .padding(.horizontal, 6).padding(.vertical, 2)
@@ -45,6 +52,7 @@ struct ChatView: View {
         }
         .onAppear { vm.start() }
         .onDisappear { vm.stop() }
+        .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
     }
 
     private var transcript: some View {
@@ -135,6 +143,14 @@ struct ChatView: View {
                         .chip(on: vm.autoApprove)
                 }
                 .buttonStyle(.plain)
+
+                // Live context-window meter — tap for full session usage.
+                if let u = vm.usage, u.contextWindow > 0 {
+                    Button { showDetails = true } label: {
+                        Label("\(Int(u.contextFraction * 100))% ctx", systemImage: "gauge.with.needle").chip(on: false)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, 14)
         }
@@ -311,6 +327,113 @@ struct PermissionCard: View {
             return (opt.isAllow ? "✓ " : "✗ ") + opt.name
         }
         return "✓ responded"
+    }
+}
+
+/// Per-session usage + technical detail: live context-window meter, token
+/// breakdown (incl. thinking), cost, and the session's configuration.
+struct SessionDetailsSheet: View {
+    @ObservedObject var vm: ChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var u: SessionUsage { vm.usage ?? SessionUsage() }
+    private var session: SessionInfo { vm.session }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    context
+                    tokens
+                    technical
+                }
+                .padding(20)
+            }
+            .background(Grok.bg)
+            .scrollIndicators(.hidden)
+            .navigationTitle("Session")
+            .navigationBarTitleDisplayMode(.inline)
+            .grokBar()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }.foregroundStyle(Grok.text).fontWeight(.semibold)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var context: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("CONTEXT WINDOW")
+            if u.contextWindow > 0 {
+                UsageBar(fraction: u.contextFraction)
+                HStack {
+                    Text("\(Fmt.tokens(u.contextTokens)) / \(Fmt.tokens(u.contextWindow))")
+                        .font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text)
+                    Spacer()
+                    Text("\(Int(u.contextFraction * 100))% used · \(Fmt.tokens(u.contextRemaining)) left")
+                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                }
+            } else {
+                Text("Send a message to see context usage.")
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+            }
+        }
+    }
+
+    private var tokens: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("THIS SESSION")
+            row("Total tokens", Fmt.tokens(u.totalTokens))
+            row("Input", Fmt.tokens(u.inputTokens))
+            row("Output", Fmt.tokens(u.outputTokens))
+            row("Thinking", Fmt.tokens(u.reasoningTokens))
+            row("Cached read", Fmt.tokens(u.cachedReadTokens))
+            Rectangle().fill(Grok.hairline).frame(height: 1).padding(.vertical, 2)
+            row("Turns", "\(u.turns)")
+            row("Est. cost", Fmt.cost(u.costUSD))
+            row("Compute time", Fmt.duration(u.apiDurationMs))
+            Text("Cost is grok's own reported estimate.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+        }
+    }
+
+    private var technical: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("TECHNICAL")
+            row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : "grok default") : u.lastModelId)
+            row("Reasoning effort", vm.effort.isEmpty ? "auto" : vm.effort)
+            row("Plan mode", vm.planMode ? "on" : "off")
+            row("Auto-approve", vm.autoApprove ? "on" : "off")
+            row("Transport", session.transport ?? "acp")
+            row("Directory", session.cwd.map { ($0 as NSString).lastPathComponent } ?? "—")
+            row("Session ID", String(session.id.prefix(8)))
+        }
+    }
+
+    private func row(_ k: String, _ v: String) -> some View {
+        HStack {
+            Text(k).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+            Spacer()
+            Text(v).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+        }
+    }
+}
+
+/// Thin horizontal fill meter (0…1), white on a raised track.
+struct UsageBar: View {
+    let fraction: Double
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Grok.raised)
+                Capsule().fill(Grok.accent)
+                    .frame(width: max(4, geo.size.width * min(1, max(0, fraction))))
+            }
+        }
+        .frame(height: 8)
+        .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
     }
 }
 

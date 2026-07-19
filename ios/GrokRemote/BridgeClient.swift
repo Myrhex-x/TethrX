@@ -38,6 +38,7 @@ struct BridgeClient {
     private func request(_ path: String, method: String = "GET", json: [String: Any]? = nil) throws -> URLRequest {
         var req = URLRequest(url: try url(path))
         req.httpMethod = method
+        req.timeoutInterval = 15   // bound failed reconnects (streaming sets its own)
         req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
         if let json {
             req.httpBody = try JSONSerialization.data(withJSONObject: json)
@@ -65,6 +66,13 @@ struct BridgeClient {
         try Self.check(resp)
         struct Wrapper: Codable { let sessions: [SessionInfo] }
         return try JSONDecoder().decode(Wrapper.self, from: data).sessions
+    }
+
+    /// Overall token/cost usage across all sessions (`GET /api/usage`).
+    func usage() async throws -> UsageReport {
+        let (data, resp) = try await session.data(for: try request("/api/usage"))
+        try Self.check(resp)
+        return try JSONDecoder().decode(UsageReport.self, from: data)
     }
 
     func createSession(cwd: String?, effort: String? = nil, planMode: Bool = false, autoApprove: Bool = false) async throws -> SessionInfo {

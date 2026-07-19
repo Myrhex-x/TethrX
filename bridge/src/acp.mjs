@@ -68,6 +68,8 @@ export class AcpSession {
     this.proc = null;
     this.rl = null;
     this.grokSessionId = null;
+    this.contextWindow = null;       // model's max context tokens (from initialize)
+    this.currentModelId = null;      // grok's chosen model when we don't pin one
     this.lastActivity = Date.now();
     this._nextId = 1;
     this._pending = new Map();       // our request id -> {resolve, reject}
@@ -93,10 +95,17 @@ export class AcpSession {
     this.proc.on("close", () => this.onEvent({ kind: "closed" }));
     this.proc.on("error", (e) => this.onEvent({ kind: "error", message: `grok agent failed: ${e.message}` }));
 
-    await this._request("initialize", {
+    const init = await this._request("initialize", {
       protocolVersion: 1,
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
     });
+    // Capture the active model's context window so the phone can show a real meter.
+    try {
+      const ms = init?._meta?.modelState;
+      const cur = ms?.availableModels?.find((m) => m.modelId === ms?.currentModelId) || ms?.availableModels?.[0];
+      this.contextWindow = cur?._meta?.totalContextTokens || this.contextWindow;
+      this.currentModelId = ms?.currentModelId || this.currentModelId;
+    } catch { /* usage meter is best-effort */ }
 
     // Resume prior context if we have a grok sessionId; otherwise start fresh.
     if (this.resumeSessionId) {
@@ -240,7 +249,17 @@ export class AcpSession {
       prompt: [{ type: "text", text }],
     });
     this.lastActivity = Date.now();
-    return { stopReason: result?.stopReason || "end_turn" };
+    // grok reports token usage for the turn in the result _meta — surface it so the
+    // bridge can accumulate per-session + overall usage.
+    const meta = result?._meta || {};
+    const usage = meta.usage || null;
+    return {
+      stopReason: result?.stopReason || "end_turn",
+      usage,   // { inputTokens, outputTokens, totalTokens, cachedReadTokens, reasoningTokens, costUsdTicks, modelCalls, apiDurationMs, numTurns }
+      contextTokens: (usage?.inputTokens ?? meta.inputTokens) ?? null,  // ~current conversation footprint
+      contextWindow: this.contextWindow || null,
+      modelId: meta.modelId || this.currentModelId || this.model || null,
+    };
   }
 
   cancel() {

@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var sessions: [SessionInfo] = []
     @Published var connected = false
     @Published var connecting = false
+    @Published var bootstrapping = false   // first-launch auto-reconnect in progress
     @Published var errorMessage: String?
 
     /// Set by a debug launch argument to auto-open a session (UI testing only).
@@ -68,6 +69,16 @@ final class AppState: ObservableObject {
             connected = false
             errorMessage = friendly(error)
         }
+    }
+
+    /// On launch, reconnect automatically from saved credentials so the user stays
+    /// "logged in" across relaunches and TestFlight updates (token lives in the
+    /// Keychain, address in UserDefaults — both survive updates).
+    func bootstrap() async {
+        guard !connected, client != nil else { return }
+        bootstrapping = true
+        await connect()
+        bootstrapping = false
     }
 
     func reloadSessions() async {

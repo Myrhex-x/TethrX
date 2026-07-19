@@ -22,8 +22,82 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var turnCount: Int
     var createdAt: String
     var lastEventId: Int?
+    var usage: SessionUsage?
 
     var isRunning: Bool { status == "running" }
+}
+
+/// Token / cost usage grok reports, accumulated per session by the bridge.
+/// `contextTokens` vs `contextWindow` is the live context-window meter; the rest
+/// are lifetime totals for the session.
+struct SessionUsage: Codable, Hashable {
+    var turns = 0
+    var inputTokens = 0
+    var outputTokens = 0
+    var reasoningTokens = 0        // grok's "thinking" tokens
+    var cachedReadTokens = 0
+    var totalTokens = 0
+    var costUsdTicks: Double = 0   // grok-reported cost; USD = ticks / 1e10
+    var apiDurationMs: Double = 0
+    var contextTokens = 0          // ~current conversation footprint
+    var contextWindow = 0          // model's max context (e.g. 500k)
+    var lastModelId = ""
+
+    var costUSD: Double { costUsdTicks / 1e10 }
+    var contextFraction: Double { contextWindow > 0 ? min(1, Double(contextTokens) / Double(contextWindow)) : 0 }
+    var contextRemaining: Int { max(0, contextWindow - contextTokens) }
+
+    enum CodingKeys: String, CodingKey {
+        case turns, inputTokens, outputTokens, reasoningTokens, cachedReadTokens, totalTokens
+        case costUsdTicks, apiDurationMs, contextTokens, contextWindow, lastModelId
+    }
+
+    init() {}
+
+    // Tolerant decode: any missing/mistyped key falls back to its default (older
+    // sessions, future fields); an SSE `usage` dictionary decodes the same way.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func i(_ k: CodingKeys) -> Int { (try? c.decode(Int.self, forKey: k)) ?? 0 }
+        func d(_ k: CodingKeys) -> Double { (try? c.decode(Double.self, forKey: k)) ?? 0 }
+        turns = i(.turns); inputTokens = i(.inputTokens); outputTokens = i(.outputTokens)
+        reasoningTokens = i(.reasoningTokens); cachedReadTokens = i(.cachedReadTokens); totalTokens = i(.totalTokens)
+        costUsdTicks = d(.costUsdTicks); apiDurationMs = d(.apiDurationMs)
+        contextTokens = i(.contextTokens); contextWindow = i(.contextWindow)
+        lastModelId = (try? c.decode(String.self, forKey: .lastModelId)) ?? ""
+    }
+}
+
+/// Response of `GET /api/usage` — token/cost totals across all sessions.
+struct UsageReport: Codable {
+    struct Totals: Codable {
+        var turns = 0, inputTokens = 0, outputTokens = 0, reasoningTokens = 0
+        var cachedReadTokens = 0, totalTokens = 0
+        var costUsdTicks: Double = 0, apiDurationMs: Double = 0
+    }
+    var totals = Totals()
+    var sessionCount = 0
+    var contextWindow = 0
+    var costUSD: Double { totals.costUsdTicks / 1e10 }
+}
+
+/// Human-friendly formatting for tokens, cost, and durations.
+enum Fmt {
+    static func tokens(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.2fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return String(format: "%.1fk", Double(n) / 1_000) }
+        return "\(n)"
+    }
+    static func cost(_ usd: Double) -> String {
+        if usd <= 0 { return "$0.00" }
+        if usd < 0.01 { return String(format: "$%.4f", usd) }
+        return String(format: "$%.2f", usd)
+    }
+    static func duration(_ ms: Double) -> String {
+        let s = ms / 1000
+        if s >= 60 { return String(format: "%.1f min", s / 60) }
+        return String(format: "%.1fs", s)
+    }
 }
 
 /// How a rendered conversation line should look.

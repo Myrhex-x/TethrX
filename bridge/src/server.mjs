@@ -217,6 +217,8 @@ function startAcpTurn(session, body) {
     try {
       const acp = await ensureAcp(session);
       const result = await acp.prompt(body.text);
+      session.addUsage(result);                                    // fold grok's token report in
+      session.emit({ kind: "usage", usage: session.usage });       // live meter update
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
       pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
     } catch (err) {
@@ -286,6 +288,19 @@ async function handle(req, res) {
   // Everything else under /api requires the pairing token.
   if (!authed(req, url)) {
     return send(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token>" });
+  }
+
+  // Aggregate token/cost usage across every session (overall meter).
+  if (pathname === "/api/usage" && req.method === "GET") {
+    const sessions = store.list();
+    const totals = { turns: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedReadTokens: 0, totalTokens: 0, costUsdTicks: 0, apiDurationMs: 0 };
+    let contextWindow = 0;
+    for (const s of sessions) {
+      const u = s.usage || {};
+      for (const k of Object.keys(totals)) totals[k] += u[k] || 0;
+      if (u.contextWindow) contextWindow = u.contextWindow;
+    }
+    return send(res, 200, { totals, sessionCount: sessions.length, contextWindow });
   }
 
   // /api/sessions
