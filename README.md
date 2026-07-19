@@ -25,17 +25,18 @@ Everything below is **built and tested** against a real `grok` install.
 
 ### 1. Run the bridge (on the machine where Grok Build is installed)
 
+Needs **Node.js 20+** and **Grok Build** installed + signed in.
+
 ```bash
-# Node 20+.  (On this machine: ~/.local/node24/bin/node)
-node bridge/src/server.mjs
+npx tethrx-bridge
 ```
 
-It prints a **pairing token** and its address. Bind for your phone and keep it running:
+It prints a **pairing token** and its address. Want it always-on?
 
 ```bash
-# always-on launchd service, bound to your LAN
+npm i -g tethrx-bridge && tethrx-bridge
+# or, from a clone of this repo, the launchd service:
 bash bridge/scripts/install-service.sh
-# token is printed once in ~/.grok-remote/bridge.log
 ```
 
 **Easiest pairing:** open **`http://localhost:4180/pair`** on the computer running the bridge. It shows a scannable QR code (one for Wi-Fi, one for Tailscale) plus the token to copy. That page is **loopback-only** — the token never leaves the machine.

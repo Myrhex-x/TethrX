@@ -1,16 +1,36 @@
 {
-  "name": "grok-remote-bridge",
+  "name": "tethrx-bridge",
   "version": "0.1.0",
-  "private": true,
+  "description": "Run Grok Build from your phone — the local bridge for the TethrX iOS app. Exposes a running Grok Build install to your phone over HTTP + SSE, with per-tool approvals.",
   "type": "module",
-  "description": "Local bridge daemon that exposes a running Grok Build install to a phone client over HTTP + SSE.",
   "bin": {
-    "grok-remote": "src/server.mjs"
+    "tethrx-bridge": "src/server.mjs"
   },
+  "main": "src/server.mjs",
+  "files": [
+    "src",
+    "public",
+    "scripts"
+  ],
   "scripts": {
     "start": "node src/server.mjs"
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "keywords": [
+    "grok",
+    "grok-build",
+    "xai",
+    "tethrx",
+    "bridge",
+    "coding-agent"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Myrhex-x/TethrX.git",
+    "directory": "bridge"
+  },
+  "homepage": "https://github.com/Myrhex-x/TethrX#readme"
 }

@@ -13,16 +13,16 @@ struct PairingView: View {
 
     private enum Field { case address, token }
     private enum NetPath { case undecided, wifi, tailscale }
-    private enum WStep { case grok, node, bridge, run, choose, tsMac, tsPhone, page, scan }
+    private enum WStep { case grok, node, run, choose, tsMac, tsPhone, page, scan }
 
     /// The ordered steps — the tail depends on the chosen network path.
     private var steps: [WStep] {
-        let base: [WStep] = [.grok, .node, .bridge, .run, .choose]
+        let base: [WStep] = [.grok, .node, .run, .choose]
         let tail: [WStep] = path == .tailscale ? [.tsMac, .tsPhone, .page, .scan] : [.page, .scan]
         return base + tail
     }
     private var current: WStep { steps[max(0, min(idx, steps.count - 1))] }
-    private var firstTailIndex: Int { 5 }   // index right after `choose`
+    private var firstTailIndex: Int { 4 }   // index right after `choose`
 
     var body: some View {
         ScrollView {
@@ -98,17 +98,11 @@ struct PairingView: View {
                 note("Should print v20 or higher.")
                 nav("Node is installed")
             }
-        case .bridge:
-            cardShell("Download the TethrX bridge") {
-                para("Put the TethrX project on your computer — the bridge is the `bridge/` folder inside it. There are no dependencies to install.")
-                note("Get it from the TethrX project page (or the repo you were given).")
-                nav("I have the project")
-            }
         case .run:
             cardShell("Start the bridge") {
-                para("In the project folder, start the bridge. It prints a pairing token and keeps running.")
-                codeLine("node bridge/src/server.mjs")
-                note("Want it always-on? Run  bash bridge/scripts/install-service.sh  so it starts with your computer.")
+                para("One command downloads and starts the bridge on your computer. It prints a pairing token and keeps running — leave it going.")
+                codeLine("npx tethrx-bridge")
+                note("Want it always-on? Install once with  npm i -g tethrx-bridge  then run  tethrx-bridge.")
                 nav("The bridge is running")
             }
         case .choose:
