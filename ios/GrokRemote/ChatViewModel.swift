@@ -20,6 +20,12 @@ final class ChatViewModel: ObservableObject {
     let client: BridgeClient
     let session: SessionInfo
 
+    private let liveActivity = LiveActivityManager()
+    var sessionName: String {
+        if let cwd = session.cwd, !cwd.isEmpty { return (cwd as NSString).lastPathComponent }
+        return "session"
+    }
+
     private var streamTask: Task<Void, Never>?
     private var assistantIndex: Int?   // current assistant bubble being appended to
     private var thoughtIndex: Int?     // current thought bubble being appended to
@@ -126,6 +132,7 @@ final class ChatViewModel: ObservableObject {
             assistantIndex = nil
             thoughtIndex = nil
             busy = true
+            liveActivity.start(sessionName: sessionName, phase: "working", detail: "Grok is working…")
             append(.user, event["text"] as? String ?? "")
 
         case "text":
@@ -150,6 +157,7 @@ final class ChatViewModel: ObservableObject {
             assistantIndex = nil
             thoughtIndex = nil
             let tool = event["tool"] as? String ?? "tool"
+            liveActivity.update(phase: "working", detail: tool)
             let label = (event["command"] as? String) ?? (event["title"] as? String) ?? tool
             var item = ChatItem(role: .tool, text: label)
             item.toolCallId = event["id"] as? String
@@ -177,6 +185,7 @@ final class ChatViewModel: ObservableObject {
         case "permission_request":
             assistantIndex = nil
             thoughtIndex = nil
+            liveActivity.update(phase: "waiting", detail: "Waiting for your approval")
             var item = ChatItem(role: .permission,
                                 text: (event["command"] as? String) ?? (event["title"] as? String)
                                       ?? (event["tool"] as? String) ?? "Grok wants to run a tool")
@@ -205,6 +214,7 @@ final class ChatViewModel: ObservableObject {
         case "plan_review":
             assistantIndex = nil
             thoughtIndex = nil
+            liveActivity.update(phase: "waiting", detail: "Plan ready to review")
             var item = ChatItem(role: .plan, text: event["planContent"] as? String ?? "Grok drafted a plan.")
             item.requestId = event["requestId"] as? String
             items.append(item)
@@ -229,9 +239,11 @@ final class ChatViewModel: ObservableObject {
             busy = false
             assistantIndex = nil
             thoughtIndex = nil
+            liveActivity.end(phase: "done", detail: "Finished")
 
         case "error":
             busy = false
+            liveActivity.end(phase: "error", detail: "Something went wrong")
             append(.error, event["message"] as? String ?? "Something went wrong.")
 
         default:

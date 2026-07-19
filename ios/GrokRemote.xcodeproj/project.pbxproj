@@ -6,7 +6,45 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		01157F16C4621AAF133D1ACC /* TethrXWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6589C5324A6E475E382F477D /* TethrXWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		14BB01978075A3752C580A80 /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
+		4F9776BF65B0B102CF1FC7BF /* TethrXLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */; };
+		8303E04D875CC1FAECD4B00E /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
+		960C6F2B21BBD510D8FBDBA8 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 226D0756A8150867A0263A25 /* Foundation.framework */; };
+		EA7E35F6B63083C8B55AA786 /* TethrXWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583894DD06DF65740766468F /* TethrXWidgetBundle.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BB62BF2F003A1F4DBFBB98C4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DEADBEEF0000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4541D1E84208A07D5F3EEAA;
+			remoteInfo = TethrXWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E69633B7E40A946D3938A446 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				01157F16C4621AAF133D1ACC /* TethrXWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		226D0756A8150867A0263A25 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		583894DD06DF65740766468F /* TethrXWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXWidgetBundle.swift; sourceTree = "<group>"; };
+		6589C5324A6E475E382F477D /* TethrXWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TethrXWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXLiveActivity.swift; sourceTree = "<group>"; };
+		A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXActivityAttributes.swift; sourceTree = "<group>"; };
 		DEADBEEF0000000000000006 /* GrokRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -32,6 +70,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		5F46E30BB6E9561E9DB183B1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				960C6F2B21BBD510D8FBDBA8 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DEADBEEF0000000000000008 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -40,11 +86,40 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		76A7E12F68E19B5879B4105E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AC2F7DBAD12982AC2FC5BE24 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9AE93B63BD577E4F0E44E3EC /* TethrXWidget */ = {
+			isa = PBXGroup;
+			children = (
+				A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */,
+				8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */,
+				583894DD06DF65740766468F /* TethrXWidgetBundle.swift */,
+			);
+			name = TethrXWidget;
+			path = TethrXWidget;
+			sourceTree = "<group>";
+		};
+		AC2F7DBAD12982AC2FC5BE24 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				226D0756A8150867A0263A25 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		DEADBEEF0000000000000002 = {
 			isa = PBXGroup;
 			children = (
 				DEADBEEF0000000000000004 /* GrokRemote */,
 				DEADBEEF0000000000000003 /* Products */,
+				76A7E12F68E19B5879B4105E /* Frameworks */,
+				9AE93B63BD577E4F0E44E3EC /* TethrXWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -52,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				DEADBEEF0000000000000006 /* GrokRemote.app */,
+				6589C5324A6E475E382F477D /* TethrXWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -59,6 +135,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		B4541D1E84208A07D5F3EEAA /* TethrXWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E3A48E5F23AAF97EFB17051A /* Build configuration list for PBXNativeTarget "TethrXWidget" */;
+			buildPhases = (
+				1C38722F237418AB0EEF1583 /* Sources */,
+				5F46E30BB6E9561E9DB183B1 /* Frameworks */,
+				2D92E3A6F1B878D31A84A8A7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TethrXWidget;
+			productName = TethrXWidget;
+			productReference = 6589C5324A6E475E382F477D /* TethrXWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		DEADBEEF0000000000000005 /* GrokRemote */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DEADBEEF000000000000000B /* Build configuration list for PBXNativeTarget "GrokRemote" */;
@@ -66,8 +159,12 @@
 				DEADBEEF0000000000000007 /* Sources */,
 				DEADBEEF0000000000000008 /* Frameworks */,
 				DEADBEEF0000000000000009 /* Resources */,
+				E69633B7E40A946D3938A446 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
+			);
+			dependencies = (
+				01312C879EC3DA4E268FE0E8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DEADBEEF0000000000000004 /* GrokRemote */,
@@ -107,11 +204,19 @@
 			projectRoot = "";
 			targets = (
 				DEADBEEF0000000000000005 /* GrokRemote */,
+				B4541D1E84208A07D5F3EEAA /* TethrXWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2D92E3A6F1B878D31A84A8A7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DEADBEEF0000000000000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -120,15 +225,90 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1C38722F237418AB0EEF1583 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8303E04D875CC1FAECD4B00E /* TethrXActivityAttributes.swift in Sources */,
+				4F9776BF65B0B102CF1FC7BF /* TethrXLiveActivity.swift in Sources */,
+				EA7E35F6B63083C8B55AA786 /* TethrXWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DEADBEEF0000000000000007 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				14BB01978075A3752C580A80 /* TethrXActivityAttributes.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		01312C879EC3DA4E268FE0E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TethrXWidget;
+			target = B4541D1E84208A07D5F3EEAA /* TethrXWidget */;
+			targetProxy = BB62BF2F003A1F4DBFBB98C4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
-		DEADBEEF000000000000000C /* Debug configuration for PBXProject "GrokRemote" */ = {
+		1D1BBF549F95AB722C2E8680 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = KKRU446268;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TethrXWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.9.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		2986EA1B699187505B7860A3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = KKRU446268;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TethrXWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.9.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DEADBEEF000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -184,7 +364,7 @@
 			};
 			name = Debug;
 		};
-		DEADBEEF000000000000000D /* Release configuration for PBXProject "GrokRemote" */ = {
+		DEADBEEF000000000000000D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -232,13 +412,13 @@
 			};
 			name = Release;
 		};
-		DEADBEEF000000000000000E /* Debug configuration for PBXNativeTarget "GrokRemote" */ = {
+		DEADBEEF000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -258,13 +438,13 @@
 			};
 			name = Debug;
 		};
-		DEADBEEF000000000000000F /* Release configuration for PBXNativeTarget "GrokRemote" */ = {
+		DEADBEEF000000000000000F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -290,17 +470,26 @@
 		DEADBEEF000000000000000A /* Build configuration list for PBXProject "GrokRemote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DEADBEEF000000000000000C /* Debug configuration for PBXProject "GrokRemote" */,
-				DEADBEEF000000000000000D /* Release configuration for PBXProject "GrokRemote" */,
+				DEADBEEF000000000000000C /* Debug */,
+				DEADBEEF000000000000000D /* Release */,
 			);
 			defaultConfigurationName = Release;
 		};
 		DEADBEEF000000000000000B /* Build configuration list for PBXNativeTarget "GrokRemote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DEADBEEF000000000000000E /* Debug configuration for PBXNativeTarget "GrokRemote" */,
-				DEADBEEF000000000000000F /* Release configuration for PBXNativeTarget "GrokRemote" */,
+				DEADBEEF000000000000000E /* Debug */,
+				DEADBEEF000000000000000F /* Release */,
 			);
+			defaultConfigurationName = Release;
+		};
+		E3A48E5F23AAF97EFB17051A /* Build configuration list for PBXNativeTarget "TethrXWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1D1BBF549F95AB722C2E8680 /* Release */,
+				2986EA1B699187505B7860A3 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
