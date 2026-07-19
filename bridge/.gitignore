@@ -1,0 +1,4 @@
+node_modules/
+*.log
+# Never commit the pairing token / local config
+config.local.json

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Grok Remote — test client</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0a0a0a; color: #e7e7e7;
+    font: 14px/1.55 ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
+  }
+  header {
+    padding: 14px 18px; border-bottom: 1px solid #1e1e1e;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 0; background: #0a0a0aee; backdrop-filter: blur(8px);
+  }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 650; letter-spacing: -0.01em; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; }
+  .dot.ok { background: #34d399; } .dot.bad { background: #f87171; }
+  input, textarea, button {
+    background: #141414; color: #e7e7e7; border: 1px solid #2a2a2a;
+    border-radius: 8px; padding: 8px 10px; font: inherit;
+  }
+  input:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+  button { cursor: pointer; background: #1c1c1c; }
+  button:hover { background: #262626; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #1d4ed8; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  main { max-width: 860px; margin: 0 auto; padding: 18px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .row label { color: #888; font-size: 12px; min-width: 42px; }
+  .grow { flex: 1; min-width: 160px; }
+  #log { margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 10px 13px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
+  .user { background: #17233b; border: 1px solid #26364f; align-self: flex-end; max-width: 80%; }
+  .assistant { background: #141414; border: 1px solid #242424; align-self: flex-start; max-width: 92%; }
+  .thought { color: #9a9a9a; font-style: italic; border-left: 2px solid #333; padding-left: 10px; align-self: flex-start; max-width: 92%; }
+  .tool { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: #a5b4fc; background: #10131f; border: 1px solid #1e2438; align-self: flex-start; max-width: 92%; border-radius: 8px; }
+  .status { color: #6b7280; font-size: 12px; align-self: center; }
+  .error { color: #fca5a5; background: #1f1212; border: 1px solid #442020; align-self: stretch; }
+  .composer { display: flex; gap: 8px; position: sticky; bottom: 0; background: #0a0a0a; padding: 12px 0; }
+  .composer textarea { flex: 1; resize: vertical; min-height: 46px; max-height: 200px; }
+  small.hint { color: #6b7280; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Grok&nbsp;Remote</h1>
+  <span id="health"><span class="dot" id="hdot"></span> <span id="hlabel" style="color:#888;font-size:12px">checking…</span></span>
+  <span class="grow"></span>
+  <input id="token" class="grow" type="password" placeholder="pairing token" style="max-width:280px" />
+  <button id="save">Connect</button>
+</header>
+
+<main>
+  <div class="row">
+    <label>cwd</label>
+    <input id="cwd" class="grow" placeholder="working directory for Grok (e.g. /Users/you/project)" />
+    <button id="newSession" class="primary">New session</button>
+  </div>
+  <div class="row">
+    <small class="hint">session: <span id="sid">—</span></small>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="composer">
+    <textarea id="prompt" placeholder="Ask Grok to do something…  (⌘/Ctrl+Enter to send)"></textarea>
+    <button id="send" class="primary">Send</button>
+    <button id="cancel">Stop</button>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const base = location.origin;
+let token = localStorage.getItem("grok-remote-token") || "";
+let sid = null, es = null, assistantEl = null;
+
+$("token").value = token;
+$("cwd").value = localStorage.getItem("grok-remote-cwd") || "";
+
+function headers() { return { "authorization": "Bearer " + token, "content-type": "application/json" }; }
+
+async function health() {
+  try {
+    const r = await fetch(base + "/api/health");
+    const j = await r.json();
+    const ok = j.ok && j.grokAvailable;
+    $("hdot").className = "dot " + (ok ? "ok" : "bad");
+    $("hlabel").textContent = ok ? ("grok " + (j.grok || "").replace(/^grok /, "")) : "grok not found";
+  } catch {
+    $("hdot").className = "dot bad"; $("hlabel").textContent = "bridge unreachable";
+  }
+}
+
+function add(cls, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + cls;
+  el.textContent = text;
+  $("log").appendChild(el);
+  el.scrollIntoView({ block: "end" });
+  return el;
+}
+
+function openStream() {
+  if (es) es.close();
+  es = new EventSource(base + "/api/sessions/" + sid + "/stream?token=" + encodeURIComponent(token) + "&lastEventId=0");
+  es.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    switch (ev.kind) {
+      case "turn_start": assistantEl = null; add("user", ev.text); break;
+      case "text":
+        if (!assistantEl) assistantEl = add("assistant", "");
+        assistantEl.textContent += ev.text; assistantEl.scrollIntoView({ block: "end" });
+        break;
+      case "thought": add("thought", ev.text); break;
+      case "tool_call": add("tool", "⚙ " + (ev.tool || "tool") + " " + JSON.stringify(ev.args || {})); break;
+      case "plan": add("tool", "▤ plan: " + JSON.stringify(ev.entries || ev)); break;
+      case "raw": add("tool", JSON.stringify(ev.raw)); break;
+      case "end": add("status", "· " + (ev.stopReason || "done") + " ·"); break;
+      case "turn_complete": assistantEl = null; setBusy(false); break;
+      case "error": add("error", ev.message); setBusy(false); break;
+      case "log": /* stderr diagnostics — ignore in the UI */ break;
+    }
+  };
+  es.onerror = () => { /* EventSource auto-reconnects */ };
+}
+
+function setBusy(b) { $("send").disabled = b; }
+
+$("save").onclick = () => {
+  token = $("token").value.trim();
+  localStorage.setItem("grok-remote-token", token);
+  health();
+};
+
+$("newSession").onclick = async () => {
+  const cwd = $("cwd").value.trim();
+  localStorage.setItem("grok-remote-cwd", cwd);
+  const r = await fetch(base + "/api/sessions", { method: "POST", headers: headers(), body: JSON.stringify({ cwd: cwd || undefined }) });
+  if (!r.ok) { add("error", "create failed: " + r.status + " " + await r.text()); return; }
+  const j = await r.json();
+  sid = j.id; $("sid").textContent = sid.slice(0, 8) + " · " + (j.cwd || "");
+  $("log").innerHTML = ""; assistantEl = null;
+  openStream();
+  add("status", "session ready");
+};
+
+async function send() {
+  const text = $("prompt").value.trim();
+  if (!text || !sid) return;
+  $("prompt").value = ""; setBusy(true);
+  const r = await fetch(base + "/api/sessions/" + sid + "/messages", { method: "POST", headers: headers(), body: JSON.stringify({ text }) });
+  if (!r.ok) { add("error", "send failed: " + r.status + " " + await r.text()); setBusy(false); }
+}
+$("send").onclick = send;
+$("prompt").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); });
+$("cancel").onclick = () => { if (sid) fetch(base + "/api/sessions/" + sid + "/cancel", { method: "POST", headers: headers() }); };
+
+health(); setInterval(health, 8000);
+</script>
+</body>
+</html>

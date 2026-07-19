@@ -1,0 +1,207 @@
+// In-memory session registry + per-session SSE event hub.
+//
+// Each Session owns a Grok conversation (identified by a UUID we pass to `grok -s`),
+// a ring buffer of emitted events (so a phone that reconnects can replay what it
+// missed via Last-Event-ID), and the set of live SSE subscribers.
+
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
+
+const HISTORY_LIMIT = 5000;
+
+class Session {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove }) {
+    this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
+    this.cwd = cwd;
+    this.model = model;
+    this.effort = effort;
+    this.title = title || "New session";
+    this.transport = transport || "acp"; // "acp" | "headless"
+    this.planMode = planMode || false;
+    this.autoApprove = autoApprove || false;    // "always allow" — auto-approve tool permissions
+    this.grokSessionId = grokSessionId || null; // grok's ACP sessionId, for session/load resume
+    this.createdAt = createdAt || new Date().toISOString();
+    this.status = "idle";                // "idle" | "running"
+    this.turnCount = turnCount || 0;
+
+    this.historyPath = null;             // set by the store; where events are persisted
+    this.acp = null;                     // AcpSession (lazy, set by the server for ACP sessions)
+    this._events = [];                   // [{ id, event }]
+    this._nextEventId = 0;
+    this._subscribers = new Set();       // Set<http.ServerResponse>
+    this._abort = null;                  // AbortController for a running headless turn
+  }
+
+  toJSON() {
+    return {
+      id: this.id,
+      title: this.title,
+      cwd: this.cwd,
+      model: this.model,
+      transport: this.transport,
+      planMode: this.planMode,
+      effort: this.effort || "",
+      autoApprove: this.autoApprove,
+      status: this.status,
+      turnCount: this.turnCount,
+      createdAt: this.createdAt,
+      lastEventId: this._nextEventId,
+    };
+  }
+
+  /** Durable metadata, persisted across bridge restarts (no live/transient state). */
+  toMetadata() {
+    return {
+      id: this.id, cwd: this.cwd, model: this.model, effort: this.effort,
+      transport: this.transport, title: this.title, planMode: this.planMode,
+      autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
+      createdAt: this.createdAt, turnCount: this.turnCount,
+    };
+  }
+
+  /** Persist the event history so a reopened session shows its full conversation. */
+  saveHistory() {
+    if (!this.historyPath) return;
+    try { writeFileSync(this.historyPath, JSON.stringify(this._events)); } catch { /* best-effort */ }
+  }
+
+  loadHistory() {
+    if (!this.historyPath || !existsSync(this.historyPath)) return;
+    try {
+      const events = JSON.parse(readFileSync(this.historyPath, "utf8"));
+      if (Array.isArray(events) && events.length) {
+        this._events = events;
+        this._nextEventId = events[events.length - 1].id || 0;
+      }
+    } catch { /* ignore corrupt history */ }
+  }
+
+  // --- event fan-out ------------------------------------------------------
+
+  emit(event) {
+    const id = ++this._nextEventId;
+    const record = { id, event };
+    this._events.push(record);
+    if (this._events.length > HISTORY_LIMIT) this._events.shift();
+
+    const frame = `id: ${id}\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const res of this._subscribers) {
+      res.write(frame);
+    }
+    return id;
+  }
+
+  subscribe(res, lastEventId = 0) {
+    // Replay anything the client missed since lastEventId.
+    for (const { id, event } of this._events) {
+      if (id > lastEventId) {
+        res.write(`id: ${id}\ndata: ${JSON.stringify(event)}\n\n`);
+      }
+    }
+    this._subscribers.add(res);
+    res.on("close", () => this._subscribers.delete(res));
+  }
+
+  get subscriberCount() {
+    return this._subscribers.size;
+  }
+
+  // --- turn lifecycle -----------------------------------------------------
+
+  beginTurn() {
+    if (this.status === "running") return null;
+    this.status = "running";
+    this.turnCount += 1;
+    this._abort = new AbortController();
+    return this._abort.signal;
+  }
+
+  endTurn() {
+    this.status = "idle";
+    this._abort = null;
+  }
+
+  cancel() {
+    if (this.acp) {
+      this.acp.cancel();
+      return true;
+    }
+    if (this._abort) {
+      this._abort.abort();
+      return true;
+    }
+    return false;
+  }
+}
+
+export class SessionStore {
+  constructor(persistPath) {
+    this._byId = new Map();
+    this._persistPath = persistPath || null;
+    this._historyDir = persistPath ? join(dirname(persistPath), "history") : null;
+    if (this._historyDir) { try { mkdirSync(this._historyDir, { recursive: true }); } catch { /* ignore */ } }
+    this._load();
+  }
+
+  _historyPathFor(id) {
+    return this._historyDir ? join(this._historyDir, id + ".json") : null;
+  }
+
+  create(opts) {
+    const session = new Session(opts);
+    session.historyPath = this._historyPathFor(session.id);
+    this._byId.set(session.id, session);
+    this.save();
+    return session;
+  }
+
+  get(id) {
+    return this._byId.get(id) || null;
+  }
+
+  list() {
+    return [...this._byId.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((s) => s.toJSON());
+  }
+
+  delete(id) {
+    const s = this._byId.get(id);
+    if (!s) return false;
+    if (s.acp) { try { s.acp.stop(); } catch { /* ignore */ } }
+    this._byId.delete(id);
+    if (s.historyPath) { try { rmSync(s.historyPath, { force: true }); } catch { /* ignore */ } }
+    this.save();
+    return true;
+  }
+
+  rename(id, title) {
+    const s = this._byId.get(id);
+    if (!s) return false;
+    s.title = title;
+    this.save();
+    return true;
+  }
+
+  /** Persist session metadata so the list survives a bridge restart. */
+  save() {
+    if (!this._persistPath) return;
+    try {
+      const data = [...this._byId.values()].map((s) => s.toMetadata());
+      writeFileSync(this._persistPath, JSON.stringify(data, null, 2));
+    } catch { /* best-effort */ }
+  }
+
+  _load() {
+    if (!this._persistPath || !existsSync(this._persistPath)) return;
+    try {
+      for (const meta of JSON.parse(readFileSync(this._persistPath, "utf8"))) {
+        const s = new Session(meta);   // meta.id restores the original id
+        s.historyPath = this._historyPathFor(s.id);
+        s.loadHistory();               // restore the conversation so it can be followed
+        this._byId.set(s.id, s);
+      }
+    } catch { /* ignore a corrupt store */ }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "grok-remote-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local bridge daemon that exposes a running Grok Build install to a phone client over HTTP + SSE.",
+  "bin": {
+    "grok-remote": "src/server.mjs"
+  },
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

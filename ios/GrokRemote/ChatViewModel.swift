@@ -1,0 +1,241 @@
+import Foundation
+import SwiftUI
+
+/// Drives a single session: keeps a live SSE connection, folds streaming events
+/// into `items`, and sends / cancels turns.
+@MainActor
+final class ChatViewModel: ObservableObject {
+    @Published var items: [ChatItem] = []
+    @Published var busy = false
+    @Published var live = false
+    @Published var mode: String?          // "plan" while Grok is planning
+    @Published var errorMessage: String?
+
+    // Live per-session settings (mirror the bridge; changed from the chat controls).
+    @Published var planMode: Bool
+    @Published var effort: String         // "", "high", "medium", "low"
+    @Published var autoApprove: Bool
+
+    let client: BridgeClient
+    let session: SessionInfo
+
+    private var streamTask: Task<Void, Never>?
+    private var assistantIndex: Int?   // current assistant bubble being appended to
+    private var thoughtIndex: Int?     // current thought bubble being appended to
+
+    init(client: BridgeClient, session: SessionInfo) {
+        self.client = client
+        self.session = session
+        self.planMode = session.planMode ?? false
+        self.effort = session.effort ?? ""
+        self.autoApprove = session.autoApprove ?? false
+    }
+
+    /// Change plan mode / reasoning effort / auto-approve for this session, live.
+    func setConfig(planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil) async {
+        if let planMode { self.planMode = planMode }
+        if let effort { self.effort = effort }
+        if let autoApprove { self.autoApprove = autoApprove }
+        do {
+            let updated = try await client.setConfig(sessionId: session.id, planMode: planMode, effort: effort, autoApprove: autoApprove)
+            self.planMode = updated.planMode ?? self.planMode
+            self.effort = updated.effort ?? self.effort
+            self.autoApprove = updated.autoApprove ?? self.autoApprove
+        } catch {
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Open (and auto-reconnect) the event stream for this session.
+    func start() {
+        guard streamTask == nil else { return }
+        streamTask = Task { @MainActor in
+            while !Task.isCancelled {
+                live = true
+                do {
+                    for try await event in client.events(sessionId: session.id) {
+                        apply(event)
+                    }
+                } catch {
+                    // transient — fall through to reconnect
+                }
+                live = false
+                if Task.isCancelled { break }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
+    func stop() {
+        streamTask?.cancel()
+        streamTask = nil
+    }
+
+    func send(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        busy = true
+        errorMessage = nil
+        do {
+            try await client.send(sessionId: session.id, text: trimmed)
+        } catch {
+            busy = false
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func cancel() async {
+        await client.cancel(sessionId: session.id)
+    }
+
+    /// Answer a permission request (Approve/Reject). optionId nil cancels the turn.
+    func decide(_ item: ChatItem, optionId: String?, always: Bool = false) async {
+        guard let requestId = item.requestId else { return }
+        if let idx = items.firstIndex(where: { $0.id == item.id }) {
+            items[idx].decided = optionId ?? "cancelled"       // optimistic — hide the buttons
+        }
+        if always { autoApprove = true }
+        do {
+            try await client.resolvePermission(sessionId: session.id, requestId: requestId, optionId: optionId, always: always)
+        } catch {
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Approve or revise a plan (plan mode). Approving proceeds to execution.
+    func decidePlan(_ item: ChatItem, approved: Bool) async {
+        guard let requestId = item.requestId else { return }
+        if let idx = items.firstIndex(where: { $0.id == item.id }) {
+            items[idx].decided = approved ? "approved" : "rejected"
+        }
+        do {
+            try await client.resolvePlan(sessionId: session.id, requestId: requestId, approved: approved)
+        } catch {
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    // MARK: Event folding
+
+    private func apply(_ event: [String: Any]) {
+        live = true
+        switch event["kind"] as? String {
+        case "turn_start":
+            assistantIndex = nil
+            thoughtIndex = nil
+            busy = true
+            append(.user, event["text"] as? String ?? "")
+
+        case "text":
+            let t = event["text"] as? String ?? ""
+            if let i = assistantIndex, items.indices.contains(i) {
+                items[i].text += t
+            } else {
+                append(.assistant, t)
+                assistantIndex = items.count - 1
+            }
+
+        case "thought":
+            let t = event["text"] as? String ?? ""
+            if let i = thoughtIndex, items.indices.contains(i) {
+                items[i].text += t
+            } else {
+                append(.thought, t)
+                thoughtIndex = items.count - 1
+            }
+
+        case "tool_call":
+            assistantIndex = nil
+            thoughtIndex = nil
+            let tool = event["tool"] as? String ?? "tool"
+            let label = (event["command"] as? String) ?? (event["title"] as? String) ?? tool
+            var item = ChatItem(role: .tool, text: label)
+            item.toolCallId = event["id"] as? String
+            item.toolStatus = "running"
+            items.append(item)
+
+        case "tool_update":
+            if let id = event["id"] as? String,
+               let idx = items.lastIndex(where: { $0.toolCallId == id }) {
+                items[idx].toolStatus = event["status"] as? String
+                if let code = event["exitCode"] as? Int, code != 0 { items[idx].toolStatus = "failed" }
+            }
+
+        case "plan":
+            assistantIndex = nil
+            let entries = event["entries"] as? [[String: Any]] ?? []
+            let lines = entries.compactMap { $0["content"] as? String }
+            if !lines.isEmpty { append(.tool, "plan\n" + lines.map { "• \($0)" }.joined(separator: "\n")) }
+
+        case "permission_request":
+            assistantIndex = nil
+            thoughtIndex = nil
+            var item = ChatItem(role: .permission,
+                                text: (event["command"] as? String) ?? (event["title"] as? String)
+                                      ?? (event["tool"] as? String) ?? "Grok wants to run a tool")
+            item.requestId = event["requestId"] as? String
+            item.toolCallId = event["toolCallId"] as? String
+            if let opts = event["options"] as? [[String: Any]] {
+                item.options = opts.compactMap { o in
+                    guard let oid = o["optionId"] as? String, let name = o["name"] as? String else { return nil }
+                    return PermissionOption(optionId: oid, name: name, kind: o["kind"] as? String ?? "")
+                }
+            }
+            items.append(item)
+
+        case "end":
+            let reason = event["stopReason"] as? String ?? "done"
+            append(.status, "· \(reason) ·")
+            assistantIndex = nil
+            thoughtIndex = nil
+
+        case "permission_resolved":
+            if let rid = event["requestId"] as? String,
+               let idx = items.firstIndex(where: { $0.role == .permission && $0.requestId == rid && $0.decided == nil }) {
+                items[idx].decided = (event["optionId"] as? String) ?? "cancelled"
+            }
+
+        case "plan_review":
+            assistantIndex = nil
+            thoughtIndex = nil
+            var item = ChatItem(role: .plan, text: event["planContent"] as? String ?? "Grok drafted a plan.")
+            item.requestId = event["requestId"] as? String
+            items.append(item)
+
+        case "plan_resolved":
+            if let rid = event["requestId"] as? String,
+               let idx = items.firstIndex(where: { $0.role == .plan && $0.requestId == rid && $0.decided == nil }) {
+                items[idx].decided = (event["approved"] as? Bool == true) ? "approved" : "rejected"
+            }
+
+        case "mode":
+            mode = event["mode"] as? String
+
+        case "turn_complete":
+            busy = false
+            assistantIndex = nil
+            thoughtIndex = nil
+
+        case "error":
+            busy = false
+            append(.error, event["message"] as? String ?? "Something went wrong.")
+
+        default:
+            break   // "log", "raw", heartbeats — ignored in the UI
+        }
+    }
+
+    private func append(_ role: ChatRole, _ text: String) {
+        items.append(ChatItem(role: role, text: text))
+    }
+
+    /// Compact JSON preview of a tool's arguments for display.
+    private static func compact(_ any: Any?) -> String {
+        guard let any,
+              JSONSerialization.isValidJSONObject(any),
+              let data = try? JSONSerialization.data(withJSONObject: any),
+              let s = String(data: data, encoding: .utf8)
+        else { return "" }
+        return s.count > 140 ? String(s.prefix(140)) + "…" : s
+    }
+}

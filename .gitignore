@@ -1,0 +1,62 @@
+# ============================================================================
+#  Secrets & local state — NEVER commit
+# ----------------------------------------------------------------------------
+#  The bridge's pairing token + runtime config live in ~/.grok-remote/ (OUTSIDE
+#  this repo) by design, so they never land in source control. These rules are
+#  defense-in-depth in case a copy is ever placed inside the project tree.
+# ============================================================================
+config.local.json
+**/config.local.json
+config.json
+**/config.json
+.grok-remote/
+secrets*.json
+*.secret
+.env
+.env.*
+*.env
+
+# TLS certs / signing keys / provisioning (gen-cert.sh output, ASC .p8, etc.)
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+*.p8
+*.mobileprovision
+*.keystore
+
+# ============================================================================
+#  Test scratch — grok writes arbitrary files here during tests. Keep the
+#  folder (tests need it) but commit none of its contents.
+# ============================================================================
+sandbox/*
+!sandbox/.gitkeep
+
+# ============================================================================
+#  Node (bridge)
+# ============================================================================
+node_modules/
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# ============================================================================
+#  Xcode / Swift (ios) — per-user state, build products
+# ============================================================================
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+.swiftpm/
+
+# ============================================================================
+#  macOS
+# ============================================================================
+.DS_Store
+.AppleDouble
+.LSOverride
