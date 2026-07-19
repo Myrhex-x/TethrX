@@ -43,6 +43,8 @@
 	<string>Grok Remote connects to the bridge daemon running on your computer over your local network.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the pairing QR code shown by the bridge on your computer to connect.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock TethrX with Face ID, since it can run commands on your computer.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- The bridge speaks plain HTTP on your LAN / loopback. Allow cleartext to

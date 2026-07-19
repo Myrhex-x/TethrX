@@ -3,10 +3,13 @@ import SwiftUI
 /// App settings: connection info, defaults for new sessions, and about.
 struct SettingsView: View {
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var lock: AppLock
+    @EnvironmentObject var snippets: SnippetStore
     @Environment(\.dismiss) private var dismiss
     @State private var revealToken = false
     @State private var report: UsageReport?
     @State private var loadingUsage = false
+    @State private var newSnippet = ""
     @AppStorage("usage.budgetUSD") private var budgetUSD: Double = 0
 
     var body: some View {
@@ -16,6 +19,8 @@ struct SettingsView: View {
                     connection
                     usage
                     defaults
+                    security
+                    snippetsSection
                     about
                 }
                 .padding(20)
@@ -126,6 +131,45 @@ struct SettingsView: View {
             toggleRow("Auto-approve tools", "Skip the approve/reject prompt", $app.defaultAutoApprove)
             Text("Each session can override these from its own controls.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+        }
+    }
+
+    private var security: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("SECURITY")
+            toggleRow("Require \(lock.biometryName)", "Lock the app on open — it can run commands on your computer", $lock.enabled)
+        }
+    }
+
+    private var snippetsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("PROMPT SNIPPETS")
+            Text("Reusable prompts you can tap to send from a session.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            ForEach(Array(snippets.items.enumerated()), id: \.offset) { i, s in
+                HStack(spacing: 10) {
+                    Text(s).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(2)
+                    Spacer(minLength: 8)
+                    Button { snippets.remove(at: IndexSet(integer: i)) } label: {
+                        Image(systemName: "minus.circle").font(.caption)
+                    }.foregroundStyle(Grok.textDim)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .background(Grok.raised)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            HStack(spacing: 8) {
+                FieldBox {
+                    TextField("", text: $newSnippet, prompt: Text("add a snippet…").foregroundColor(Grok.textFaint), axis: .vertical)
+                        .font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1...3)
+                }
+                Button { snippets.add(newSnippet); newSnippet = "" } label: {
+                    Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(.plain).foregroundStyle(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty ? Grok.textFaint : Grok.text)
+                .disabled(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 /// Live conversation for one session, styled as a Grok Build console.
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
+    @EnvironmentObject var snippets: SnippetStore
     @State private var draft = ""
     @State private var showDetails = false
     @FocusState private var composerFocused: Bool
@@ -92,6 +93,7 @@ struct ChatView: View {
     private var composer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Grok.hairline).frame(height: 1)
+            snippetsRow
             chatControls
             HStack(alignment: .bottom, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
@@ -155,6 +157,30 @@ struct ChatView: View {
             .padding(.horizontal, 14)
         }
         .padding(.top, 10)
+    }
+
+    // Tappable reusable prompts, shown above the composer while the draft is empty.
+    @ViewBuilder private var snippetsRow: some View {
+        if isEmptyDraft && !snippets.items.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(snippets.items.enumerated()), id: \.offset) { _, s in
+                        Button {
+                            draft = s
+                            composerFocused = true
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "text.badge.plus").font(.system(size: 9, weight: .semibold))
+                                Text(s.count > 26 ? String(s.prefix(26)) + "…" : s)
+                            }.chip(on: false)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+            .padding(.top, 10)
+        }
     }
 
     private var efforts: [(String, String)] { [("Auto", ""), ("High", "high"), ("Medium", "medium"), ("Low", "low")] }

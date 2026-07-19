@@ -3,13 +3,31 @@ import SwiftUI
 @main
 struct TethrXApp: App {
     @StateObject private var app = AppState()
+    @StateObject private var lock = AppLock()
+    @StateObject private var snippets = SnippetStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(app)
-                .tint(.white)                      // outline-pill language: white, not a color accent
-                .preferredColorScheme(.dark)
+            ZStack {
+                RootView()
+                    .environmentObject(app)
+                    .environmentObject(lock)
+                    .environmentObject(snippets)
+                if lock.enabled && lock.locked {
+                    LockView().environmentObject(lock).transition(.opacity)
+                }
+            }
+            .tint(.white)                          // outline-pill language: white, not a color accent
+            .preferredColorScheme(.dark)
+            .animation(.easeInOut(duration: 0.2), value: lock.locked)
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .background: lock.lockIfEnabled()   // also hides content in the app switcher
+                case .active: lock.authenticate()
+                default: break
+                }
+            }
         }
     }
 }

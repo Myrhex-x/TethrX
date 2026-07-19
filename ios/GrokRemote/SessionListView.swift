@@ -3,6 +3,8 @@ import SwiftUI
 /// Lists the bridge's Grok sessions and starts new ones. Tapping opens live chat.
 struct SessionListView: View {
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var lock: AppLock
+    @EnvironmentObject var snippets: SnippetStore
     @State private var path: [SessionInfo] = []
     @State private var creating = false
     @State private var renaming: SessionInfo?
@@ -30,7 +32,9 @@ struct SessionListView: View {
                 }
                 Button("Cancel", role: .cancel) { renaming = nil }
             }
-            .sheet(isPresented: $showSettings) { SettingsView().environmentObject(app) }
+            .sheet(isPresented: $showSettings) {
+                SettingsView().environmentObject(app).environmentObject(lock).environmentObject(snippets)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionInfo.self) { session in
                 if let client = app.client {

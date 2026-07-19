@@ -28,6 +28,7 @@ struct PairingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 header
+                if idx == 0, !app.token.isEmpty, !app.normalizedBase.isEmpty { reconnectShortcut }
                 card
                 if let err = app.errorMessage { errorRow(err) }
                 footer
@@ -47,13 +48,10 @@ struct PairingView: View {
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-tsPath") { path = .tailscale }
             if let i = args.firstIndex(of: "-startStep"), i + 1 < args.count, let n = Int(args[i + 1]) {
-                idx = max(0, min(n, steps.count - 1)); return
+                idx = max(0, min(n, steps.count - 1))
             }
             #endif
-            // Returning / disconnected user with saved details → jump to the final step.
-            if idx == 0 && !app.token.isEmpty && !app.normalizedBase.isEmpty {
-                path = .wifi; idx = steps.count - 1
-            }
+            // Always start at step 1. Returning users get the Reconnect shortcut below.
         }
     }
 
@@ -251,6 +249,25 @@ struct PairingView: View {
         Text("A client for Grok Build · independent, not affiliated with xAI")
             .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// Shown on step 1 when credentials are already saved — reconnect in one tap
+    /// instead of walking the whole wizard again.
+    private var reconnectShortcut: some View {
+        Button {
+            focus = nil
+            Task { await app.connect() }
+        } label: {
+            HStack(spacing: 8) {
+                if app.connecting { ProgressView().controlSize(.small).tint(.white) }
+                Image(systemName: "bolt.horizontal.circle").font(.system(size: 14, weight: .semibold))
+                Text(app.connecting ? "Reconnecting…" : "Already set up? Reconnect")
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.right").font(.system(size: 12, weight: .semibold))
+            }
+        }
+        .buttonStyle(PillButton(kind: .subtle))
+        .disabled(app.connecting)
     }
 
     private func field(label: String, placeholder: String, text: Binding<String>, secure: Bool) -> some View {
