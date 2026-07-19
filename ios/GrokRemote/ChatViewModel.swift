@@ -11,6 +11,7 @@ final class ChatViewModel: ObservableObject {
     @Published var mode: String?          // "plan" while Grok is planning
     @Published var errorMessage: String?
     @Published var usage: SessionUsage?   // live token/context/cost meter
+    @Published var commands: [SlashCommand] = []   // grok's slash commands (/compact, skills…)
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
@@ -233,6 +234,13 @@ final class ChatViewModel: ObservableObject {
                let data = try? JSONSerialization.data(withJSONObject: dict),
                let u = try? JSONDecoder().decode(SessionUsage.self, from: data) {
                 usage = u
+            }
+
+        case "commands":
+            if let arr = event["commands"] as? [[String: Any]],
+               let data = try? JSONSerialization.data(withJSONObject: arr),
+               let cmds = try? JSONDecoder().decode([SlashCommand].self, from: data) {
+                commands = cmds
             }
 
         case "turn_complete":

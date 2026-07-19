@@ -114,6 +114,17 @@ struct PermissionOption: Identifiable, Equatable, Codable {
     var isAllow: Bool { kind.lowercased().contains("allow") }
 }
 
+/// A grok slash command advertised over ACP (built-ins like /compact plus skills).
+struct SlashCommand: Codable, Identifiable, Hashable {
+    var name: String                 // without the leading slash, e.g. "compact"
+    var description: String = ""
+    var hint: String = ""            // arg hint from the command's input, if any
+    var scope: String = "builtin"    // "builtin" | "user" | "bundled"
+    var id: String { name }
+    var display: String { "/" + name }
+    var takesArgs: Bool { !hint.isEmpty }
+}
+
 /// A before/after edit Grok made to a file (from an edit tool's diff).
 struct FileDiff: Equatable {
     var path: String

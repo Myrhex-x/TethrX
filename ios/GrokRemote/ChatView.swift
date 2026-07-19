@@ -74,6 +74,7 @@ struct ChatView: View {
                             ChatBubble(item: item).id(item.id)
                         }
                     }
+                    if showTyping { TypingIndicator().id("typing") }
                     Color.clear.frame(height: 1).id(bottomID)
                 }
                 .padding(18)
@@ -82,6 +83,7 @@ struct ChatView: View {
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: vm.items.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: lastText) { _, _ in scrollToBottom(proxy) }
+            .onChange(of: vm.busy) { _, _ in scrollToBottom(proxy) }
             .task {
                 // On open, wait for replayed history to lay out, then jump to the latest.
                 try? await Task.sleep(nanoseconds: 450_000_000)
@@ -95,6 +97,7 @@ struct ChatView: View {
             Rectangle().fill(Grok.hairline).frame(height: 1)
             snippetsRow
             chatControls
+            commandPalette
             HStack(alignment: .bottom, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(">").font(Grok.mono(15, .bold)).foregroundStyle(Grok.accent).padding(.top, 2)
@@ -183,6 +186,84 @@ struct ChatView: View {
         }
     }
 
+    // Grok Build slash commands (/compact, /context, skills…). Appears above the
+    // composer while the draft is a "/…" token, filtered by prefix — like the TUI menu.
+    @ViewBuilder private var commandPalette: some View {
+        let matches = matchingCommands
+        if !matches.isEmpty {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(matches) { cmd in
+                        Button { insertCommand(cmd) } label: { commandRow(cmd) }
+                            .buttonStyle(.plain)
+                        if cmd.id != matches.last?.id {
+                            Rectangle().fill(Grok.hairline).frame(height: 1).padding(.leading, 14)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 190)
+            .background(Grok.raised)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+        }
+    }
+
+    private func commandRow(_ cmd: SlashCommand) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(cmd.display).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.accent)
+                    if cmd.scope != "builtin" {
+                        Text("skill").font(Grok.mono(8, .bold)).tracking(0.5).foregroundStyle(Grok.textFaint)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
+                    }
+                }
+                if !cmd.description.isEmpty {
+                    Text(cmd.description).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                        .lineLimit(2).multilineTextAlignment(.leading)
+                }
+            }
+            Spacer(minLength: 0)
+            if cmd.takesArgs {
+                Image(systemName: "text.cursor").font(.system(size: 10)).foregroundStyle(Grok.textFaint)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    /// Commands matching the current "/…" draft token (empty unless typing a command).
+    private var matchingCommands: [SlashCommand] {
+        guard draft.hasPrefix("/"), !vm.commands.isEmpty else { return [] }
+        let afterSlash = draft.dropFirst()
+        if afterSlash.contains(" ") { return [] }          // args started — stop suggesting
+        let q = afterSlash.lowercased()
+        let sorted = vm.commands.sorted {
+            ($0.scope == "builtin" ? 0 : 1, $0.name) < ($1.scope == "builtin" ? 0 : 1, $1.name)
+        }
+        return q.isEmpty ? sorted : sorted.filter { $0.name.lowercased().hasPrefix(q) }
+    }
+
+    private func insertCommand(_ cmd: SlashCommand) {
+        Haptics.tap()
+        draft = cmd.takesArgs ? cmd.display + " " : cmd.display
+        composerFocused = true
+    }
+
+    /// Show the animated "grok is thinking" dots while busy and no text is streaming yet.
+    private var showTyping: Bool {
+        guard vm.busy else { return false }
+        switch vm.items.last?.role {
+        case .assistant, .thought: return false
+        default: return true
+        }
+    }
+
     private var efforts: [(String, String)] { [("Auto", ""), ("High", "high"), ("Medium", "medium"), ("Low", "low")] }
     private var effortLabel: String { vm.effort.isEmpty ? "Effort" : vm.effort.capitalized }
 
@@ -192,6 +273,30 @@ struct ChatView: View {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+    }
+}
+
+/// Animated three-dot "grok is thinking…" indicator, shown while a turn is in
+/// flight and no text has streamed yet — mirrors the terminal TUI's typing dots.
+struct TypingIndicator: View {
+    @State private var animating = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Eyebrow("GROK")
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(Grok.textDim)
+                        .frame(width: 6, height: 6)
+                        .opacity(animating ? 1 : 0.22)
+                        .scaleEffect(animating ? 1 : 0.7)
+                        .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.18), value: animating)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { animating = true }
     }
 }
 

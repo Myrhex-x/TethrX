@@ -70,6 +70,7 @@ export class AcpSession {
     this.grokSessionId = null;
     this.contextWindow = null;       // model's max context tokens (from initialize)
     this.currentModelId = null;      // grok's chosen model when we don't pin one
+    this.availableCommands = [];     // grok's slash commands (/compact, /context, skills…)
     this.lastActivity = Date.now();
     this._nextId = 1;
     this._pending = new Map();       // our request id -> {resolve, reject}
@@ -245,7 +246,20 @@ export class AcpSession {
       case "current_mode_update":
         this.onEvent({ kind: "mode", mode: u.currentModeId });
         break;
-      // user_message_chunk / available_commands_update / x.ai internals -> ignored
+      case "available_commands_update": {
+        // grok advertises its slash commands (built-ins + skills) here; surface them
+        // so the phone can offer a "/" command palette like the terminal TUI.
+        const cmds = (u.availableCommands || []).map((c) => ({
+          name: String(c.name || "").replace(/^\//, ""),
+          description: c.description || "",
+          hint: c.input?.hint || "",
+          scope: c._meta?.scope || "builtin",
+        })).filter((c) => c.name);
+        this.availableCommands = cmds;
+        this.onEvent({ kind: "commands", commands: cmds });
+        break;
+      }
+      // user_message_chunk / x.ai internals -> ignored
     }
   }
 
