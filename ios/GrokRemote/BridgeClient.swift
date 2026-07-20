@@ -211,14 +211,21 @@ struct BridgeClient {
                     let (bytes, resp) = try await session.bytes(for: req)
                     try Self.check(resp)
 
-                    // SSE frames are line-delimited; we only care about `data:` lines,
-                    // each of which carries one JSON event from the bridge.
+                    // SSE frames are line-delimited: an `id:` line then a `data:` line.
+                    // The id has to be surfaced, otherwise a reconnect can't tell the
+                    // bridge where it left off and the whole history replays again.
+                    var currentId = 0
                     for try await line in bytes.lines {
+                        if line.hasPrefix("id:") {
+                            currentId = Int(line.dropFirst(3).trimmingCharacters(in: .whitespaces)) ?? currentId
+                            continue
+                        }
                         guard line.hasPrefix("data:") else { continue }
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                         guard let data = payload.data(using: .utf8),
-                              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                              var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                         else { continue }
+                        if currentId > 0 { obj["_eventId"] = currentId }
                         continuation.yield(obj)
                     }
                     continuation.finish()

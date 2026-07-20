@@ -29,6 +29,9 @@ final class ChatViewModel: ObservableObject {
     }
 
     private var streamTask: Task<Void, Never>?
+    /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from
+    /// there instead of replaying the whole session and duplicating the transcript.
+    private var lastEventId = 0
     private var assistantIndex: Int?   // current assistant bubble being appended to
     private var thoughtIndex: Int?     // current thought bubble being appended to
 
@@ -63,7 +66,8 @@ final class ChatViewModel: ObservableObject {
             while !Task.isCancelled {
                 live = true
                 do {
-                    for try await event in client.events(sessionId: session.id) {
+                    for try await event in client.events(sessionId: session.id, lastEventId: lastEventId) {
+                        if let id = event["_eventId"] as? Int { lastEventId = max(lastEventId, id) }
                         apply(event)
                     }
                 } catch {

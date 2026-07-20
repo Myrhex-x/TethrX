@@ -16,7 +16,9 @@ export function acquire() {
   if (proc || process.platform !== "darwin") return;
   try {
     // -i no idle sleep, -m no disk sleep, -s no system sleep (while on AC).
-    proc = spawn("/usr/bin/caffeinate", ["-i", "-m", "-s"], { stdio: "ignore" });
+    // -w <our pid> makes caffeinate exit if the bridge is killed, rather than
+    // surviving as an orphan that keeps the machine awake indefinitely.
+    proc = spawn("/usr/bin/caffeinate", ["-i", "-m", "-s", "-w", String(process.pid)], { stdio: "ignore" });
     proc.on("exit", () => { proc = null; });
     proc.on("error", () => { proc = null; });
   } catch {
