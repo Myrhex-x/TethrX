@@ -80,17 +80,21 @@ function isLoopback(req) {
 function pairPageHTML() {
   const addrs = reachableAddresses();
   const port = config.port;
-  const data = JSON.stringify({ token: config.token, port, addrs });
+  // Bound to loopback => the QR addresses below are NOT reachable from a phone.
+  // Say so plainly instead of handing out codes that can only fail.
+  const loopbackOnly = ["127.0.0.1", "::1", "localhost"].includes(String(config.host));
+  const data = JSON.stringify({ token: config.token, port, addrs, loopbackOnly });
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pair TethrX</title><script src="/qrcode.js"></script>
 <style>
 :root{color-scheme:dark}
 body{margin:0;background:#0a0a0a;color:#fff;font-family:-apple-system,system-ui,sans-serif;padding:32px 20px;-webkit-font-smoothing:antialiased}
 .wrap{max-width:560px;margin:0 auto}
-.mark{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:22px}
+.mark{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:19px;border:1px solid rgba(255,255,255,.22);border-radius:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center}
 h1{font-size:26px;letter-spacing:-.5px;margin:14px 0 6px}
 p.sub{color:rgba(255,255,255,.55);margin:0 0 26px;line-height:1.5}
 .card{border:1px solid rgba(255,255,255,.13);border-radius:16px;padding:20px;margin:14px 0;background:rgba(255,255,255,.02)}
+.card.warn{border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.05)}
 .eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:1.5px;color:rgba(255,255,255,.55);text-transform:uppercase}
 .qr{background:#fff;border-radius:12px;padding:12px;width:220px;margin:12px 0}
 .qr svg{display:block;width:100%;height:auto}
@@ -101,7 +105,7 @@ code{font-family:ui-monospace,Menlo,monospace;background:rgba(255,255,255,.06);p
 button{font:inherit;font-size:13px;color:#000;background:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}
 .note{color:rgba(255,255,255,.32);font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-top:22px;line-height:1.6}
 </style></head><body><div class="wrap">
-<div class="mark">&gt;_</div>
+<div class="mark">T</div>
 <h1>Pair your phone</h1>
 <p class="sub">In TethrX, tap <b>Scan to pair</b> and point your phone at a code below. Wi-Fi works at home; Tailscale works from anywhere.</p>
 <div id="cards"></div>
@@ -116,8 +120,19 @@ button{font:inherit;font-size:13px;color:#000;background:#fff;border:0;border-ra
 var D = ${data};
 document.getElementById('tok').textContent = D.token;
 var host = document.getElementById('cards');
-if (!D.addrs.length) { host.innerHTML = '<div class="card dim">No network address found. Connect to Wi-Fi or start Tailscale, then reload.</div>'; }
-D.addrs.forEach(function(a){
+if (D.loopbackOnly) {
+  host.innerHTML =
+    '<div class="card warn">' +
+    '<div class="eyebrow">One more step</div>' +
+    '<p style="margin:10px 0 4px;line-height:1.5">This bridge is only listening on this computer, so your phone can\'t reach it yet. Stop it with Ctrl+C and start it again like this:</p>' +
+    '<div class="tokrow"><code>GROK_REMOTE_HOST=0.0.0.0 npx tethrx-bridge</code>' +
+    '<button onclick="navigator.clipboard.writeText(\'GROK_REMOTE_HOST=0.0.0.0 npx tethrx-bridge\')">Copy</button></div>' +
+    '<p class="dim" style="margin:12px 0 0;font-size:12px">Then reload this page and the QR codes will appear. Only do this on a network you trust: the token is what protects the bridge.</p>' +
+    '</div>';
+} else if (!D.addrs.length) {
+  host.innerHTML = '<div class="card dim">No network address found. Connect to Wi-Fi or start Tailscale, then reload.</div>';
+}
+if (!D.loopbackOnly) D.addrs.forEach(function(a){
   var addr = a.ip + ':' + D.port;
   var payload = 'tethrx://pair?addr=' + encodeURIComponent(addr) + '&token=' + encodeURIComponent(D.token);
   var card = document.createElement('div'); card.className = 'card';
