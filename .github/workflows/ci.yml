@@ -46,6 +46,11 @@ jobs:
           # the pairing page never leaves loopback semantics (no Origin, local Host)
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' localhost:4180/pair)" = "403"
 
+          # the /pair inline script must PARSE — a bad escape once shipped a page
+          # with no token and no QR codes in every browser
+          curl -fsS -H 'Sec-Fetch-Site: none' localhost:4180/pair -o /tmp/pair.html
+          node -e "const h=require('fs').readFileSync('/tmp/pair.html','utf8');const m=h.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);if(!m)throw new Error('no inline script');new Function(m[1]);console.log('pair page script parses')"
+
   ios:
     name: ios (build)
     runs-on: macos-15

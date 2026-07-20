@@ -176,12 +176,16 @@ var D = ${data};
 document.getElementById('tok').textContent = D.token;
 var host = document.getElementById('cards');
 if (D.loopbackOnly) {
+  // NOTE: this block is emitted through a server-side template literal, where a
+  // lone \' collapses to a raw apostrophe and breaks the whole inline script
+  // (SyntaxError), leaving the page with no token and no QR codes in every
+  // browser. Apostrophes here must be double-escaped (\\') or avoided.
   host.innerHTML =
     '<div class="card warn">' +
     '<div class="eyebrow">One more step</div>' +
-    '<p style="margin:10px 0 4px;line-height:1.5">This bridge is only listening on this computer, so your phone can\'t reach it yet. Stop it with Ctrl+C and start it again like this:</p>' +
+    '<p style="margin:10px 0 4px;line-height:1.5">This bridge is only listening on this computer, so your phone cannot reach it yet. Stop it with Ctrl+C and start it again like this:</p>' +
     '<div class="tokrow"><code>GROK_REMOTE_HOST=0.0.0.0 npx tethrx-bridge</code>' +
-    '<button onclick="navigator.clipboard.writeText(\'GROK_REMOTE_HOST=0.0.0.0 npx tethrx-bridge\')">Copy</button></div>' +
+    '<button onclick="navigator.clipboard.writeText(\\'GROK_REMOTE_HOST=0.0.0.0 npx tethrx-bridge\\')">Copy</button></div>' +
     '<p class="dim" style="margin:12px 0 0;font-size:12px">Then reload this page and the QR codes will appear. Only do this on a network you trust: the token is what protects the bridge.</p>' +
     '</div>';
 } else if (!D.addrs.length) {
@@ -593,9 +597,15 @@ async function handle(req, res) {
     }
     // Loopback isn't sufficient on its own: a browser on this machine reaches loopback
     // too, so a hostile page (or a rebound DNS name) would otherwise be able to read
-    // the token straight out of this page.
+    // the token straight out of this page. The flip side: a LEGITIMATE user who
+    // clicked a link to this page (from a chat, a doc, a search result) is blocked by
+    // the same rule — so the refusal must teach the one action that always works.
     if (!isDirectLocalRequest(req)) {
-      return send(res, 403, "Open this page directly in a browser on this computer.");
+      return send(res, 403,
+        "For your security, this page only opens when you type the address yourself.\n\n" +
+        "Type this into the address bar (don't click a link to it):\n\n" +
+        "    http://localhost:" + config.port + "/pair\n\n" +
+        "This page shows your pairing token, so it refuses to load from other pages or sites.");
     }
     return send(res, 200, pairPageHTML(), { "content-type": "text/html; charset=utf-8" });
   }

@@ -14,16 +14,16 @@ struct PairingView: View {
 
     private enum Field { case address, token }
     private enum NetPath { case undecided, wifi, tailscale }
-    private enum WStep { case grok, node, run, choose, tsMac, tsPhone, page, scan }
+    private enum WStep { case grok, signin, node, run, choose, tsMac, tsPhone, page, scan }
 
     /// The ordered steps — the tail depends on the chosen network path.
     private var steps: [WStep] {
-        let base: [WStep] = [.grok, .node, .run, .choose]
+        let base: [WStep] = [.grok, .signin, .node, .run, .choose]
         let tail: [WStep] = path == .tailscale ? [.tsMac, .tsPhone, .page, .scan] : [.page, .scan]
         return base + tail
     }
     private var current: WStep { steps[max(0, min(idx, steps.count - 1))] }
-    private var firstTailIndex: Int { 4 }   // index right after `choose`
+    private var firstTailIndex: Int { 5 }   // index right after `choose`
 
     var body: some View {
         ScrollView {
@@ -89,10 +89,17 @@ struct PairingView: View {
         switch current {
         case .grok:
             cardShell("Install Grok Build") {
-                para("TethrX drives Grok Build — xAI's terminal coding agent. Install it on your computer and run it once to sign in.")
-                codeLine("grok --version")
-                note("That should print a version once it's installed and you're signed in.")
+                para("TethrX drives Grok Build — xAI's terminal coding agent. Install it on your computer with one command:")
+                codeLine("curl -fsSL https://x.ai/cli/install.sh | bash")
+                note("Already installed? Check with  grok --version  and skip ahead.")
                 nav("Grok Build is installed")
+            }
+        case .signin:
+            cardShell("Sign in to Grok") {
+                para("Run Grok once on your computer. It opens your browser to sign in with your xAI account, then remembers you.")
+                codeLine("grok")
+                note("Sign-in trouble? Some privacy browsers (Brave, and others with strict shields) block the localhost redirect the login uses. Set Safari or Chrome as your default browser, run  grok login  to retry, then switch back. You're set when  grok --version  prints a version without complaints.")
+                nav("I'm signed in")
             }
         case .node:
             cardShell("Install Node.js") {
@@ -129,9 +136,9 @@ struct PairingView: View {
             }
         case .page:
             cardShell("Open the pairing page") {
-                para("On your computer, open this address in any browser:")
+                para("On your computer, type this address into the browser's address bar:")
                 codeLine("http://localhost:4180/pair")
-                note("It shows two QR codes — one for Wi-Fi, one for Tailscale — plus your token. It only opens on the computer running the bridge.")
+                note("Type it yourself — for your security the page refuses to open from a clicked link. It shows QR codes for Wi-Fi and Tailscale plus your token, and only works on the computer running the bridge.")
                 nav("I see the QR codes")
             }
         case .scan:
