@@ -151,6 +151,51 @@ struct BridgeClient {
         try Self.check(resp)
     }
 
+    // MARK: Git review
+
+    func gitStatus(sessionId: String) async throws -> GitStatus {
+        let (data, resp) = try await session.data(for: try request("/api/sessions/\(sessionId)/git"))
+        try Self.check(resp)
+        return try JSONDecoder().decode(GitStatus.self, from: data)
+    }
+
+    func gitDiff(sessionId: String, file: String) async throws -> String {
+        guard var comps = URLComponents(url: try url("/api/sessions/\(sessionId)/git"), resolvingAgainstBaseURL: false) else {
+            throw BridgeError.badURL
+        }
+        comps.queryItems = [URLQueryItem(name: "file", value: file)]
+        guard let u = comps.url else { throw BridgeError.badURL }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 20
+        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Wrapper: Codable { let diff: String }
+        return (try? JSONDecoder().decode(Wrapper.self, from: data).diff) ?? ""
+    }
+
+    @discardableResult
+    func gitCommit(sessionId: String, message: String) async throws -> String {
+        let (data, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/git", method: "POST",
+                             json: ["action": "commit", "message": message]))
+        try Self.check(resp)
+        struct Result: Codable { let ok: Bool; let output: String?; let error: String? }
+        let r = try JSONDecoder().decode(Result.self, from: data)
+        if !r.ok { throw BridgeError.badStatus(500) }
+        return r.output ?? ""
+    }
+
+    @discardableResult
+    func gitDiscard(sessionId: String) async throws -> String {
+        let (data, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/git", method: "POST", json: ["action": "discard"]))
+        try Self.check(resp)
+        struct Result: Codable { let ok: Bool; let output: String?; let error: String? }
+        let r = try JSONDecoder().decode(Result.self, from: data)
+        return r.output ?? ""
+    }
+
     /// Live event stream for a session. Each yielded value is one normalized
     /// event object (e.g. `["kind": "text", "text": "…"]`). The stream ends when
     /// the connection closes; callers typically reconnect.

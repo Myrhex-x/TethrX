@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 
 const REAL_GROK = join(homedir(), ".grok");
+const OUTPUT_LIMIT = 8000;   // cap tool output per update so a chatty build can't flood the phone
 
 /**
  * Build (or rebuild) a HOME dir whose ~/.grok mirrors the real one via symlinks but
@@ -270,10 +271,22 @@ export class AcpSession {
         break;
       case "tool_call_update": {
         // Grok's edit tools attach a structured before/after diff in the update content.
-        const d = Array.isArray(u.content) ? u.content.find((c) => c?.type === "diff") : null;
+        const items = Array.isArray(u.content) ? u.content : [];
+        const d = items.find((c) => c?.type === "diff");
+        // …and shell/read tools attach their actual output as text content. Without
+        // this the phone shows a bare ✗ with no way to see why a command failed.
+        const texts = items
+          .filter((c) => c?.type === "content" && c.content?.type === "text")
+          .map((c) => c.content.text)
+          .filter(Boolean);
+        let output = texts.join("\n") || u.rawOutput?.stdout || u.rawOutput?.stderr || "";
+        if (output.length > OUTPUT_LIMIT) {
+          output = output.slice(0, OUTPUT_LIMIT) + `\n… (truncated, ${output.length} chars total)`;
+        }
         this.onEvent({
           kind: "tool_update", id: u.toolCallId, status: u.status, title: u.title,
           exitCode: u.rawOutput?.exit_code,
+          output: output || undefined,
           diff: d ? { path: d.path, oldText: d.oldText ?? "", newText: d.newText ?? "" } : undefined,
         });
         break;

@@ -136,6 +136,36 @@ struct SlashCommand: Codable, Identifiable, Hashable {
     var takesArgs: Bool { !hint.isEmpty }
 }
 
+/// One changed file in the session's working directory.
+struct GitFile: Codable, Identifiable, Hashable {
+    var path: String
+    var code: String
+    var staged: Bool
+    var id: String { path }
+    var filename: String { (path as NSString).lastPathComponent }
+    var folder: String {
+        let dir = (path as NSString).deletingLastPathComponent
+        return dir.isEmpty ? "" : dir
+    }
+    /// Human label for git's porcelain status code.
+    var label: String {
+        if code == "??" { return "new" }
+        if code.contains("D") { return "deleted" }
+        if code.contains("R") { return "renamed" }
+        if code.contains("A") { return "added" }
+        if code.contains("M") { return "modified" }
+        return code
+    }
+}
+
+/// `GET /api/sessions/:id/git` — what changed in the session's folder.
+struct GitStatus: Codable {
+    var repo: Bool
+    var branch: String?
+    var files: [GitFile]?
+    var changedCount: Int { files?.count ?? 0 }
+}
+
 /// A before/after edit Grok made to a file (from an edit tool's diff).
 struct FileDiff: Equatable {
     var path: String
@@ -156,6 +186,7 @@ struct ChatItem: Identifiable, Equatable {
     // Tool activity (ACP transport)
     var toolCallId: String? = nil
     var toolStatus: String? = nil        // "running" | "completed" | "failed"
+    var toolOutput: String? = nil        // stdout/stderr the tool produced
     var diff: FileDiff? = nil            // for edit tools
 
     // Permission request (ACP transport)

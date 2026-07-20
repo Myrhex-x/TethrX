@@ -22,6 +22,7 @@ final class AppState: ObservableObject {
 
     @Published var health: HealthInfo?
     @Published var sessions: [SessionInfo] = []
+    @Published var lastUsage: UsageReport?      // for the home-screen widget
     @Published var connected = false
     @Published var connecting = false
     @Published var bootstrapping = false   // first-launch auto-reconnect in progress
@@ -137,6 +138,8 @@ final class AppState: ObservableObject {
             sessions = try await client.listSessions()
             connected = true
             rememberCurrentBridge()                                        // keep the paired-computer list current
+            lastUsage = try? await client.usage()
+            publishWidgetSnapshot()
             if let t = pushToken { try? await client.registerDevice(t) }   // (re)register for push
             if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
         } catch {
@@ -157,8 +160,26 @@ final class AppState: ObservableObject {
 
     func reloadSessions() async {
         guard let client else { return }
-        do { sessions = try await client.listSessions() }
+        do {
+            sessions = try await client.listSessions()
+            publishWidgetSnapshot()
+        }
         catch { errorMessage = friendly(error) }
+    }
+
+    /// Push a small status snapshot to the home-screen widget via the app group.
+    private func publishWidgetSnapshot() {
+        let running = sessions.filter { $0.isRunning }
+        let active = running.first ?? sessions.first
+        var snapshot = TethrXSnapshot()
+        snapshot.computer = health?.host ?? (URL(string: normalizedBase)?.host ?? "")
+        snapshot.sessionCount = sessions.count
+        snapshot.runningCount = running.count
+        snapshot.activeName = active?.cwd.map { ($0 as NSString).lastPathComponent } ?? ""
+        snapshot.totalTokens = lastUsage?.totals.totalTokens ?? 0
+        snapshot.costUSD = lastUsage?.costUSD ?? 0
+        snapshot.updatedAt = Date()
+        WidgetBridge.publish(snapshot)
     }
 
     func newSession() async -> SessionInfo? {

@@ -8,6 +8,7 @@ struct ChatView: View {
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var showDetails = false
+    @State private var showGit = false
     @State private var atBottom = true
     @FocusState private var composerFocused: Bool
 
@@ -35,6 +36,12 @@ struct ChatView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 10) {
+                    Button { showGit = true } label: {
+                        Image(systemName: "arrow.triangle.branch").font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Grok.textDim)
+                    .accessibilityLabel("Review changes")
+
                     Button { showDetails = true } label: {
                         Image(systemName: "chart.bar.doc.horizontal").font(.system(size: 14, weight: .semibold))
                     }
@@ -57,6 +64,7 @@ struct ChatView: View {
         .onAppear { vm.start() }
         .onDisappear { vm.stop() }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
+        .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session) }
     }
 
     private var transcript: some View {
@@ -565,6 +573,12 @@ struct CodeBlock: View {
 /// A tool invocation line with a status glyph (running ▸ / done ✓ / failed ✗).
 struct ToolLine: View {
     let item: ChatItem
+    @State private var showOutput = false
+
+    private var output: String? {
+        guard let o = item.toolOutput, !o.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return o
+    }
 
     private var glyph: String {
         switch item.toolStatus {
@@ -582,13 +596,43 @@ struct ToolLine: View {
                 Text(glyph).font(Grok.mono(12, .bold)).foregroundStyle(tint)
                 Text(item.text).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                 Spacer(minLength: 0)
+                if output != nil {
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.easeInOut(duration: 0.15)) { showOutput.toggle() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("output").font(Grok.mono(10))
+                            Image(systemName: showOutput ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(Grok.textFaint)
+                    }
+                }
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
+
+            if let output, showOutput {
+                Rectangle().fill(Grok.hairline).frame(height: 1)
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    Text(output)
+                        .font(Grok.mono(11))
+                        .foregroundStyle(item.toolStatus == "failed" ? Grok.danger.opacity(0.9) : Grok.textDim)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                }
+                .frame(maxHeight: 220)
+            }
+
             if let diff = item.diff {
                 Rectangle().fill(Grok.hairline).frame(height: 1)
                 DiffView(diff: diff)
             }
         }
+        // A failure is exactly when you want the output without hunting for it.
+        .onAppear { if item.toolStatus == "failed" { showOutput = true } }
+        .onChange(of: item.toolStatus) { _, status in if status == "failed" { showOutput = true } }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))

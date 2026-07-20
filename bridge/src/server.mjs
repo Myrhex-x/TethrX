@@ -30,6 +30,7 @@ import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
 import * as awake from "./awake.mjs";
+import * as git from "./git.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
@@ -519,6 +520,24 @@ async function handle(req, res) {
       if (typeof body.autoApprove === "boolean") session.autoApprove = body.autoApprove;
       store.save();
       return send(res, 200, session.toJSON());
+    }
+
+    // Review what Grok changed: /api/sessions/:id/git  (?file=… for one file's diff)
+    if (sub === "git" && req.method === "GET") {
+      const file = url.searchParams.get("file");
+      if (file) return send(res, 200, { diff: await git.diff(session.cwd, file) });
+      return send(res, 200, await git.status(session.cwd));
+    }
+    // { action: "commit", message } | { action: "discard" }
+    if (sub === "git" && req.method === "POST") {
+      const body = await readJson(req).catch(() => ({}));
+      if (body.action === "commit") {
+        const message = String(body.message || "").trim();
+        if (!message) return send(res, 400, { error: "missing commit message" });
+        return send(res, 200, await git.commit(session.cwd, message));
+      }
+      if (body.action === "discard") return send(res, 200, await git.discard(session.cwd));
+      return send(res, 400, { error: "unknown action" });
     }
 
     if (sub === "stream" && req.method === "GET") {
