@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, symlinkSync,
+  lstatSync, copyFileSync,
 } from "node:fs";
 
 const REAL_GROK = join(homedir(), ".grok");
@@ -22,16 +23,53 @@ const REAL_GROK = join(homedir(), ".grok");
  * supplies a config.toml with per-tool permission prompts enabled. Returns the HOME
  * path to pass as env.HOME, or null if the real ~/.grok can't be found.
  */
+// Files grok rewrites in place (atomically), which turns our symlink into a real file
+// living only inside the redirected home. These must never be thrown away.
+const MUTABLE_STATE = ["auth.json"];
+
+/** Does a path exist at all (including as a broken symlink)? */
+function present(p) {
+  try { lstatSync(p); return true; } catch { return false; }
+}
+function isRealFile(p) {
+  try { return lstatSync(p).isFile(); } catch { return false; }
+}
+
+/**
+ * Grok refreshes its OAuth token by atomically rewriting auth.json — which REPLACES
+ * our symlink with a real file inside the redirected home. Because refresh tokens
+ * rotate (single use), that file becomes the only valid credential: the copy left in
+ * the real ~/.grok is already spent. Wiping the redirected home on restart therefore
+ * signed grok out permanently. Promote anything grok wrote back to the real ~/.grok,
+ * then re-link, so the bridge and the user's own terminal stay on one credential set.
+ */
+function promoteRefreshedState(dotgrok) {
+  for (const name of MUTABLE_STATE) {
+    const mirrored = join(dotgrok, name);
+    if (!isRealFile(mirrored)) continue;               // still a symlink => nothing refreshed
+    try {
+      copyFileSync(mirrored, join(REAL_GROK, name));   // real home becomes authoritative again
+      rmSync(mirrored, { force: true });               // drop it so we can re-symlink below
+    } catch { /* on any doubt, leave it in place rather than lose credentials */ }
+  }
+}
+
 export function ensureAskGrokHome(stateDir) {
   if (!existsSync(REAL_GROK)) return null;
   const home = join(stateDir, "grok-home");
   const dotgrok = join(home, ".grok");
-  rmSync(dotgrok, { recursive: true, force: true });   // rebuild fresh (real dir may have changed)
   mkdirSync(dotgrok, { recursive: true });
+
+  // NEVER rm -rf this directory: grok may have refreshed credentials into it.
+  promoteRefreshedState(dotgrok);
+
   for (const entry of readdirSync(REAL_GROK)) {
     if (entry === "config.toml") continue;             // we provide our own
-    try { symlinkSync(join(REAL_GROK, entry), join(dotgrok, entry)); } catch { /* skip */ }
+    const link = join(dotgrok, entry);
+    if (present(link)) continue;                       // keep existing links / grok's own files
+    try { symlinkSync(join(REAL_GROK, entry), link); } catch { /* skip */ }
   }
+
   let base = "";
   try { base = readFileSync(join(REAL_GROK, "config.toml"), "utf8"); } catch { /* none */ }
   writeFileSync(join(dotgrok, "config.toml"), deriveAskConfig(base));
