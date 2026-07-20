@@ -1,9 +1,9 @@
 # TethrX
 
-*A client for Grok Build — independent, not affiliated with xAI. (Internal codename: grok-remote.)*
+*A client for Grok Build — independent, not affiliated with xAI.*
 
 
-Drive **Grok Build** running on your computer from your **iPhone** — like [Hermex](https://hermexapp.com/) is for Hermes, but for xAI's Grok Build CLI.
+Drive **Grok Build** running on your computer from your **iPhone**
 
 Your phone is only a control plane. Grok, its tools, and your code stay on your machine; the phone sends prompts, watches Grok work **tool-by-tool**, and **approves or rejects** each action.
 
