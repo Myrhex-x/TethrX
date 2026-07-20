@@ -144,6 +144,31 @@ struct SlashCommand: Codable, Identifiable, Hashable {
     var id: String { name }
     var display: String { "/" + name }
     var takesArgs: Bool { !hint.isEmpty }
+
+    /// What actually happens when this command is run.
+    ///
+    /// grok implements its built-in commands only inside its own terminal UI. Sent over
+    /// ACP they arrive, produce zero tokens and no events, and do nothing — verified
+    /// against /compact. Skills, by contrast, execute as a normal turn. So skills are
+    /// passed through, the built-ins the app can perform itself are handled locally,
+    /// and the remainder are hidden rather than offered as commands that quietly fail.
+    enum Action: Equatable {
+        case send            // a skill — grok runs it
+        case openDetails     // /context, /session-info — the app already shows this
+        case autoApprove     // /always-approve — the app has a real toggle
+        case unsupported     // /compact, /goal, /loop, /feedback — inert over ACP
+    }
+
+    var action: Action {
+        guard scope == "builtin" else { return .send }
+        switch name {
+        case "context", "session-info": return .openDetails
+        case "always-approve":          return .autoApprove
+        default:                        return .unsupported
+        }
+    }
+
+    var isUsable: Bool { action != .unsupported }
 }
 
 /// One changed file in the session's working directory.

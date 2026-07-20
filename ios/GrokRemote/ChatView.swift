@@ -217,9 +217,7 @@ struct ChatView: View {
             }
         } else {
             CircleIconButton(system: "arrow.up", filled: !isEmptyDraft, enabled: !isEmptyDraft) {
-                if dictation.isRecording { dictation.stop() }
-                let text = draft; draft = ""
-                Task { await vm.send(text) }
+                submit(draft)
             }
         }
     }
@@ -365,7 +363,40 @@ struct ChatView: View {
         let sorted = vm.commands.sorted {
             ($0.scope == "builtin" ? 0 : 1, $0.name) < ($1.scope == "builtin" ? 0 : 1, $1.name)
         }
-        return q.isEmpty ? sorted : sorted.filter { $0.name.lowercased().hasPrefix(q) }
+        let usable = sorted.filter { $0.isUsable }   // don't offer commands grok ignores
+        return q.isEmpty ? usable : usable.filter { $0.name.lowercased().hasPrefix(q) }
+    }
+
+    /// Route a typed message: skills go to grok, the built-ins the app can do itself are
+    /// handled here, and the inert ones say so instead of silently doing nothing.
+    private func submit(_ raw: String) {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if dictation.isRecording { dictation.stop() }
+
+        if text.hasPrefix("/") {
+            let parts = text.dropFirst().split(separator: " ", maxSplits: 1, omittingEmptySubsequences: false)
+            let name = String(parts.first ?? "")
+            let argument = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+            if let command = vm.commands.first(where: { $0.name == name }) {
+                switch command.action {
+                case .openDetails:
+                    draft = ""; showDetails = true; return
+                case .autoApprove:
+                    draft = ""
+                    let on = argument.lowercased() != "off"
+                    Task { await vm.setConfig(autoApprove: on) }
+                    return
+                case .unsupported:
+                    vm.errorMessage = "Grok only runs /\(name) inside its own terminal, so it does nothing from here."
+                    return
+                case .send:
+                    break
+                }
+            }
+        }
+        draft = ""
+        Task { await vm.send(text) }
     }
 
     private func insertCommand(_ cmd: SlashCommand) {
