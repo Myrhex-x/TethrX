@@ -196,12 +196,14 @@ struct SessionListView: View {
     private var groupedSessions: [(folder: String, items: [SessionInfo])] {
         let groups = Dictionary(grouping: filteredSessions) { ($0.folder?.isEmpty == false) ? $0.folder! : "" }
         let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
+        let matched = Set(groups.keys.filter { !$0.isEmpty })
         var out: [(String, [SessionInfo])] = []
-        if let ungrouped = groups[""], !ungrouped.isEmpty { out.append(("", ungrouped)) }
-        let named = Set(groups.keys.filter { !$0.isEmpty })
-        for name in (searching ? named : named.union(app.folders)).sorted() {
+        // Folders first, in the user's chosen order. While searching, only ones with hits.
+        for name in app.orderedFolders where !searching || matched.contains(name) {
             out.append((name, groups[name] ?? []))
         }
+        // Ungrouped last, so the folders you made are what you see first.
+        if let ungrouped = groups[""], !ungrouped.isEmpty { out.append(("", ungrouped)) }
         return out
     }
 
@@ -223,38 +225,44 @@ struct SessionListView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    @ViewBuilder private func folderHeader(_ name: String, key: String, count: Int) -> some View {
-        let header = folderHeaderButton(name, key: key, count: count)
-        if key.isEmpty {
-            header
-        } else {
-            header.contextMenu {
-                Button(role: .destructive) { Task { await app.deleteFolder(key) } } label: {
-                    Label("Delete folder", systemImage: "folder.badge.minus")
+    private func folderHeader(_ name: String, key: String, count: Int) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: collapsed.contains(key) ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint).frame(width: 10)
+                    Image(systemName: key.isEmpty ? "tray" : "folder.fill")
+                        .font(.system(size: 11)).foregroundStyle(Grok.textDim)
+                    Text(name).font(Grok.mono(12, .semibold)).tracking(0.5).foregroundStyle(Grok.textDim)
+                    Text("\(count)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Visible, like the row menus — reordering shouldn't be a hidden gesture.
+            if !key.isEmpty {
+                Menu {
+                    Button { app.moveFolder(key, by: -1) } label: { Label("Move up", systemImage: "arrow.up") }
+                    Button { app.moveFolder(key, by: 1) } label: { Label("Move down", systemImage: "arrow.down") }
+                    Button(role: .destructive) { Task { await app.deleteFolder(key) } } label: {
+                        Label("Delete folder", systemImage: "folder.badge.minus")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Grok.textFaint)
+                        .frame(width: 32, height: 34)
+                        .contentShape(Rectangle())
                 }
             }
         }
-    }
-
-    private func folderHeaderButton(_ name: String, key: String, count: Int) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: collapsed.contains(key) ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint).frame(width: 10)
-                Image(systemName: key.isEmpty ? "tray" : "folder.fill")
-                    .font(.system(size: 11)).foregroundStyle(Grok.textDim)
-                Text(name).font(Grok.mono(12, .semibold)).tracking(0.5).foregroundStyle(Grok.textDim)
-                Text("\(count)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-                Spacer()
-            }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        .padding(.vertical, 10)
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
@@ -309,12 +317,7 @@ struct SessionListView: View {
 struct SessionRow: View {
     let session: SessionInfo
 
-    private var name: String {
-        if let cwd = session.cwd, !cwd.isEmpty {
-            return (cwd as NSString).lastPathComponent
-        }
-        return "session"
-    }
+    private var name: String { session.displayName }
 
     var body: some View {
         HStack(spacing: 12) {

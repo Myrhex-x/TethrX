@@ -36,6 +36,16 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var usage: SessionUsage?
 
     var isRunning: Bool { status == "running" }
+
+    /// What the UI shows. Renaming writes `title`, so it has to win here — the views
+    /// used to render the working directory's folder name unconditionally, which made
+    /// renaming look completely broken even though it saved correctly.
+    var displayName: String {
+        let named = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !named.isEmpty, named != "New session" { return named }
+        if let cwd, !cwd.isEmpty { return (cwd as NSString).lastPathComponent }
+        return "session"
+    }
 }
 
 /// Token / cost usage grok reports, accumulated per session by the bridge.

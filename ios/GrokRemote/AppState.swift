@@ -46,6 +46,7 @@ final class AppState: ObservableObject {
         userDisconnected = d.bool(forKey: "bridge.userDisconnected")
         activeBridgeId = d.string(forKey: "bridge.activeId")
         customFolders = d.stringArray(forKey: "bridge.folders") ?? []
+        folderOrder = d.stringArray(forKey: "bridge.folderOrder") ?? []
         if let data = d.data(forKey: "bridge.saved"),
            let list = try? JSONDecoder().decode([SavedBridge].self, from: data) {
             savedBridges = list
@@ -245,21 +246,47 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(customFolders, forKey: "bridge.folders") }
     }
 
+    /// The order the user dragged folders into. Anything not listed sorts after, A to Z.
+    @Published var folderOrder: [String] = [] {
+        didSet { UserDefaults.standard.set(folderOrder, forKey: "bridge.folderOrder") }
+    }
+
     /// Every folder name — created-but-empty ones included.
     var folders: [String] {
         let used = sessions.compactMap { $0.folder }.filter { !$0.isEmpty }
         return Array(Set(used).union(customFolders)).sorted()
     }
 
+    /// Folders in the user's chosen order, with any new ones appended alphabetically.
+    var orderedFolders: [String] {
+        let all = folders
+        let known = folderOrder.filter { all.contains($0) }
+        let rest = all.filter { !known.contains($0) }.sorted()
+        return known + rest
+    }
+
     func createFolder(_ name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !folders.contains(trimmed) else { return }
         customFolders.append(trimmed)
+        folderOrder.append(trimmed)
+    }
+
+    /// Move a folder up (-1) or down (+1) in the list.
+    func moveFolder(_ name: String, by delta: Int) {
+        var order = orderedFolders                 // normalise first, so unordered folders get positions
+        guard let from = order.firstIndex(of: name) else { return }
+        let to = from + delta
+        guard order.indices.contains(to) else { return }
+        order.swapAt(from, to)
+        folderOrder = order
+        Haptics.tap()
     }
 
     /// Remove a folder; any sessions inside it move back to Ungrouped.
     func deleteFolder(_ name: String) async {
         customFolders.removeAll { $0 == name }
+        folderOrder.removeAll { $0 == name }
         for session in sessions where session.folder == name {
             await setFolder(session.id, folder: "")
         }

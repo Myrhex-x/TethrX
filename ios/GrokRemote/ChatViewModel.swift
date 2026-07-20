@@ -23,10 +23,7 @@ final class ChatViewModel: ObservableObject {
     let session: SessionInfo
 
     private let liveActivity = LiveActivityManager()
-    var sessionName: String {
-        if let cwd = session.cwd, !cwd.isEmpty { return (cwd as NSString).lastPathComponent }
-        return "session"
-    }
+    var sessionName: String { session.displayName }
 
     private var streamTask: Task<Void, Never>?
     /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from

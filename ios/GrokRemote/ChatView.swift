@@ -12,10 +12,7 @@ struct ChatView: View {
     @State private var atBottom = true
     @FocusState private var composerFocused: Bool
 
-    private var name: String {
-        if let cwd = vm.session.cwd, !cwd.isEmpty { return (cwd as NSString).lastPathComponent }
-        return "session"
-    }
+    private var name: String { vm.session.displayName }
 
     var body: some View {
         ZStack {
@@ -30,9 +27,18 @@ struct ChatView: View {
         .grokBar()
         .toolbar {
             ToolbarItem(placement: .principal) {
-                HStack(spacing: 7) {
-                    TethrXMark(size: 15)
-                    Text(name).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text)
+                VStack(spacing: 1) {
+                    HStack(spacing: 7) {
+                        TethrXMark(size: 15)
+                        Text(name).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                    }
+                    // Context and tokens live here so they're readable at a glance,
+                    // rather than only inside the details sheet.
+                    if let u = vm.usage, u.contextWindow > 0 {
+                        Text("\(Int(u.contextFraction * 100))% ctx · \(Fmt.tokens(u.totalTokens)) tok")
+                            .font(Grok.mono(9))
+                            .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -54,11 +60,10 @@ struct ChatView: View {
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Grok.accent).clipShape(Capsule())
                     }
-                    HStack(spacing: 6) {
-                        Circle().fill(vm.live ? Grok.accent : Grok.textFaint).frame(width: 7, height: 7)
-                        Text(vm.live ? "LIVE" : "···").font(Grok.mono(10, .medium))
-                            .foregroundStyle(vm.live ? Grok.accent : Grok.textFaint)
-                    }
+                    // Just the dot now: the usage readout under the title is the
+                    // information worth the space, and this still shows connection state.
+                    Circle().fill(vm.live ? Grok.accent : Grok.textFaint).frame(width: 7, height: 7)
+                        .accessibilityLabel(vm.live ? "Connected" : "Reconnecting")
                 }
             }
         }
@@ -269,13 +274,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Live context-window meter — tap for full session usage.
-                if let u = vm.usage, u.contextWindow > 0 {
-                    Button { showDetails = true } label: {
-                        Label("\(Int(u.contextFraction * 100))% ctx", systemImage: "gauge.with.needle").chip(on: false)
-                    }
-                    .buttonStyle(.plain)
-                }
+                // (The context meter moved under the session title, where it's always visible.)
             }
             .padding(.horizontal, 14)
         }
