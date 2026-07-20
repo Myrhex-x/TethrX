@@ -17,6 +17,7 @@ struct SessionListView: View {
     @State private var folderText = ""
     @State private var collapsed: Set<String> = []
     @State private var query = ""
+    @State private var contentHits: [SearchResult] = []   // full-text matches from the bridge
     @State private var showSettings = false
     @State private var creatingFolder = false
     @State private var newFolderName = ""
@@ -79,6 +80,14 @@ struct SessionListView: View {
         // The whole array, not just its count: switching to another computer can
         // land on the same number of sessions, which would swallow the deep-open.
         .onChange(of: app.sessions) { _, _ in openPending() }
+        // Debounced full-text search over conversation history (bridge-side).
+        .task(id: query) {
+            let q = query.trimmingCharacters(in: .whitespaces)
+            guard q.count >= 3, let client = app.client else { contentHits = []; return }
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            contentHits = (try? await client.search(q)) ?? []
+        }
     }
 
     /// Open the session a notification (or debug launch argument) pointed at.
@@ -194,6 +203,42 @@ struct SessionListView: View {
                         }
                     }
                     if hasFolders { Color.clear.frame(height: 8) }
+                }
+            }
+
+            contentSearchResults
+        }
+    }
+
+    /// Sessions whose CONVERSATION matched the query (beyond title/folder/path).
+    @ViewBuilder private var contentSearchResults: some View {
+        let titleMatches = Set(filteredSessions.map { $0.id })
+        let extras = contentHits.filter { !titleMatches.contains($0.sessionId) }
+        if !query.trimmingCharacters(in: .whitespaces).isEmpty, !extras.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Eyebrow("FOUND IN CONVERSATIONS")
+                    .padding(.top, 18).padding(.bottom, 10)
+                ForEach(extras) { hit in
+                    if let session = app.sessions.first(where: { $0.id == hit.sessionId }) {
+                        Button {
+                            if let onSelect { onSelect(session) } else if !path.contains(session) { path.append(session) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(session.displayName)
+                                    .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                                if let snippet = hit.hits.first?.snippet {
+                                    Text("…\(snippet)…")
+                                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                                        .lineLimit(2).multilineTextAlignment(.leading)
+                                }
+                            }
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if hit.id != extras.last?.id { Rectangle().fill(Grok.hairline).frame(height: 1) }
+                    }
                 }
             }
         }

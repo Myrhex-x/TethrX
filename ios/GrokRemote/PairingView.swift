@@ -330,7 +330,9 @@ struct PairingView: View {
         }
     }
 
-    /// Parse a scanned `tethrx://pair?addr=…&token=…` code, fill the fields, and connect.
+    /// Parse a scanned `tethrx://pair?addr=…&token=…[&tls=…&fp=…]` code, fill the
+    /// fields, and connect. When the code carries the bridge's cert fingerprint,
+    /// pair straight over pinned HTTPS — the QR is the out-of-band trust channel.
     private func handleScanned(_ s: String) {
         guard let c = URLComponents(string: s), c.scheme == "tethrx", c.host == "pair",
               let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
@@ -339,7 +341,15 @@ struct PairingView: View {
             app.errorMessage = "That doesn't look like a TethrX pairing code."
             return
         }
-        app.baseURLString = addr
+        let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
+        let tlsPort = c.queryItems?.first(where: { $0.name == "tls" })?.value ?? ""
+        if !fp.isEmpty, !tlsPort.isEmpty, let host = addr.split(separator: ":").first {
+            app.baseURLString = "https://\(host):\(tlsPort)"
+            app.pin = fp
+        } else {
+            app.baseURLString = addr
+            app.pin = ""
+        }
         app.token = tok
         Task { await app.connect() }
     }

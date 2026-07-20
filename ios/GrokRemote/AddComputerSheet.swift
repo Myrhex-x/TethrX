@@ -114,12 +114,15 @@ struct AddComputerSheet: View {
 
     private var divider: some View { Rectangle().fill(Grok.hairline).frame(height: 1) }
 
+    @State private var scannedPin = ""   // cert fingerprint from the QR, if present
+
     private func add() async {
         working = true
         failure = nil
         defer { working = false }
         let ok = await app.addComputer(address: address.trimmingCharacters(in: .whitespaces),
-                                       pairingToken: pairingToken.trimmingCharacters(in: .whitespaces))
+                                       pairingToken: pairingToken.trimmingCharacters(in: .whitespaces),
+                                       pin: scannedPin)
         if ok {
             Haptics.success()
             dismiss()
@@ -136,7 +139,15 @@ struct AddComputerSheet: View {
             failure = "That doesn't look like a TethrX pairing code."
             return
         }
-        address = addr
+        let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
+        let tlsPort = c.queryItems?.first(where: { $0.name == "tls" })?.value ?? ""
+        if !fp.isEmpty, !tlsPort.isEmpty, let host = addr.split(separator: ":").first {
+            address = "https://\(host):\(tlsPort)"
+            scannedPin = fp
+        } else {
+            address = addr
+            scannedPin = ""
+        }
         pairingToken = tok
         Task { await add() }
     }

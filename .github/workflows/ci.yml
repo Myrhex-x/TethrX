@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  bridge:
+    name: bridge (syntax + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax
+        run: |
+          for f in bridge/src/*.mjs; do node --check "$f"; done
+      - name: smoke
+        run: |
+          export HOME="$RUNNER_TEMP/home"
+          mkdir -p "$HOME"
+          GROK_REMOTE_HOST=127.0.0.1 GROK_REMOTE_PORT=4180 node bridge/src/server.mjs &
+          sleep 2
+          TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.env.HOME+'/.grok-remote/config.json')).token)")
+
+          # health, and it must advertise its version
+          curl -fsS localhost:4180/api/health | grep -q '"ok":true'
+          curl -fsS localhost:4180/api/health | grep -q '"version"'
+
+          # auth: 401 without the token, 200 with it
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:4180/api/sessions)" = "401"
+          curl -fsS -H "Authorization: Bearer $TOKEN" localhost:4180/api/sessions | grep -q '"sessions"'
+
+          # pinned-HTTPS listener serves the same API, and its live cert matches
+          # the fingerprint advertised over HTTP
+          curl -fsSk https://localhost:4181/api/health | grep -q '"ok":true'
+          ADV=$(curl -fsS localhost:4180/api/health | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).tls.fingerprint))")
+          SERVED=$(echo | openssl s_client -connect 127.0.0.1:4181 2>/dev/null | openssl x509 -outform DER | openssl dgst -sha256 | awk '{print $NF}')
+          test "$ADV" = "$SERVED"
+
+          # fs browsing is home-jailed
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" 'localhost:4180/api/fs/dirs?path=/etc')" = "403"
+
+          # the pairing page never leaves loopback semantics (no Origin, local Host)
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' localhost:4180/pair)" = "403"
+
+  ios:
+    name: ios (build)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          xcodebuild -project ios/GrokRemote.xcodeproj -scheme GrokRemote \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tail -5

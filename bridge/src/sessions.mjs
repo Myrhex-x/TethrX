@@ -26,7 +26,7 @@ function normalizeUsage(u) {
 }
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -38,6 +38,7 @@ class Session {
     this.autoApprove = autoApprove || false;    // "always allow" — auto-approve tool permissions
     this.grokSessionId = grokSessionId || null; // grok's ACP sessionId, for session/load resume
     this.createdAt = createdAt || new Date().toISOString();
+    this.seedContext = seedContext || null;   // handoff summary from a compacted session; consumed by the first turn
     this.status = "idle";                // "idle" | "running"
     this.turnCount = turnCount || 0;
     this.usage = normalizeUsage(usage);  // token/cost usage, accumulated + persisted
@@ -95,6 +96,7 @@ class Session {
       transport: this.transport, title: this.title, folder: this.folder || "", planMode: this.planMode,
       autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
       createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
+      seedContext: this.seedContext,
     };
   }
 

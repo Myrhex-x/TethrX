@@ -7,6 +7,9 @@ import SwiftUI
 final class AppState: ObservableObject {
     @Published var baseURLString: String { didSet { store("bridge.baseURL", baseURLString) } }
     @Published var token: String { didSet { Keychain.save(token) } }
+    /// Cert fingerprint for pinned HTTPS to the ACTIVE bridge ("" = plain HTTP).
+    /// Not a secret — it's the hash of the certificate every client receives.
+    @Published var pin: String { didSet { store("bridge.pin", pin) } }
     @Published var defaultCwd: String { didSet { store("bridge.cwd", defaultCwd) } }
     @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort) } }   // "", high, medium, low
     @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
@@ -40,6 +43,7 @@ final class AppState: ObservableObject {
     init() {
         let d = UserDefaults.standard
         baseURLString = d.string(forKey: "bridge.baseURL") ?? ""
+        pin = d.string(forKey: "bridge.pin") ?? ""
         // A launch-arg token (debug) wins; otherwise load the secret from the Keychain.
         token = d.string(forKey: "bridge.token") ?? Keychain.load() ?? ""
         defaultCwd = d.string(forKey: "bridge.cwd") ?? ""
@@ -71,12 +75,17 @@ final class AppState: ObservableObject {
         let addr = normalizedBase
         guard !addr.isEmpty, !token.isEmpty else { return }
         let name = (health?.host?.isEmpty == false) ? health!.host! : (URL(string: addr)?.host ?? addr)
-        if let i = savedBridges.firstIndex(where: { $0.address == addr }) {
+        // The same computer may be known by its old http:// address — match on host
+        // so the pinned-https upgrade REPLACES the entry instead of duplicating it.
+        let host = URL(string: addr)?.host
+        if let i = savedBridges.firstIndex(where: { $0.address == addr || (host != nil && URL(string: $0.address)?.host == host) }) {
             savedBridges[i].name = name
+            savedBridges[i].address = addr
+            savedBridges[i].pin = pin.isEmpty ? nil : pin
             activeBridgeId = savedBridges[i].id
             Keychain.save(token, account: savedBridges[i].tokenAccount)
         } else {
-            let bridge = SavedBridge(id: UUID().uuidString, name: name, address: addr)
+            let bridge = SavedBridge(id: UUID().uuidString, name: name, address: addr, pin: pin.isEmpty ? nil : pin)
             savedBridges.append(bridge)
             activeBridgeId = bridge.id
             Keychain.save(token, account: bridge.tokenAccount)
@@ -94,6 +103,7 @@ final class AppState: ObservableObject {
         health = nil
         sessions = []
         baseURLString = bridge.address
+        pin = bridge.pin ?? ""
         token = saved                  // didSet also refreshes the active Keychain slot
         activeBridgeId = bridge.id
         persistBridges()
@@ -114,6 +124,7 @@ final class AppState: ObservableObject {
             sessions = []
             baseURLString = ""
             token = ""
+            pin = ""
             userDisconnected = true
         }
         persistBridges()
@@ -126,7 +137,7 @@ final class AppState: ObservableObject {
     /// A ready-to-use client, or nil if not enough info to build one.
     var client: BridgeClient? {
         guard let url = URL(string: normalizedBase), !token.isEmpty, !normalizedBase.isEmpty else { return nil }
-        return BridgeClient(config: .init(baseURL: url, token: token))
+        return BridgeClient(config: .init(baseURL: url, token: token, pin: pin.isEmpty ? nil : pin))
     }
 
     /// Accepts "192.168.1.10:4180" or a full URL; defaults to http and trims a trailing slash.
@@ -150,7 +161,8 @@ final class AppState: ObservableObject {
         do {
             let h = try await client.health()
             health = h
-            sessions = try await client.listSessions()
+            await upgradeToPinnedTLS(from: h)                              // http → pinned https when the bridge offers it
+            sessions = try await self.client!.listSessions()
             connected = true
             rememberCurrentBridge()                                        // keep the paired-computer list current
             lastUsage = try? await client.usage()
@@ -162,6 +174,26 @@ final class AppState: ObservableObject {
             connected = false
             errorMessage = friendly(error)
         }
+    }
+
+    /// If we're on plain HTTP and the bridge advertises its pinned-HTTPS listener,
+    /// switch to it: same host, TLS port, certificate pinned by fingerprint. Rolls
+    /// straight back if the TLS port turns out to be unreachable (a firewall, say),
+    /// so upgrading can never strand a working connection.
+    private func upgradeToPinnedTLS(from h: HealthInfo) async {
+        guard pin.isEmpty,
+              normalizedBase.lowercased().hasPrefix("http://"),
+              let tls = h.tls, !tls.fingerprint.isEmpty,
+              let host = URL(string: normalizedBase)?.host else { return }
+        let prevBase = baseURLString
+        baseURLString = "https://\(host):\(tls.port)"
+        pin = tls.fingerprint
+        if let upgraded = client, (try? await upgraded.health()) != nil {
+            health = try? await upgraded.health()   // refresh over the pinned channel
+            return
+        }
+        baseURLString = prevBase
+        pin = ""
     }
 
     /// On launch, reconnect automatically from saved credentials so the user stays
@@ -231,11 +263,11 @@ final class AppState: ObservableObject {
     }
 
     /// A client for any paired computer (not just the active one), using its own
-    /// Keychain token slot.
+    /// Keychain token slot and pin.
     func client(for bridge: SavedBridge) -> BridgeClient? {
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty,
               let url = URL(string: bridge.address) else { return nil }
-        return BridgeClient(config: .init(baseURL: url, token: saved))
+        return BridgeClient(config: .init(baseURL: url, token: saved, pin: bridge.pin))
     }
 
     /// Resolve a tool permission straight from a notification action — no session
@@ -352,16 +384,19 @@ final class AppState: ObservableObject {
 
     /// Pair an additional computer without losing the current one: if the new
     /// credentials don't connect, the previous connection is restored.
-    func addComputer(address: String, pairingToken: String) async -> Bool {
+    func addComputer(address: String, pairingToken: String, pin newPin: String = "") async -> Bool {
         let prevAddress = baseURLString
         let prevToken = token
+        let prevPin = pin
         baseURLString = address
         token = pairingToken
+        pin = newPin
         await connect()
         if connected { return true }
         // Failed — put the old computer back and reconnect to it.
         baseURLString = prevAddress
         token = prevToken
+        pin = prevPin
         await connect()
         return false
     }

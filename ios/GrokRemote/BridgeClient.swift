@@ -3,6 +3,8 @@ import Foundation
 struct BridgeConfig: Equatable {
     var baseURL: URL
     var token: String
+    /// SHA-256 fingerprint of the bridge's self-signed cert; set for pinned HTTPS.
+    var pin: String? = nil
 }
 
 enum BridgeError: LocalizedError {
@@ -22,7 +24,10 @@ enum BridgeError: LocalizedError {
 /// returns a live stream of normalized Server-Sent Events.
 struct BridgeClient {
     let config: BridgeConfig
-    private var session: URLSession { .shared }
+    private var session: URLSession {
+        if let pin = config.pin, !pin.isEmpty { return PinnedSessions.session(for: pin) }
+        return .shared
+    }
 
     // MARK: Requests
 
@@ -188,6 +193,24 @@ struct BridgeClient {
     func deleteSchedule(_ id: String) async throws {
         let (_, resp) = try await session.data(for: try request("/api/schedules/\(id)", method: "DELETE"))
         try Self.check(resp)
+    }
+
+    /// Compact a session: the bridge runs one summary turn, then returns a fresh
+    /// session seeded with the handoff. Slow (a real grok turn) — long timeout.
+    func compact(sessionId: String) async throws -> SessionInfo {
+        var req = try request("/api/sessions/\(sessionId)/compact", method: "POST", json: [:])
+        req.timeoutInterval = 300
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        return try JSONDecoder().decode(SessionInfo.self, from: data)
+    }
+
+    /// Full-text search across every session's conversation history.
+    func search(_ query: String) async throws -> [SearchResult] {
+        let (data, resp) = try await session.data(for: try getQuery("/api/search", query: ["q": query]))
+        try Self.check(resp)
+        struct Wrapper: Codable { let results: [SearchResult] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).results
     }
 
     /// Register ActivityKit push tokens so the bridge can drive lock-screen

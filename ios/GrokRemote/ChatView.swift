@@ -935,8 +935,12 @@ struct PermissionCard: View {
 /// breakdown (incl. thinking), cost, and the session's configuration.
 struct SessionDetailsSheet: View {
     @ObservedObject var vm: ChatViewModel
+    @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var shareURL: ShareFile?
+    @State private var confirmCompact = false
+    @State private var compacting = false
+    @State private var compactError: String?
 
     private var u: SessionUsage { vm.usage ?? SessionUsage() }
     private var session: SessionInfo { vm.session }
@@ -1000,6 +1004,44 @@ struct SessionDetailsSheet: View {
                 Text("Send a message to see context usage.")
                     .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
             }
+
+            if session.turnCount > 0, !vm.busy {
+                Button { confirmCompact = true } label: {
+                    HStack(spacing: 10) {
+                        if compacting { ProgressView().controlSize(.small).tint(.white) }
+                        Label(compacting ? "Compacting…" : "Compact into a fresh session",
+                              systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .buttonStyle(PillButton(kind: u.contextFraction > 0.85 ? .prominent : .subtle))
+                .disabled(compacting)
+                Text("Grok writes a handoff summary of this conversation, and a fresh session starts from it. This one stays untouched.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                if let compactError {
+                    Text(compactError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                }
+            }
+        }
+        .alert("Compact this session?", isPresented: $confirmCompact) {
+            Button("Compact") { Task { await compact() } }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Grok will summarize the conversation (uses some tokens), then a new session opens seeded with that summary.")
+        }
+    }
+
+    private func compact() async {
+        compacting = true
+        compactError = nil
+        defer { compacting = false }
+        do {
+            let fresh = try await vm.client.compact(sessionId: session.id)
+            Haptics.success()
+            await app.reloadSessions()
+            dismiss()
+            app.pendingOpenSessionId = fresh.id   // the list (or split view) opens it
+        } catch {
+            compactError = "Compaction failed — check the connection and try again."
         }
     }
 

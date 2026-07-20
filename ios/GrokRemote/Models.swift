@@ -3,11 +3,19 @@ import UIKit
 
 /// Response of `GET /api/health`.
 struct HealthInfo: Codable {
+    /// The bridge's pinned-HTTPS listener, when it has one.
+    struct TlsInfo: Codable {
+        let port: Int
+        let fingerprint: String   // SHA-256 hex of its self-signed cert
+    }
     let ok: Bool
     let name: String?
     let host: String?          // the computer's hostname — used to name a paired bridge
     let grok: String?
     let grokAvailable: Bool
+    var version: String?       // the bridge's own version
+    var latestVersion: String? // newest on npm (checked at most daily; nil offline)
+    var tls: TlsInfo?
 }
 
 /// A paired computer. Its pairing token lives in the Keychain, keyed by `id`,
@@ -16,7 +24,23 @@ struct SavedBridge: Codable, Identifiable, Hashable {
     var id: String
     var name: String
     var address: String
+    /// Cert fingerprint when this computer is reached over pinned HTTPS.
+    var pin: String? = nil
     var tokenAccount: String { "bridge.token." + id }
+}
+
+/// One session matched by full-text search, with a few snippets.
+struct SearchResult: Codable, Identifiable {
+    struct Hit: Codable, Hashable {
+        var eventId: Int
+        var kind: String
+        var snippet: String
+    }
+    var sessionId: String
+    var title: String
+    var count: Int
+    var hits: [Hit]
+    var id: String { sessionId }
 }
 
 /// A Grok conversation tracked by the bridge.

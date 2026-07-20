@@ -31,6 +31,7 @@ import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
 import { ScheduleStore, startScheduler } from "./schedules.mjs";
+import { ensureTls } from "./tls.mjs";
 import * as awake from "./awake.mjs";
 import * as git from "./git.mjs";
 
@@ -39,6 +40,30 @@ const PUBLIC_DIR = join(__dirname, "..", "public");
 const store = new SessionStore(join(config.stateDir, "sessions.json"));
 const apns = loadApns(config);   // native push (disabled unless an APNs key is configured)
 const schedules = new ScheduleStore(join(config.stateDir, "schedules.json"));
+
+// Pinned self-signed TLS: served on its own port; the app learns the fingerprint
+// from the pairing QR (or /api/health) and pins the exact certificate.
+const tls = ensureTls(config.stateDir);
+const tlsPort = Number(process.env.GROK_REMOTE_TLS_PORT || config.port + 1);
+
+// Version + update check. Old bridges lingering on users' machines are the real
+// long-tail risk (0.1.0–0.1.8 had a token-disclosure bug), so the bridge checks
+// npm at most daily and /api/health carries both numbers for the app to compare.
+const OWN_VERSION = (() => {
+  try { return JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8")).version || ""; }
+  catch { return ""; }
+})();
+let npmLatest = { version: null, at: 0 };
+function latestNpmVersion() {
+  if (Date.now() - npmLatest.at > 24 * 3600_000) {
+    npmLatest.at = Date.now();
+    fetch("https://registry.npmjs.org/tethrx-bridge/latest", { signal: AbortSignal.timeout(5000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.version) npmLatest.version = d.version; })
+      .catch(() => { /* offline is fine */ });
+  }
+  return npmLatest.version;   // may be null until the first fetch lands
+}
 
 // Attached images land here; grok views them with its own (vision-capable) read
 // tool. ACP declares image content blocks unsupported (promptCapabilities.image:
@@ -110,7 +135,10 @@ function pairPageHTML() {
   // Bound to loopback => the QR addresses below are NOT reachable from a phone.
   // Say so plainly instead of handing out codes that can only fail.
   const loopbackOnly = ["127.0.0.1", "::1", "localhost"].includes(String(config.host));
-  const data = JSON.stringify({ token: config.token, port, addrs, loopbackOnly });
+  const data = JSON.stringify({
+    token: config.token, port, addrs, loopbackOnly,
+    tlsPort: tls ? tlsPort : null, fp: tls ? tls.fingerprint : null,
+  });
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pair TethrX</title><script src="/qrcode.js"></script>
 <style>
@@ -162,6 +190,9 @@ if (D.loopbackOnly) {
 if (!D.loopbackOnly) D.addrs.forEach(function(a){
   var addr = a.ip + ':' + D.port;
   var payload = 'tethrx://pair?addr=' + encodeURIComponent(addr) + '&token=' + encodeURIComponent(D.token);
+  // Pinned-HTTPS upgrade: the QR is the out-of-band channel, so it carries the
+  // certificate fingerprint the app will pin (old apps just ignore the extras).
+  if (D.fp) payload += '&tls=' + D.tlsPort + '&fp=' + D.fp;
   var card = document.createElement('div'); card.className = 'card';
   card.innerHTML = '<div class="eyebrow">'+a.kind+'</div><div class="qr" id="q'+a.ip.replace(/\\./g,'_')+'"></div><div class="addr">'+addr+'</div>';
   host.appendChild(card);
@@ -376,6 +407,11 @@ function startHeadlessTurn(session, body) {
     })
     .catch((err) => {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
+      pushNotify(session, {
+        title: displayTitle(session),
+        message: `Turn failed: ${friendlyTurnError(err)}`.slice(0, 170),
+        priority: "high", tags: "x",
+      });
     })
     .finally(() => { awake.release(); session.endTurn(); store.save(); session.saveHistory(); });
 }
@@ -432,6 +468,14 @@ async function ensureAcp(session) {
 }
 
 function startAcpTurn(session, body) {
+  // A compacted session carries its predecessor's summary; prepend it to the
+  // first prompt so grok has the context without a wasted ingest turn.
+  if (session.seedContext) {
+    body.displayText = body.displayText ?? body.text;
+    body.text = `[Handoff from a previous session — treat this as prior context]\n${session.seedContext}\n[End of handoff]\n\n${body.text}`;
+    session.seedContext = null;
+    store.save();
+  }
   session.beginTurn();
   session.emit({
     kind: "turn_start",
@@ -454,6 +498,13 @@ function startAcpTurn(session, body) {
       laTurnEnd(session, "done", "Finished");
     } catch (err) {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
+      // Failures push too — a scheduled task dying signed-out at 9am must not
+      // look identical to one still running.
+      pushNotify(session, {
+        title: displayTitle(session),
+        message: `Turn failed: ${friendlyTurnError(err)}`.slice(0, 170),
+        priority: "high", tags: "x",
+      });
       laTurnEnd(session, "error", "Something went wrong");
       try { session.acp?.stop(); } catch { /* ignore */ }   // don't orphan the child
       session.acp = null; // force a fresh process on the next turn
@@ -526,6 +577,12 @@ async function handle(req, res) {
       host: hostname(),          // lets the phone name this computer in its bridge list
       grok: version,
       grokAvailable: Boolean(version),
+      version: OWN_VERSION,
+      latestVersion: latestNpmVersion(),
+      // Advertising this lets an app paired over plain HTTP upgrade itself to
+      // pinned HTTPS on its next connect (the QR remains the out-of-band root
+      // of trust for first-time pairing).
+      tls: tls ? { port: tlsPort, fingerprint: tls.fingerprint } : null,
     });
   }
 
@@ -614,6 +671,51 @@ async function handle(req, res) {
     } catch {
       return send(res, 404, { error: "can't read that folder" });
     }
+  }
+
+  // Full-text search across every session's conversation history.
+  if (pathname === "/api/search" && req.method === "GET") {
+    const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+    if (q.length < 2) return send(res, 400, { error: "query too short" });
+    const results = [];
+    for (const summary of store.list()) {
+      const session = store.get(summary.id);
+      if (!session) continue;
+      const hits = [];
+      // Streaming chunks split words across events, so search whole blocks:
+      // consecutive text/thought events merge into one searchable document.
+      let buf = "", bufKind = "", bufId = 0;
+      const flush = () => {
+        if (!buf) return;
+        const idx = buf.toLowerCase().indexOf(q);
+        if (idx !== -1 && hits.length < 3) {
+          const from = Math.max(0, idx - 60);
+          const snippet = buf.slice(from, idx + q.length + 60).replace(/\s+/g, " ").trim();
+          hits.push({ eventId: bufId, kind: bufKind, snippet });
+        }
+        buf = ""; bufKind = ""; bufId = 0;
+      };
+      for (const { id, event } of session._events) {
+        if (event.kind === "text" || event.kind === "thought") {
+          if (event.kind !== bufKind) flush();
+          if (!buf) { bufKind = event.kind; bufId = id; }
+          buf += event.text || "";
+        } else {
+          flush();
+          if (event.kind === "turn_start") {
+            const t = String(event.text || "");
+            const idx = t.toLowerCase().indexOf(q);
+            if (idx !== -1 && hits.length < 3) {
+              hits.push({ eventId: id, kind: "user", snippet: t.replace(/\s+/g, " ").trim().slice(0, 140) });
+            }
+          }
+        }
+      }
+      flush();
+      if (hits.length) results.push({ sessionId: session.id, title: session.title, count: hits.length, hits });
+    }
+    results.sort((a, b) => b.count - a.count);
+    return send(res, 200, { results: results.slice(0, 20) });
   }
 
   // Scheduled tasks.
@@ -757,6 +859,56 @@ async function handle(req, res) {
       return send(res, 200, { ok: true, cancelled });
     }
 
+    // Compact: grok's own /compact is inert over ACP, so the bridge does it for
+    // real — one summary turn in THIS session, then a fresh session seeded with
+    // the summary (prepended to its first message, so no ingest turn is wasted).
+    if (sub === "compact" && req.method === "POST") {
+      if (session.transport !== "acp") return send(res, 400, { error: "compaction needs the acp transport" });
+      if (session.status === "running") return send(res, 409, { error: "a turn is already running" });
+      if (!session.turnCount) return send(res, 400, { error: "nothing to compact yet" });
+
+      const SUMMARY_PROMPT =
+        "Write a dense handoff summary of this entire conversation for a fresh session that will continue the work: " +
+        "the goal, what has been done (files touched, commands run, decisions made), the current state, and what remains " +
+        "or is unresolved. Use markdown lists. Do not use any tools. Do not add any preamble or closing remarks.";
+
+      const startId = session._nextEventId;
+      session.beginTurn();
+      session.emit({ kind: "turn_start", text: "Compacting this conversation…", at: new Date().toISOString() });
+      awake.acquire();
+      try {
+        const acp = await ensureAcp(session);
+        const result = await acp.prompt(SUMMARY_PROMPT);
+        session.addUsage(result);
+        session.emit({ kind: "usage", usage: session.usage });
+        session.emit({ kind: "turn_complete", stopReason: result.stopReason });
+      } catch (err) {
+        session.emit({ kind: "error", message: friendlyTurnError(err) });
+        try { session.acp?.stop(); } catch { /* ignore */ }
+        session.acp = null;
+        return send(res, 500, { error: friendlyTurnError(err) });
+      } finally {
+        awake.release();
+        session.endTurn();
+        store.save();
+        session.saveHistory();
+      }
+
+      const summary = session._events
+        .filter((r) => r.id > startId && r.event.kind === "text")
+        .map((r) => r.event.text).join("").trim();
+      if (!summary) return send(res, 500, { error: "grok produced no summary" });
+
+      const fresh = store.create({
+        cwd: session.cwd, model: session.model, effort: session.effort,
+        transport: session.transport, planMode: session.planMode,
+        autoApprove: session.autoApprove, folder: session.folder,
+        title: session.title === "New session" ? undefined : session.title,
+        seedContext: summary,
+      });
+      return send(res, 201, fresh.toJSON());
+    }
+
     // Live per-session settings: /api/sessions/:id/config { planMode?, effort?, autoApprove? }
     if (sub === "config" && req.method === "POST") {
       const body = await readJson(req).catch(() => ({}));
@@ -876,6 +1028,18 @@ const server = useTls
   : createServer(handler);
 const scheme = useTls ? "https" : "http";
 
+// Pinned-HTTPS listener (same handler, second port). The main port stays HTTP so
+// existing pairings and the loopback /pair page keep working; the app upgrades
+// itself to this port once it learns the fingerprint.
+let pinnedServer = null;
+if (tls && tlsPort !== config.port) {
+  pinnedServer = createHttpsServer({ cert: tls.cert, key: tls.key }, handler);
+  pinnedServer.on("error", (err) => {
+    console.error(`[bridge] pinned-https listener failed (${err.code || err.message}) — continuing HTTP-only`);
+    pinnedServer = null;
+  });
+}
+
 // Bind dual-stack when host is 0.0.0.0 so `localhost` works in browsers that try
 // IPv6 (::1) first (e.g. Safari). "::" still accepts IPv4, so LAN/Tailscale work.
 const listenHost = config.host === "0.0.0.0" ? "::" : config.host;
@@ -913,10 +1077,19 @@ process.on("unhandledRejection", (err) => console.error("[bridge] unhandled reje
 
 server.listen(config.port, listenHost, async () => {
   advertiseBonjour();
+  pinnedServer?.listen(tlsPort, listenHost);
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);
   console.log(`  ├─ listening   ${scheme}://${config.host}:${config.port}${bonjour ? "  (visible nearby as _tethrx._tcp)" : ""}`);
+  if (tls && pinnedServer) {
+    console.log(`  ├─ https       https://${config.host}:${tlsPort}  (self-signed, pinned by the app)`);
+    console.log(`  ├─ cert sha256 ${tls.fingerprint.slice(0, 16)}…  (full print in the pairing QR)`);
+  }
+  const latest = latestNpmVersion();
+  if (latest && latest !== OWN_VERSION) {
+    console.log(`  ├─ UPDATE      v${latest} is out (you run v${OWN_VERSION}) — npm i -g tethrx-bridge`);
+  }
   console.log(`  ├─ grok        ${version || "NOT FOUND — check GROK_BIN"}  (${config.grokBin})`);
   console.log(`  ├─ transport   ${config.transport}${config.transport === "acp" ? ` (approve/reject: ${grokHome ? "on" : "off"})` : ""}`);
   console.log(`  ├─ default cwd ${config.defaultCwd}`);

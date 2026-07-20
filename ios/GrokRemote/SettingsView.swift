@@ -57,6 +57,20 @@ struct SettingsView: View {
             Eyebrow("CONNECTION")
             row("Bridge", app.normalizedBase.isEmpty ? "—" : app.normalizedBase)
             HStack {
+                Text("Security").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Spacer()
+                HStack(spacing: 5) {
+                    Image(systemName: pinned ? "lock.fill" : "lock.open")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(pinned ? "HTTPS · certificate pinned" : "HTTP")
+                }
+                .font(Grok.mono(12)).foregroundStyle(pinned ? Grok.text : Grok.textDim)
+            }
+            if !pinned {
+                Text("Update the bridge (npm i -g tethrx-bridge) and reconnect — the app upgrades to pinned HTTPS automatically.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+            }
+            HStack {
                 Text("Token").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                 Spacer()
                 Text(revealToken ? app.token : String(repeating: "•", count: min(max(app.token.count, 1), 18)))
@@ -219,9 +233,27 @@ struct SettingsView: View {
             Eyebrow("ABOUT")
             row("App", "TethrX \(appVersion)")
             row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "—")
+            if let v = app.health?.version, !v.isEmpty {
+                row("Bridge", "v\(v)" + (bridgeOutdated ? " · update available" : ""))
+            }
+            if bridgeOutdated {
+                Text("On your computer: npm i -g tethrx-bridge, then restart the bridge.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            }
             Text("A client for Grok Build · independent, not affiliated with xAI.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
         }
+    }
+
+    private var pinned: Bool { !app.pin.isEmpty && app.normalizedBase.lowercased().hasPrefix("https") }
+
+    /// Numeric semver compare, so a dev build "ahead" of npm doesn't nag.
+    private var bridgeOutdated: Bool {
+        guard let cur = app.health?.version?.split(separator: ".").compactMap({ Int($0) }),
+              let latest = app.health?.latestVersion?.split(separator: ".").compactMap({ Int($0) }),
+              cur.count == 3, latest.count == 3 else { return false }
+        for i in 0..<3 where latest[i] != cur[i] { return latest[i] > cur[i] }
+        return false
     }
 
     private func row(_ key: String, _ value: String) -> some View {
