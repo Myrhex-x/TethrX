@@ -29,14 +29,18 @@ Everything below is **built and tested** against a real `grok` install.
 - **Approvals** — nothing runs until you tap. Also answerable straight from the notification.
 - **Plan mode** — read the plan before Grok builds it.
 - **Review the work** — changed files, per-file diffs, and **commit or discard** from the phone.
-- **Slash commands** — grok's own (`/compact`, `/context`, …) plus any skills you have installed.
+- **Browse the project** — the session's file tree and any text file, read-only, from the phone.
+- **Attach images** — send a screenshot or mockup; the bridge saves it and Grok views the file with its vision-capable read tool.
+- **Scheduled tasks** — "weekdays at 9: pull main and run the tests", fired on your computer's clock, results pushed to your phone.
+- **Slash commands** — grok's skills, plus the built-ins the app can honor.
 - **Voice dictation**, **queued follow-ups**, and reusable prompt snippets.
-- **Sessions** — search, folders, and several paired computers you can switch between.
+- **Sessions** — search, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing.
 - **Siri** — start a task or ask what Grok is doing without opening the app.
-- **Home-screen widget** and a **Live Activity** on the lock screen / Dynamic Island.
-- **Usage** — context window, tokens, and cost per session.
+- **Home-screen widget** and a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+).
+- **Usage** — context window, tokens, and cost per session, with a push when a session's context runs low.
 - **Face ID lock**, since the bridge can run commands on your machine.
 - Your computer is kept **awake** for as long as a task is running.
+- **iPad** — sidebar + conversation split layout.
 
 ---
 

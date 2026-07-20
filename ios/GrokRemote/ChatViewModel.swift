@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 /// Drives a single session: keeps a live SSE connection, folds streaming events
 /// into `items`, and sends / cancels turns.
@@ -31,6 +32,9 @@ final class ChatViewModel: ObservableObject {
     private var lastEventId = 0
     private var assistantIndex: Int?   // current assistant bubble being appended to
     private var thoughtIndex: Int?     // current thought bubble being appended to
+    /// Thumbnails of images just sent from THIS device; attached to the next
+    /// turn_start's user bubble (history replay only knows the count).
+    private var pendingEcho: [UIImage] = []
 
     init(client: BridgeClient, session: SessionInfo) {
         self.client = client
@@ -39,6 +43,11 @@ final class ChatViewModel: ObservableObject {
         self.effort = session.effort ?? ""
         self.autoApprove = session.autoApprove ?? false
         self.usage = session.usage
+        // Hand each activity's update token to the bridge, so the lock-screen
+        // status keeps moving after the app is closed.
+        liveActivity.onPushToken = { [client, session] token in
+            Task { try? await client.registerLiveActivity(kind: "update-token", token: token, sessionId: session.id) }
+        }
     }
 
     /// Change plan mode / reasoning effort / auto-approve for this session, live.
@@ -82,15 +91,17 @@ final class ChatViewModel: ObservableObject {
         streamTask = nil
     }
 
-    func send(_ text: String) async {
+    func send(_ text: String, images: [Data] = [], thumbnails: [UIImage] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty || !images.isEmpty else { return }
         busy = true
         errorMessage = nil
+        if !thumbnails.isEmpty { pendingEcho = thumbnails }
         do {
-            try await client.send(sessionId: session.id, text: trimmed)
+            try await client.send(sessionId: session.id, text: trimmed, images: images)
         } catch {
             busy = false
+            pendingEcho = []
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -183,8 +194,15 @@ final class ChatViewModel: ObservableObject {
             assistantIndex = nil
             thoughtIndex = nil
             busy = true
-            liveActivity.start(sessionName: sessionName, phase: "working", detail: "Grok is working…")
-            append(.user, event["text"] as? String ?? "")
+            liveActivity.start(sessionName: sessionName, sessionId: session.id,
+                               phase: "working", detail: "Grok is working…")
+            var item = ChatItem(role: .user, text: event["text"] as? String ?? "")
+            item.imageCount = event["imageCount"] as? Int ?? 0
+            if item.imageCount > 0, !pendingEcho.isEmpty {
+                item.images = pendingEcho
+                pendingEcho = []
+            }
+            items.append(item)
 
         case "text":
             let t = event["text"] as? String ?? ""

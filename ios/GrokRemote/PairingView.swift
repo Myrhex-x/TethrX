@@ -6,6 +6,7 @@ import UIKit
 /// its own steps) → open the pairing page → scan the matching QR (or type it).
 struct PairingView: View {
     @EnvironmentObject var app: AppState
+    @StateObject private var discovery = BridgeDiscovery()
     @FocusState private var focus: Field?
     @State private var showScanner = false
     @State private var idx = 0
@@ -53,6 +54,11 @@ struct PairingView: View {
             #endif
             // Always start at step 1. Returning users get the Reconnect shortcut below.
         }
+        .onChange(of: current) { _, step in
+            // Browse only on the scan step, where an address is actually wanted.
+            if step == .scan { discovery.start() } else { discovery.stop() }
+        }
+        .onDisappear { discovery.stop() }
     }
 
     // MARK: Header
@@ -137,6 +143,38 @@ struct PairingView: View {
                     Label("Scan to pair", systemImage: "qrcode.viewfinder")
                 }
                 .buttonStyle(PillButton(kind: .prominent))
+
+                // Bridges advertising themselves on this network — tap to fill the
+                // address, then only the token is left to enter.
+                if path == .wifi, !discovery.found.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Eyebrow("FOUND NEARBY")
+                        ForEach(discovery.found) { bridge in
+                            Button {
+                                Haptics.tap()
+                                app.baseURLString = bridge.address
+                                focus = .token
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                                        Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                    }
+                                    Spacer(minLength: 0)
+                                    if app.baseURLString == bridge.address {
+                                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Grok.accent)
+                                    }
+                                }
+                                .padding(12)
+                                .overlay(RoundedRectangle(cornerRadius: 11).stroke(Grok.hairlineStrong, lineWidth: 1))
+                                .contentShape(RoundedRectangle(cornerRadius: 11))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
 
                 HStack(spacing: 12) {
                     divider

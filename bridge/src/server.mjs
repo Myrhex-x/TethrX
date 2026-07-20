@@ -17,18 +17,20 @@
 
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFileSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { dirname, join, normalize as normPath, sep } from "node:path";
+import { dirname, join, normalize as normPath, resolve as resolvePath, sep } from "node:path";
 import { timingSafeEqual, randomBytes } from "node:crypto";
-import { networkInterfaces, hostname } from "node:os";
+import { networkInterfaces, hostname, homedir } from "node:os";
 
 import { config } from "./config.mjs";
 import { SessionStore } from "./sessions.mjs";
 import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
+import { ScheduleStore, startScheduler } from "./schedules.mjs";
 import * as awake from "./awake.mjs";
 import * as git from "./git.mjs";
 
@@ -36,6 +38,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
 const store = new SessionStore(join(config.stateDir, "sessions.json"));
 const apns = loadApns(config);   // native push (disabled unless an APNs key is configured)
+const schedules = new ScheduleStore(join(config.stateDir, "schedules.json"));
+
+// Attached images land here; grok views them with its own (vision-capable) read
+// tool. ACP declares image content blocks unsupported (promptCapabilities.image:
+// false), so a file on disk + its path in the prompt is the working transport.
+const UPLOAD_DIR = join(config.stateDir, "uploads");
+try {
+  mkdirSync(UPLOAD_DIR, { recursive: true });
+  const cutoff = Date.now() - 7 * 24 * 3600_000;   // sweep uploads older than a week
+  for (const f of readdirSync(UPLOAD_DIR)) {
+    try { if (statSync(join(UPLOAD_DIR, f)).mtimeMs < cutoff) rmSync(join(UPLOAD_DIR, f), { force: true }); } catch { /* ignore */ }
+  }
+} catch { /* uploads become unavailable, not fatal */ }
 
 // Single-use, decision-bound tokens for lock-screen approval links, so the full
 // pairing token is never embedded in an ntfy notification.
@@ -292,6 +307,42 @@ function friendlyTurnError(err) {
   return raw;
 }
 
+// Live Activity driver: start on the lock screen when nobody's watching, flip to
+// "waiting" on approvals, end when the turn does. All best-effort/fire-and-forget.
+function laTurnStart(session) {
+  if (!apns.enabled) return;
+  const state = { phase: "working", detail: "Grok is working…" };
+  if (apns.hasLaUpdateToken(session.id)) { apns.laUpdate(session.id, state).catch(() => {}); return; }
+  if (session.subscriberCount > 0 || !apns.hasLaStartTokens) return;   // app open drives its own
+  apns.laStart({
+    attributes: { sessionName: displayTitle(session), sessionId: session.id },
+    contentState: state,
+    alertTitle: displayTitle(session),
+    alertBody: "Grok started working.",
+  }).catch(() => {});
+}
+function laWaiting(session, detail) {
+  apns.laUpdate(session.id, { phase: "waiting", detail: detail || "Waiting for your approval" }).catch(() => {});
+}
+function laTurnEnd(session, phase, detail) {
+  apns.laEnd(session.id, { phase, detail }).catch(() => {});
+}
+
+// One heads-up per session when the context window crosses 85% — after that a
+// fresh session is the only real remedy, so say so while there's still room.
+function warnContextIfNearlyFull(session) {
+  const u = session.usage || {};
+  if (!u.contextWindow || session._ctxWarned) return;
+  const frac = u.contextTokens / u.contextWindow;
+  if (frac < 0.85) return;
+  session._ctxWarned = true;
+  pushNotify(session, {
+    title: displayTitle(session),
+    message: `Context window ${Math.round(frac * 100)}% full — consider starting a fresh session soon.`,
+    tags: "warning",
+  });
+}
+
 // Kick off a Grok turn WITHOUT blocking the HTTP response. Events flow to the
 // session's SSE subscribers (and history) as they arrive.
 function startTurn(session, body) {
@@ -353,9 +404,11 @@ async function ensureAcp(session) {
           }
         }
         notifyPermission(session, event);
+        laWaiting(session, event.command || event.title);
       }
       if (event.kind === "plan_review") {
         pushNotify(session, { title: `${displayTitle(session)} — plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
+        laWaiting(session, "Plan ready to review");
       }
       session.emit(event);
     },
@@ -380,8 +433,14 @@ async function ensureAcp(session) {
 
 function startAcpTurn(session, body) {
   session.beginTurn();
-  session.emit({ kind: "turn_start", text: body.text, at: new Date().toISOString() });
+  session.emit({
+    kind: "turn_start",
+    text: body.displayText ?? body.text,          // the transcript shows what the user typed
+    imageCount: body.imageCount || 0,
+    at: new Date().toISOString(),
+  });
   awake.acquire();   // don't let the machine sleep out from under a running turn
+  laTurnStart(session);
 
   (async () => {
     try {
@@ -389,10 +448,13 @@ function startAcpTurn(session, body) {
       const result = await acp.prompt(body.text);
       session.addUsage(result);                                    // fold grok's token report in
       session.emit({ kind: "usage", usage: session.usage });       // live meter update
+      warnContextIfNearlyFull(session);
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
       pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark" });
+      laTurnEnd(session, "done", "Finished");
     } catch (err) {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
+      laTurnEnd(session, "error", "Something went wrong");
       try { session.acp?.stop(); } catch { /* ignore */ }   // don't orphan the child
       session.acp = null; // force a fresh process on the next turn
     } finally {
@@ -418,6 +480,20 @@ function startAcpTurn(session, body) {
     }
   })();
 }
+
+// Fire due schedules on this machine's local clock. The started turn behaves like
+// any other: completion push, approval pushes, Live Activity — all apply.
+startScheduler({
+  schedules,
+  sessions: store,
+  fire: (session, s) => {
+    pushNotify(session, { title: displayTitle(session), message: `Scheduled task started: ${s.prompt.slice(0, 90)}`, tags: "alarm_clock" });
+    startTurn(session, { text: s.prompt });
+  },
+  onSkip: (session, s, why) => {
+    pushNotify(session, { title: displayTitle(session), message: `Scheduled task skipped — ${why}.`, tags: "warning" });
+  },
+});
 
 // Reap idle ACP processes; the next turn transparently resumes context via session/load.
 if (config.transport === "acp") {
@@ -507,6 +583,60 @@ async function handle(req, res) {
     return send(res, ok ? 200 : 400, { ok, push: apns.enabled });
   }
 
+  // ActivityKit push tokens: "start-token" lets the bridge START a lock-screen
+  // activity with the app closed (iOS 17.2+); "update-token" drives one session's
+  // running activity.
+  if (pathname === "/api/live-activity" && req.method === "POST") {
+    const body = await readJson(req).catch(() => ({}));
+    const ok = body.kind === "start-token" ? apns.addLaStartToken(body.token)
+      : body.kind === "update-token" ? apns.setLaUpdateToken(body.sessionId, body.token)
+      : false;
+    return send(res, ok ? 200 : 400, { ok });
+  }
+
+  // Directory browser for the phone's working-directory picker. Home-jailed: this
+  // is a convenience surface, and the picker's text field still accepts any path.
+  if (pathname === "/api/fs/dirs" && req.method === "GET") {
+    const home = homedir();
+    const requested = url.searchParams.get("path") || home;
+    const full = resolvePath(requested);
+    if (full !== home && !full.startsWith(home + sep)) {
+      return send(res, 403, { error: "outside your home folder — type the path instead" });
+    }
+    try {
+      const entries = await readdir(full, { withFileTypes: true });
+      const dirs = entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+        .map((e) => ({ name: e.name, path: join(full, e.name) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 300);
+      return send(res, 200, { path: full, parent: full === home ? null : dirname(full), dirs });
+    } catch {
+      return send(res, 404, { error: "can't read that folder" });
+    }
+  }
+
+  // Scheduled tasks.
+  if (pathname === "/api/schedules" && req.method === "GET") {
+    return send(res, 200, { schedules: schedules.list() });
+  }
+  if (pathname === "/api/schedules" && req.method === "POST") {
+    const body = await readJson(req).catch(() => ({}));
+    if (!store.get(body.sessionId)) return send(res, 404, { error: "no such session" });
+    const made = schedules.create(body);
+    if (typeof made === "string") return send(res, 400, { error: made });
+    return send(res, 201, made);
+  }
+  const sm = pathname.match(/^\/api\/schedules\/([0-9a-fA-F-]{36})$/);
+  if (sm && req.method === "PATCH") {
+    const body = await readJson(req).catch(() => ({}));
+    const updated = schedules.update(sm[1], body);
+    return updated ? send(res, 200, updated) : send(res, 404, { error: "no such schedule" });
+  }
+  if (sm && req.method === "DELETE") {
+    return schedules.delete(sm[1]) ? send(res, 200, { ok: true }) : send(res, 404, { error: "no such schedule" });
+  }
+
   // /api/sessions
   if (pathname === "/api/sessions" && req.method === "GET") {
     return send(res, 200, { sessions: store.list() });
@@ -565,7 +695,12 @@ async function handle(req, res) {
 
     if (!sub && req.method === "GET") return send(res, 200, session.toJSON());
 
-    if (!sub && req.method === "DELETE") { store.delete(m[1]); return send(res, 200, { ok: true }); }
+    if (!sub && req.method === "DELETE") {
+      store.delete(m[1]);
+      schedules.removeForSession(m[1]);   // orphaned schedules would mis-fire forever
+      apns.clearLaSession(m[1]);
+      return send(res, 200, { ok: true });
+    }
 
     if (!sub && req.method === "PATCH") {
       const body = await readJson(req).catch(() => ({}));
@@ -576,12 +711,43 @@ async function handle(req, res) {
 
     if (sub === "messages" && req.method === "POST") {
       const body = await readJson(req).catch(() => ({}));
-      if (!body.text || typeof body.text !== "string") {
+      const text = typeof body.text === "string" ? body.text : "";
+      const images = Array.isArray(body.images) ? body.images : [];
+      if (!text.trim() && !images.length) {
         return send(res, 400, { error: "missing 'text'" });
       }
       if (session.status === "running") {
         return send(res, 409, { error: "a turn is already running in this session" });
       }
+
+      // Attached images: grok's ACP rejects image content blocks (it advertises
+      // promptCapabilities.image: false), but its read tool IS vision-capable — so
+      // save each image to disk and point grok at the files in the prompt text.
+      if (images.length) {
+        if (session.transport !== "acp") return send(res, 400, { error: "images need the acp transport" });
+        if (images.length > 3) return send(res, 400, { error: "up to 3 images per message" });
+        const paths = [];
+        for (const [i, img] of images.entries()) {
+          const mime = String(img?.mimeType || "");
+          const ext = mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : null;
+          const data = typeof img?.data === "string" ? img.data : "";
+          if (!ext || !data || data.length > 14_000_000) {   // ~10MB decoded
+            return send(res, 400, { error: "images must be jpeg/png, up to ~10MB each" });
+          }
+          let buf;
+          try { buf = Buffer.from(data, "base64"); } catch { return send(res, 400, { error: "bad image data" }); }
+          if (!buf.length) return send(res, 400, { error: "bad image data" });
+          const file = join(UPLOAD_DIR, `${session.id.slice(0, 8)}-${Date.now()}-${i}.${ext}`);
+          try { await writeFile(file, buf); } catch { return send(res, 500, { error: "couldn't save the image" }); }
+          paths.push(file);
+        }
+        const noun = paths.length === 1 ? "an image" : `${paths.length} images`;
+        const listing = paths.map((p) => `  - ${p}`).join("\n");
+        const note = `\n\n[The user attached ${noun}, saved on this machine at:\n${listing}\nView ${paths.length === 1 ? "it" : "them"} with your image-capable read tool before answering.]`;
+        startTurn(session, { text: (text.trim() || "See the attached image.") + note, displayText: text, imageCount: paths.length });
+        return send(res, 202, { ok: true, sessionId: session.id, turn: session.turnCount });
+      }
+
       startTurn(session, body);
       return send(res, 202, { ok: true, sessionId: session.id, turn: session.turnCount });
     }
@@ -610,6 +776,50 @@ async function handle(req, res) {
       if (typeof body.autoApprove === "boolean") session.autoApprove = body.autoApprove;
       store.save();
       return send(res, 200, session.toJSON());
+    }
+
+    // Read-only project browser, jailed to the session's working directory:
+    // /api/sessions/:id/files?path=<rel>  → directory listing
+    // /api/sessions/:id/file?path=<rel>   → text file content (binary detected)
+    if ((sub === "files" || sub === "file") && req.method === "GET") {
+      const base = session.cwd ? resolvePath(session.cwd) : null;
+      if (!base) return send(res, 400, { error: "this session has no working directory" });
+      const rel = url.searchParams.get("path") || "";
+      const full = resolvePath(base, "." + sep + rel);
+      if (full !== base && !full.startsWith(base + sep)) return send(res, 403, { error: "outside the session folder" });
+
+      if (sub === "files") {
+        try {
+          const entries = await readdir(full, { withFileTypes: true });
+          const out = [];
+          for (const e of entries) {
+            if (e.name === ".git") continue;                       // noise, and huge
+            let size = 0;
+            if (e.isFile()) { try { size = (await stat(join(full, e.name))).size; } catch { /* ignore */ } }
+            out.push({ name: e.name, dir: e.isDirectory(), size });
+          }
+          out.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+          return send(res, 200, { path: rel, entries: out.slice(0, 500) });
+        } catch {
+          return send(res, 404, { error: "can't read that folder" });
+        }
+      }
+
+      try {
+        const st = await stat(full);
+        if (!st.isFile()) return send(res, 400, { error: "not a file" });
+        const LIMIT = 262_144;   // 256KB is plenty for a phone screen
+        const buf = await readFile(full);
+        const head = buf.subarray(0, Math.min(buf.length, 8192));
+        if (head.includes(0)) return send(res, 200, { path: rel, size: st.size, binary: true });
+        const truncated = buf.length > LIMIT;
+        return send(res, 200, {
+          path: rel, size: st.size, binary: false, truncated,
+          content: buf.subarray(0, LIMIT).toString("utf8"),
+        });
+      } catch {
+        return send(res, 404, { error: "can't read that file" });
+      }
     }
 
     // Review what Grok changed: /api/sessions/:id/git  (?file=… for one file's diff)
@@ -678,8 +888,23 @@ function shutdown() {
   for (const summary of store.list()) {
     try { store.get(summary.id)?.acp?.stop(); } catch { /* ignore */ }
   }
+  try { bonjour?.kill(); } catch { /* ignore */ }
   try { awake.release(); } catch { /* ignore */ }
   process.exit(0);
+}
+
+// Advertise the bridge on the local network (macOS dns-sd ships with the OS, so
+// this stays zero-dependency). The phone's pairing screen lists nearby bridges so
+// the address doesn't have to be typed; the token is still required to connect.
+let bonjour = null;
+function advertiseBonjour() {
+  if (process.platform !== "darwin") return;
+  if (["127.0.0.1", "::1", "localhost"].includes(String(config.host))) return;   // not reachable anyway
+  try {
+    bonjour = spawn("/usr/bin/dns-sd", ["-R", `TethrX (${hostname()})`, "_tethrx._tcp", ".", String(config.port)], { stdio: "ignore" });
+    bonjour.on("error", () => { bonjour = null; });
+    bonjour.on("exit", () => { bonjour = null; });
+  } catch { bonjour = null; }
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
@@ -687,10 +912,11 @@ process.on("SIGTERM", shutdown);
 process.on("unhandledRejection", (err) => console.error("[bridge] unhandled rejection:", err));
 
 server.listen(config.port, listenHost, async () => {
+  advertiseBonjour();
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);
-  console.log(`  ├─ listening   ${scheme}://${config.host}:${config.port}`);
+  console.log(`  ├─ listening   ${scheme}://${config.host}:${config.port}${bonjour ? "  (visible nearby as _tethrx._tcp)" : ""}`);
   console.log(`  ├─ grok        ${version || "NOT FOUND — check GROK_BIN"}  (${config.grokBin})`);
   console.log(`  ├─ transport   ${config.transport}${config.transport === "acp" ? ` (approve/reject: ${grokHome ? "on" : "off"})` : ""}`);
   console.log(`  ├─ default cwd ${config.defaultCwd}`);

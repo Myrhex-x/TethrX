@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Response of `GET /api/health`.
 struct HealthInfo: Codable {
@@ -171,6 +172,56 @@ struct SlashCommand: Codable, Identifiable, Hashable {
     var isUsable: Bool { action != .unsupported }
 }
 
+/// One entry of `GET /api/fs/dirs` — the working-directory picker.
+struct DirListing: Codable {
+    struct Dir: Codable, Identifiable, Hashable {
+        var name: String
+        var path: String
+        var id: String { path }
+    }
+    var path: String
+    var parent: String?
+    var dirs: [Dir]
+}
+
+/// One entry of a session's project tree (`GET /api/sessions/:id/files`).
+struct FileEntry: Codable, Identifiable, Hashable {
+    var name: String
+    var dir: Bool
+    var size: Int
+    var id: String { name }
+}
+
+/// `GET /api/sessions/:id/file` — a text file's content (or a binary marker).
+struct FileContent: Codable {
+    var path: String
+    var size: Int
+    var binary: Bool
+    var truncated: Bool?
+    var content: String?
+}
+
+/// A bridge-side scheduled task, tied to a session; fires on the computer's clock.
+struct BridgeSchedule: Codable, Identifiable, Hashable {
+    var id: String
+    var sessionId: String
+    var prompt: String
+    var hour: Int
+    var minute: Int
+    var weekdays: [Int]      // 0=Sunday … 6=Saturday; empty = every day
+    var enabled: Bool
+
+    var timeLabel: String { String(format: "%02d:%02d", hour, minute) }
+    /// "Every day", "Weekdays", or short day names.
+    var daysLabel: String {
+        if weekdays.isEmpty { return "Every day" }
+        if weekdays.sorted() == [1, 2, 3, 4, 5] { return "Weekdays" }
+        if weekdays.sorted() == [0, 6] { return "Weekends" }
+        let symbols = Calendar.current.shortWeekdaySymbols   // Sun-first, matching 0=Sunday
+        return weekdays.sorted().compactMap { symbols.indices.contains($0) ? symbols[$0] : nil }.joined(separator: " ")
+    }
+}
+
 /// One changed file in the session's working directory.
 struct GitFile: Codable, Identifiable, Hashable {
     var path: String
@@ -217,6 +268,11 @@ struct ChatItem: Identifiable, Equatable {
     let id = UUID()
     var role: ChatRole
     var text: String
+
+    // Attached images on a user message. `images` holds the actual thumbnails for
+    // a message sent from THIS device; history replay only knows the count.
+    var images: [UIImage] = []
+    var imageCount: Int = 0
 
     // Tool activity (ACP transport)
     var toolCallId: String? = nil

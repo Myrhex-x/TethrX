@@ -111,9 +111,92 @@ struct BridgeClient {
         try Self.check(resp)
     }
 
-    func send(sessionId: String, text: String) async throws {
+    /// Send a message; images ride along as base64 JPEG/PNG and the bridge saves
+    /// them to disk for grok's vision-capable read tool (ACP itself rejects image
+    /// content blocks, so the file path IS the transport).
+    func send(sessionId: String, text: String, images: [Data] = [], mimeType: String = "image/jpeg") async throws {
+        var body: [String: Any] = ["text": text]
+        if !images.isEmpty {
+            body["images"] = images.map { ["data": $0.base64EncodedString(), "mimeType": mimeType] }
+        }
         let (_, resp) = try await session.data(
-            for: try request("/api/sessions/\(sessionId)/messages", method: "POST", json: ["text": text]))
+            for: try request("/api/sessions/\(sessionId)/messages", method: "POST", json: body))
+        try Self.check(resp)
+    }
+
+    // MARK: Filesystem (picker + project browser)
+
+    private func getQuery(_ path: String, query: [String: String]) throws -> URLRequest {
+        guard var comps = URLComponents(url: try url(path), resolvingAgainstBaseURL: false) else { throw BridgeError.badURL }
+        comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        guard let u = comps.url else { throw BridgeError.badURL }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 15
+        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        return req
+    }
+
+    /// Browse folders on the computer (home-jailed) for the working-dir picker.
+    func listDirs(path: String?) async throws -> DirListing {
+        let req = try path.map { try getQuery("/api/fs/dirs", query: ["path": $0]) } ?? request("/api/fs/dirs")
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        return try JSONDecoder().decode(DirListing.self, from: data)
+    }
+
+    /// List one folder of the session's project (path relative to its cwd).
+    func listFiles(sessionId: String, path: String) async throws -> [FileEntry] {
+        let (data, resp) = try await session.data(
+            for: try getQuery("/api/sessions/\(sessionId)/files", query: ["path": path]))
+        try Self.check(resp)
+        struct Wrapper: Codable { let entries: [FileEntry] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).entries
+    }
+
+    /// Fetch a text file's content from the session's project.
+    func fileContent(sessionId: String, path: String) async throws -> FileContent {
+        let (data, resp) = try await session.data(
+            for: try getQuery("/api/sessions/\(sessionId)/file", query: ["path": path]))
+        try Self.check(resp)
+        return try JSONDecoder().decode(FileContent.self, from: data)
+    }
+
+    // MARK: Scheduled tasks
+
+    func listSchedules() async throws -> [BridgeSchedule] {
+        let (data, resp) = try await session.data(for: try request("/api/schedules"))
+        try Self.check(resp)
+        struct Wrapper: Codable { let schedules: [BridgeSchedule] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).schedules
+    }
+
+    @discardableResult
+    func createSchedule(sessionId: String, prompt: String, hour: Int, minute: Int, weekdays: [Int]) async throws -> BridgeSchedule {
+        let (data, resp) = try await session.data(
+            for: try request("/api/schedules", method: "POST",
+                             json: ["sessionId": sessionId, "prompt": prompt, "hour": hour, "minute": minute, "weekdays": weekdays]))
+        try Self.check(resp)
+        return try JSONDecoder().decode(BridgeSchedule.self, from: data)
+    }
+
+    func setScheduleEnabled(_ id: String, enabled: Bool) async throws {
+        let (_, resp) = try await session.data(
+            for: try request("/api/schedules/\(id)", method: "PATCH", json: ["enabled": enabled]))
+        try Self.check(resp)
+    }
+
+    func deleteSchedule(_ id: String) async throws {
+        let (_, resp) = try await session.data(for: try request("/api/schedules/\(id)", method: "DELETE"))
+        try Self.check(resp)
+    }
+
+    /// Register ActivityKit push tokens so the bridge can drive lock-screen
+    /// activities with the app closed. kind: "start-token" | "update-token".
+    func registerLiveActivity(kind: String, token: String, sessionId: String? = nil) async throws {
+        var body: [String: Any] = ["kind": kind, "token": token]
+        if let sessionId { body["sessionId"] = sessionId }
+        let (_, resp) = try await session.data(
+            for: try request("/api/live-activity", method: "POST", json: body))
         try Self.check(resp)
     }
 

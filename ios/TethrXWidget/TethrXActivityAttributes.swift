@@ -8,4 +8,7 @@ struct TethrXActivityAttributes: ActivityAttributes {
         var detail: String    // e.g. the tool name, or "Waiting for your approval"
     }
     var sessionName: String
+    /// Lets the app map a (possibly push-started) activity back to its bridge
+    /// session, so the activity's update token can be registered per session.
+    var sessionId: String = ""
 }

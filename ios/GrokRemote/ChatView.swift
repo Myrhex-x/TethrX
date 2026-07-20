@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 /// Live conversation for one session, styled as a Grok Build console.
 struct ChatView: View {
@@ -9,8 +10,14 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var showDetails = false
     @State private var showGit = false
+    @State private var showFiles = false
     @State private var atBottom = true
     @FocusState private var composerFocused: Bool
+
+    // Image attachments waiting in the composer (JPEG data + display thumbnails).
+    @State private var pickedItems: [PhotosPickerItem] = []
+    @State private var attachments: [Data] = []
+    @State private var attachmentThumbs: [UIImage] = []
 
     private var name: String { vm.session.displayName }
 
@@ -43,6 +50,12 @@ struct ChatView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 10) {
+                    Button { showFiles = true } label: {
+                        Image(systemName: "folder").font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(Grok.textDim)
+                    .accessibilityLabel("Browse project files")
+
                     Button { showGit = true } label: {
                         Image(systemName: "arrow.triangle.branch").font(.system(size: 14, weight: .semibold))
                     }
@@ -71,6 +84,11 @@ struct ChatView: View {
         .onDisappear { vm.stop() }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
         .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session) }
+        .sheet(isPresented: $showFiles) { FileBrowserSheet(client: vm.client, session: vm.session) }
+        .onChange(of: pickedItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await loadPicked(items) }
+        }
         .alert("Microphone access needed", isPresented: $dictation.denied) {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -98,7 +116,17 @@ struct ChatView: View {
                                 }.id(item.id)
                             default:
                                 ChatBubble(item: item).id(item.id)
-                                    .contextMenu { copyButton(item.text) }
+                                    .contextMenu {
+                                        copyButton(item.text)
+                                        if item.role == .user, !item.text.isEmpty {
+                                            Button {
+                                                draft = item.text
+                                                composerFocused = true
+                                            } label: {
+                                                Label("Edit & resend", systemImage: "arrow.uturn.left")
+                                            }
+                                        }
+                                    }
                             }
                         }
                         if showTyping { TypingIndicator().id("typing") }
@@ -153,6 +181,7 @@ struct ChatView: View {
         VStack(spacing: 0) {
             Rectangle().fill(Grok.hairline).frame(height: 1)
             queuedRow
+            attachmentsRow
             snippetsRow
             chatControls
             commandPalette
@@ -166,6 +195,15 @@ struct ChatView: View {
                         .foregroundStyle(Grok.text)
                         .lineLimit(1...5)
                         .focused($composerFocused)
+                    // Attach a screenshot or photo; grok views the saved file.
+                    if !vm.busy {
+                        PhotosPicker(selection: $pickedItems, maxSelectionCount: 3, matching: .images) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(attachments.isEmpty ? Grok.textDim : Grok.accent)
+                        }
+                        .padding(.top, 1)
+                    }
                     if dictation.supported {
                         Button { dictation.toggle(base: draft) } label: {
                             Image(systemName: dictation.isRecording ? "waveform" : "mic")
@@ -224,9 +262,68 @@ struct ChatView: View {
                 CircleIconButton(system: "stop.fill", danger: true) { Task { await vm.cancel() } }
             }
         } else {
-            CircleIconButton(system: "arrow.up", filled: !isEmptyDraft, enabled: !isEmptyDraft) {
+            let sendable = !isEmptyDraft || !attachments.isEmpty
+            CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable) {
                 submit(draft)
             }
+        }
+    }
+
+    // Images attached to the draft, shown as removable thumbnails.
+    @ViewBuilder private var attachmentsRow: some View {
+        if !attachmentThumbs.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(attachmentThumbs.enumerated()), id: \.offset) { i, img in
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: img)
+                                .resizable().scaledToFill()
+                                .frame(width: 64, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairlineStrong, lineWidth: 1))
+                            Button {
+                                if attachments.indices.contains(i) { attachments.remove(at: i) }
+                                if attachmentThumbs.indices.contains(i) { attachmentThumbs.remove(at: i) }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.white, .black.opacity(0.7))
+                            }
+                            .offset(x: 6, y: -6)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 2)
+            }
+        }
+    }
+
+    /// Downscale + JPEG-compress the picked photos so a 12MP shot doesn't ship
+    /// as 8MB of base64 over the hotspot.
+    private func loadPicked(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard attachments.count < 3,
+                  let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else { continue }
+            let scaled = Self.downscale(image, maxDimension: 1600)
+            guard let jpeg = scaled.jpegData(compressionQuality: 0.72) else { continue }
+            attachments.append(jpeg)
+            attachmentThumbs.append(scaled)
+        }
+        pickedItems = []
+        if !attachments.isEmpty { Haptics.tap() }
+    }
+
+    static func downscale(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let longest = max(size.width, size.height)
+        guard longest > maxDimension else { return image }
+        let scale = maxDimension / longest
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: newSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
         }
     }
 
@@ -379,8 +476,19 @@ struct ChatView: View {
     /// handled here, and the inert ones say so instead of silently doing nothing.
     private func submit(_ raw: String) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         if dictation.isRecording { dictation.stop() }
+
+        // With images attached this is a normal prompt, never a slash command.
+        if !attachments.isEmpty {
+            let images = attachments
+            let thumbs = attachmentThumbs
+            attachments = []
+            attachmentThumbs = []
+            draft = ""
+            Task { await vm.send(text, images: images, thumbnails: thumbs) }
+            return
+        }
 
         if text.hasPrefix("/") {
             let parts = text.dropFirst().split(separator: " ", maxSplits: 1, omittingEmptySubsequences: false)
@@ -524,13 +632,38 @@ struct ChatBubble: View {
         case .user:
             HStack {
                 Spacer(minLength: 44)
-                Text(item.text)
-                    .font(Grok.sans(15))
-                    .foregroundStyle(Grok.text)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Grok.raised)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .trailing, spacing: 8) {
+                    if !item.images.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(Array(item.images.enumerated()), id: \.offset) { _, img in
+                                Image(uiImage: img)
+                                    .resizable().scaledToFill()
+                                    .frame(width: 110, height: 110)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
+                            }
+                        }
+                    } else if item.imageCount > 0 {
+                        // Replayed history: the pixels stayed on the computer.
+                        HStack(spacing: 5) {
+                            Image(systemName: "photo").font(.system(size: 10, weight: .semibold))
+                            Text("\(item.imageCount) image\(item.imageCount == 1 ? "" : "s") attached")
+                        }
+                        .font(Grok.mono(10, .medium))
+                        .foregroundStyle(Grok.textDim)
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
+                    }
+                    if !item.text.isEmpty {
+                        Text(item.text)
+                            .font(Grok.sans(15))
+                            .foregroundStyle(Grok.text)
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(Grok.raised)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
             }
 
         case .assistant:
@@ -803,6 +936,7 @@ struct PermissionCard: View {
 struct SessionDetailsSheet: View {
     @ObservedObject var vm: ChatViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var shareURL: ShareFile?
 
     private var u: SessionUsage { vm.usage ?? SessionUsage() }
     private var session: SessionInfo { vm.session }
@@ -814,6 +948,7 @@ struct SessionDetailsSheet: View {
                     context
                     tokens
                     technical
+                    exportSection
                 }
                 .padding(20)
             }
@@ -829,6 +964,24 @@ struct SessionDetailsSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(item: $shareURL) { file in
+            ActivityShareSheet(url: file.url)
+        }
+    }
+
+    private var exportSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("EXPORT")
+            Button {
+                if let url = TranscriptExporter.write(session: session, items: vm.items) {
+                    shareURL = ShareFile(url: url)
+                }
+            } label: {
+                Label("Share transcript as Markdown", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(PillButton(kind: .subtle))
+            .disabled(vm.items.isEmpty)
+        }
     }
 
     private var context: some View {
@@ -886,6 +1039,65 @@ struct SessionDetailsSheet: View {
             Spacer()
             Text(v).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
         }
+    }
+}
+
+/// Wraps a URL so `.sheet(item:)` can present the share sheet for it.
+struct ShareFile: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
+/// UIKit share sheet (ShareLink can't be triggered from a plain Button tap).
+struct ActivityShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
+}
+
+/// Renders the loaded conversation as a portable Markdown file.
+enum TranscriptExporter {
+    static func write(session: SessionInfo, items: [ChatItem]) -> URL? {
+        var md = "# \(session.displayName)\n\n"
+        if let cwd = session.cwd, !cwd.isEmpty { md += "`\(cwd)` · " }
+        md += "\(session.turnCount) turns · exported \(Date().formatted(date: .abbreviated, time: .shortened))\n\n---\n\n"
+        for item in items {
+            switch item.role {
+            case .user:
+                md += "**You:**"
+                if item.imageCount > 0 { md += " *(\(item.imageCount) image\(item.imageCount == 1 ? "" : "s") attached)*" }
+                md += "\n\n\(item.text)\n\n"
+            case .assistant:
+                md += "**Grok:**\n\n\(item.text)\n\n"
+            case .thought:
+                let quoted = item.text.split(separator: "\n", omittingEmptySubsequences: false)
+                    .map { "> \($0)" }.joined(separator: "\n")
+                md += "\(quoted)\n\n"
+            case .tool:
+                md += "`▸ \(item.text.replacingOccurrences(of: "\n", with: " ").prefix(200))`"
+                md += (item.toolStatus == "failed") ? " ✗\n\n" : "\n\n"
+                if let out = item.toolOutput, !out.isEmpty {
+                    md += "```\n\(out)\n```\n\n"
+                }
+            case .permission:
+                md += "*Permission: \(item.text) → \(item.decided ?? "pending")*\n\n"
+            case .plan:
+                md += "**Plan:**\n\n\(item.text)\n\n*(\(item.decided ?? "pending"))*\n\n"
+            case .error:
+                md += "> ⚠️ \(item.text)\n\n"
+            case .status:
+                continue
+            }
+        }
+        let safe = session.displayName.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safe).md")
+        do {
+            try md.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch { return nil }
     }
 }
 

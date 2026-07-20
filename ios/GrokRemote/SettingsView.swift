@@ -20,6 +20,7 @@ struct SettingsView: View {
                     computers
                     usage
                     defaults
+                    SchedulesSection()
                     notifications
                     security
                     snippetsSection

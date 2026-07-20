@@ -43,6 +43,10 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Grok Remote connects to the bridge daemon running on your computer over your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tethrx._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the pairing QR code shown by the bridge on your computer to connect.</string>
 	<key>NSFaceIDUsageDescription</key>

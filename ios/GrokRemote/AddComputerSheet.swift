@@ -6,6 +6,7 @@ import SwiftUI
 struct AddComputerSheet: View {
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var discovery = BridgeDiscovery()
 
     @State private var address = ""
     @State private var pairingToken = ""
@@ -27,6 +28,38 @@ struct AddComputerSheet: View {
                         Label("Scan to pair", systemImage: "qrcode.viewfinder")
                     }
                     .buttonStyle(PillButton(kind: .prominent))
+
+                    if !discovery.found.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Eyebrow("NEARBY")
+                            ForEach(discovery.found) { bridge in
+                                Button {
+                                    Haptics.tap()
+                                    address = bridge.address
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                                            Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                        }
+                                        Spacer(minLength: 0)
+                                        if address == bridge.address {
+                                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Grok.accent)
+                                        }
+                                    }
+                                    .padding(.horizontal, 12).padding(.vertical, 10)
+                                    .background(Grok.raised)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Text("Found on your network. Tap to fill the address — then enter that computer's token.")
+                                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                        }
+                    }
 
                     HStack(spacing: 12) {
                         divider
@@ -75,6 +108,8 @@ struct AddComputerSheet: View {
         .sheet(isPresented: $showScanner) {
             ScanSheet { code in showScanner = false; handleScanned(code) }
         }
+        .onAppear { discovery.start() }
+        .onDisappear { discovery.stop() }
     }
 
     private var divider: some View { Rectangle().fill(Grok.hairline).frame(height: 1) }

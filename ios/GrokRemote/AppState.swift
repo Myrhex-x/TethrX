@@ -33,6 +33,9 @@ final class AppState: ObservableObject {
 
     /// Latest APNs device token (from PushManager); re-sent to the bridge on connect.
     var pushToken: String?
+    /// ActivityKit push-to-start token — lets the bridge put a Live Activity on the
+    /// lock screen with the app closed (iOS 17.2+). Re-sent on connect.
+    var laStartToken: String?
 
     init() {
         let d = UserDefaults.standard
@@ -153,6 +156,7 @@ final class AppState: ObservableObject {
             lastUsage = try? await client.usage()
             publishWidgetSnapshot()
             if let t = pushToken { try? await client.registerDevice(t) }   // (re)register for push
+            if let t = laStartToken { try? await client.registerLiveActivity(kind: "start-token", token: t) }
             if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
         } catch {
             connected = false
@@ -279,6 +283,19 @@ final class AppState: ObservableObject {
         pushToken = token
         guard let client, connected else { return }
         try? await client.registerDevice(token)
+    }
+
+    /// Store an ActivityKit push-to-start token and forward it (if connected).
+    func registerLiveActivityStart(_ token: String) async {
+        laStartToken = token
+        guard let client, connected else { return }
+        try? await client.registerLiveActivity(kind: "start-token", token: token)
+    }
+
+    /// Register the update token of a (possibly push-started) activity for its session.
+    func registerLiveActivityUpdate(sessionId: String, token: String) async {
+        guard !sessionId.isEmpty, let client else { return }
+        try? await client.registerLiveActivity(kind: "update-token", token: token, sessionId: sessionId)
     }
 
     /// Folders the user created that may not have any sessions in them yet. Merged

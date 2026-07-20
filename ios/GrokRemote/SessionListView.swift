@@ -1,12 +1,16 @@
 import SwiftUI
 
 /// Lists the bridge's Grok sessions and starts new ones. Tapping opens live chat.
+/// With `onSelect` set (the iPad sidebar), taps report the choice to the split
+/// view instead of pushing onto this view's own stack.
 struct SessionListView: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var lock: AppLock
     @EnvironmentObject var snippets: SnippetStore
+    var onSelect: ((SessionInfo) -> Void)? = nil
     @State private var path: [SessionInfo] = []
     @State private var creating = false
+    @State private var pickingCwd = false
     @State private var renaming: SessionInfo?
     @State private var renameText = ""
     @State private var foldering: SessionInfo?   // session being moved into a new folder
@@ -58,6 +62,9 @@ struct SessionListView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView().environmentObject(app).environmentObject(lock).environmentObject(snippets)
             }
+            .sheet(isPresented: $pickingCwd) {
+                DirectoryPickerSheet().environmentObject(app)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionInfo.self) { session in
                 if let client = app.client {
@@ -75,8 +82,9 @@ struct SessionListView: View {
     }
 
     /// Open the session a notification (or debug launch argument) pointed at.
+    /// In the iPad split layout the split view owns this — don't double-handle.
     private func openPending() {
-        guard let id = app.pendingOpenSessionId else { return }
+        guard onSelect == nil, let id = app.pendingOpenSessionId else { return }
         guard let session = app.sessions.first(where: { $0.id == id }) else {
             // Not on this computer — it may live on another paired one.
             Task { await app.locateAndOpen(id) }
@@ -115,13 +123,20 @@ struct SessionListView: View {
         VStack(alignment: .leading, spacing: 9) {
             Eyebrow("WORKING DIRECTORY")
             FieldBox {
-                TextField("", text: $app.defaultCwd,
-                          prompt: Text("/Users/you/project — blank = daemon default").foregroundColor(Grok.textFaint))
-                    .font(Grok.mono(13))
-                    .foregroundStyle(Grok.text)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 10) {
+                    TextField("", text: $app.defaultCwd,
+                              prompt: Text("/Users/you/project — blank = daemon default").foregroundColor(Grok.textFaint))
+                        .font(Grok.mono(13))
+                        .foregroundStyle(Grok.text)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Browse instead of typing a Unix path on a phone keyboard.
+                    Button { Haptics.tap(); pickingCwd = true } label: {
+                        Image(systemName: "folder").font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundStyle(Grok.textDim)
+                }
             }
             Text("New sessions run Grok in this folder. Plan mode, effort, and approvals are set inside each session.")
                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
@@ -273,8 +288,13 @@ struct SessionListView: View {
 
     private func sessionLink(_ session: SessionInfo) -> some View {
         HStack(spacing: 2) {
-            NavigationLink(value: session) { SessionRow(session: session) }
-                .buttonStyle(.plain)
+            if let onSelect {
+                Button { onSelect(session) } label: { SessionRow(session: session) }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink(value: session) { SessionRow(session: session) }
+                    .buttonStyle(.plain)
+            }
             // Visible affordance — the same actions used to be long-press only.
             Menu {
                 menuItems(session)
@@ -316,7 +336,8 @@ struct SessionListView: View {
     private func startNew() async {
         creating = true
         defer { creating = false }
-        if let session = await app.newSession() { path.append(session) }
+        guard let session = await app.newSession() else { return }
+        if let onSelect { onSelect(session) } else { path.append(session) }
     }
 }
 
