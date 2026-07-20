@@ -27,5 +27,11 @@ final class SnippetStore: ObservableObject {
         items.append(t)
     }
 
-    func remove(at offsets: IndexSet) { items.remove(atOffsets: offsets) }
+    /// Offsets come from a view that may have rendered against a longer list, so
+    /// drop any that no longer exist instead of trapping.
+    func remove(at offsets: IndexSet) {
+        let valid = IndexSet(offsets.filter { items.indices.contains($0) })
+        guard !valid.isEmpty else { return }
+        items.remove(atOffsets: valid)
+    }
 }

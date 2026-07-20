@@ -48,8 +48,11 @@ final class Dictation: ObservableObject {
 
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-                self?.request?.append(buffer)
+            // This closure runs on the realtime audio thread. Capture the request
+            // directly rather than touching `self.request`, which is main-actor state
+            // that finish() nils out — that was an unsynchronised read/write.
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                req.append(buffer)
             }
             engine.prepare()
             try engine.start()

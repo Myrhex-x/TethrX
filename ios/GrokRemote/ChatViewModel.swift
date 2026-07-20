@@ -111,39 +111,57 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// Send the next queued follow-up (after a beat, so the bridge is idle again).
+    /// The message stays in the queue until the bridge has actually accepted it —
+    /// popping first meant a failed send silently destroyed what the user typed.
     private func drainQueue() {
-        guard !queued.isEmpty else { return }
-        let next = queued.removeFirst()
+        guard let next = queued.first else { return }
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
-            await send(next)
+            guard queued.first == next else { return }   // something else already handled it
+            do {
+                try await client.send(sessionId: session.id, text: next)
+                if queued.first == next { queued.removeFirst() }
+            } catch {
+                // 409 just means a turn is still running — e.g. the bridge auto-continuing
+                // after an approved plan. Leave it queued; the next turn_complete retries.
+                if !Self.isConflict(error) {
+                    errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+                }
+            }
         }
+    }
+
+    private static func isConflict(_ error: Error) -> Bool {
+        if case .badStatus(409) = (error as? BridgeError) ?? .badURL { return true }
+        return false
     }
 
     /// Answer a permission request (Approve/Reject). optionId nil cancels the turn.
     func decide(_ item: ChatItem, optionId: String?, always: Bool = false) async {
         guard let requestId = item.requestId else { return }
-        if let idx = items.firstIndex(where: { $0.id == item.id }) {
-            items[idx].decided = optionId ?? "cancelled"       // optimistic — hide the buttons
-        }
+        let idx = items.firstIndex(where: { $0.id == item.id })
+        if let idx { items[idx].decided = optionId ?? "cancelled" }   // optimistic — hide the buttons
         if always { autoApprove = true }
         do {
             try await client.resolvePermission(sessionId: session.id, requestId: requestId, optionId: optionId, always: always)
         } catch {
-            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+            // The bridge never heard the decision, so Grok is still blocked. Put the
+            // buttons back rather than leaving a card that claims it was answered.
+            if let idx, items.indices.contains(idx) { items[idx].decided = nil }
+            errorMessage = "Couldn't send that decision. Check the connection and try again."
         }
     }
 
     /// Approve or revise a plan (plan mode). Approving proceeds to execution.
     func decidePlan(_ item: ChatItem, approved: Bool) async {
         guard let requestId = item.requestId else { return }
-        if let idx = items.firstIndex(where: { $0.id == item.id }) {
-            items[idx].decided = approved ? "approved" : "rejected"
-        }
+        let idx = items.firstIndex(where: { $0.id == item.id })
+        if let idx { items[idx].decided = approved ? "approved" : "rejected" }
         do {
             try await client.resolvePlan(sessionId: session.id, requestId: requestId, approved: approved)
         } catch {
-            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+            if let idx, items.indices.contains(idx) { items[idx].decided = nil }
+            errorMessage = "Couldn't send that decision. Check the connection and try again."
         }
     }
 

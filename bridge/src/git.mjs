@@ -50,10 +50,14 @@ export async function status(cwd) {
 /** Unified diff for one file (untracked files render as all-additions). */
 export async function diff(cwd, file) {
   if (!(await isRepo(cwd))) return "";
+  // `file` comes from a query parameter. Every git invocation below must put it after
+  // a `--` separator, or a value like "--output=/path" is parsed as an OPTION and git
+  // truncates that file while parsing, before it even validates the arguments.
+  if (file && file.startsWith("-")) return "";
   const target = file ? ["--", file] : [];
   let out = (await run(["diff", "--no-color", "HEAD", ...target], cwd)).stdout;
   if (!out && file) {
-    out = (await run(["diff", "--no-color", "--no-index", "/dev/null", file], cwd)).stdout;
+    out = (await run(["diff", "--no-color", "--no-index", "--", "/dev/null", file], cwd)).stdout;
   }
   if (out.length > MAX_DIFF) out = out.slice(0, MAX_DIFF) + "\n… (truncated)";
   return out;

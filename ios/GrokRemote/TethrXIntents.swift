@@ -39,8 +39,12 @@ struct SendToGrokIntent: AppIntent {
         guard !text.isEmpty else { return .result(dialog: "There was no task to send.") }
         do {
             let sessions = try await client.listSessions()
-            guard let target = sessions.first(where: { !$0.isRunning }) ?? sessions.first else {
-                return .result(dialog: "You don't have any Grok sessions yet. Start one in TethrX first.")
+            // Falling back to a running session guaranteed a 409 from the bridge, which
+            // then surfaced as a misleading "couldn't reach your computer".
+            guard let target = sessions.first(where: { !$0.isRunning }) else {
+                return .result(dialog: sessions.isEmpty
+                    ? "You don't have any Grok sessions yet. Start one in TethrX first."
+                    : "Grok is already working on something. Try again once it's finished.")
             }
             try await client.send(sessionId: target.id, text: text)
             let name = target.cwd.map { ($0 as NSString).lastPathComponent } ?? "your session"

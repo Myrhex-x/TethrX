@@ -145,16 +145,31 @@ if (!D.loopbackOnly) D.addrs.forEach(function(a){
 </body></html>`;
 }
 
+// NOTE: deliberately no `access-control-allow-origin`. This used to send "*" on every
+// response, including /pair — which embeds the pairing token. That let ANY web page the
+// user happened to be visiting do fetch("http://127.0.0.1:4180/pair"), read the token
+// out of the response, and then drive the API, i.e. run arbitrary commands on the
+// machine. Nothing legitimate needs CORS here: the iOS app uses URLSession (which
+// ignores CORS) and the bundled web client is same-origin.
 function send(res, status, body, headers = {}) {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
   res.writeHead(status, {
     "content-type": typeof body === "string" ? "text/plain; charset=utf-8" : "application/json",
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization, content-type",
-    "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "x-content-type-options": "nosniff",
     ...headers,
   });
   res.end(payload);
+}
+
+// A page fetched cross-site, or reached through a rebound DNS name, must never be able
+// to read the pairing page. CORS alone can't stop DNS rebinding (the attacker's origin
+// becomes same-origin), so the Host header is checked too.
+function isDirectLocalRequest(req) {
+  if (req.headers.origin) return false;                       // cross-origin fetch
+  const site = String(req.headers["sec-fetch-site"] || "");
+  if (site && site !== "none" && site !== "same-origin") return false;
+  const host = String(req.headers.host || "").toLowerCase().replace(/:\d+$/, "");
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
 }
 
 function tokenOk(provided) {
@@ -243,6 +258,18 @@ function notifyPermission(session, event) {
   });
 }
 
+// /api/health is unauthenticated by design, and used to spawn `grok --version` on
+// every single request — so anyone reachable could exhaust the user's process table
+// just by opening enough connections. One spawn a minute is plenty.
+let versionCache = { value: null, at: 0 };
+async function cachedGrokVersion() {
+  const now = Date.now();
+  if (versionCache.value !== null && now - versionCache.at < 60_000) return versionCache.value;
+  const value = await grokVersion(config.grokBin);
+  versionCache = { value, at: now };
+  return value;
+}
+
 // Grok's ACP surfaces a raw JSON-RPC blob when its CLI isn't signed in (which can
 // happen silently after grok auto-updates). Turn that into something actionable.
 function friendlyTurnError(err) {
@@ -322,7 +349,15 @@ async function ensureAcp(session) {
     },
   });
   session.acp = acp;
-  await acp.start();
+  try {
+    await acp.start();
+  } catch (err) {
+    // Dropping the reference without killing it leaked a live `grok agent stdio`
+    // child per attempt — and a signed-out grok makes the phone retry repeatedly.
+    try { acp.stop(); } catch { /* ignore */ }
+    session.acp = null;
+    throw err;
+  }
   // Capture grok's ACP sessionId so we can session/load-resume it after a restart.
   if (acp.grokSessionId && acp.grokSessionId !== session.grokSessionId) {
     session.grokSessionId = acp.grokSessionId;
@@ -346,6 +381,7 @@ function startAcpTurn(session, body) {
       pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
     } catch (err) {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
+      try { session.acp?.stop(); } catch { /* ignore */ }   // don't orphan the child
       session.acp = null; // force a fresh process on the next turn
     } finally {
       awake.release();
@@ -385,7 +421,7 @@ async function handle(req, res) {
 
   // Health is unauthenticated so a client can probe reachability before pairing.
   if (pathname === "/api/health") {
-    const version = await grokVersion(config.grokBin);
+    const version = await cachedGrokVersion();
     return send(res, 200, {
       ok: true,
       name: config.name,
@@ -399,6 +435,12 @@ async function handle(req, res) {
   if (pathname === "/pair") {
     if (!isLoopback(req)) {
       return send(res, 403, "Open this on the computer running the bridge: http://localhost:" + config.port + "/pair");
+    }
+    // Loopback isn't sufficient on its own: a browser on this machine reaches loopback
+    // too, so a hostile page (or a rebound DNS name) would otherwise be able to read
+    // the token straight out of this page.
+    if (!isDirectLocalRequest(req)) {
+      return send(res, 403, "Open this page directly in a browser on this computer.");
     }
     return send(res, 200, pairPageHTML(), { "content-type": "text/html; charset=utf-8" });
   }
@@ -594,6 +636,23 @@ const scheme = useTls ? "https" : "http";
 // Bind dual-stack when host is 0.0.0.0 so `localhost` works in browsers that try
 // IPv6 (::1) first (e.g. Safari). "::" still accepts IPv4, so LAN/Tailscale work.
 const listenHost = config.host === "0.0.0.0" ? "::" : config.host;
+// Without this every live `grok agent stdio` child is orphaned when the bridge is
+// stopped (Ctrl+C, launchd, a reinstall), each still holding a cwd inside a repo.
+let shuttingDown = false;
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  for (const summary of store.list()) {
+    try { store.get(summary.id)?.acp?.stop(); } catch { /* ignore */ }
+  }
+  try { awake.release(); } catch { /* ignore */ }
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+// A stray rejection should not take the daemon down and strand the phone.
+process.on("unhandledRejection", (err) => console.error("[bridge] unhandled rejection:", err));
+
 server.listen(config.port, listenHost, async () => {
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;

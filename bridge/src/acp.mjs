@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, symlinkSync,
-  lstatSync, copyFileSync,
+  lstatSync, copyFileSync, renameSync,
 } from "node:fs";
 
 const REAL_GROK = join(homedir(), ".grok");
@@ -48,10 +48,23 @@ function promoteRefreshedState(dotgrok) {
   for (const name of MUTABLE_STATE) {
     const mirrored = join(dotgrok, name);
     if (!isRealFile(mirrored)) continue;               // still a symlink => nothing refreshed
+    const real = join(REAL_GROK, name);
     try {
-      copyFileSync(mirrored, join(REAL_GROK, name));   // real home becomes authoritative again
+      // Only promote a file that is actually a usable credential. If grok was killed
+      // (or the disk filled) mid-rewrite, the mirrored copy can be truncated or empty —
+      // copying that over the real one destroys the only working credential, because
+      // refresh tokens rotate and the old one is already spent.
+      const raw = readFileSync(mirrored, "utf8");
+      if (!raw.trim()) continue;
+      JSON.parse(raw);                                 // must be parseable, or skip
+      try { if (existsSync(real)) copyFileSync(real, real + ".bak"); } catch { /* best-effort */ }
+      const tmp = real + ".tmp";
+      writeFileSync(tmp, raw, { mode: 0o600 });
+      renameSync(tmp, real);                           // atomic swap, never a partial file
       rmSync(mirrored, { force: true });               // drop it so we can re-symlink below
-    } catch { /* on any doubt, leave it in place rather than lose credentials */ }
+    } catch {
+      // Anything suspect: leave BOTH files untouched rather than risk the credential.
+    }
   }
 }
 
@@ -132,7 +145,13 @@ export class AcpSession {
     this.proc.stderr.on("data", (d) => console.error("[grok stderr] " + d.toString().trimEnd())); // drain + surface
     this.rl = createInterface({ input: this.proc.stdout });
     this.rl.on("line", (line) => this._onLine(line));
-    this.proc.on("close", () => this.onEvent({ kind: "closed" }));
+    this.proc.on("close", () => {
+      // Nothing else settles in-flight requests, so a grok that dies mid-turn used to
+      // leave `prompt()` awaiting forever: the turn's finally never ran, the session
+      // stayed "running", and every later message got a permanent 409.
+      this._failPending(new Error("grok agent exited"));
+      this.onEvent({ kind: "closed" });
+    });
     this.proc.on("error", (e) => this.onEvent({ kind: "error", message: `grok agent failed: ${e.message}` }));
 
     const init = await this._request("initialize", {
@@ -341,5 +360,14 @@ export class AcpSession {
 
   stop() {
     try { this.proc?.kill(); } catch { /* ignore */ }
+    this._failPending(new Error("grok agent stopped"));
+  }
+
+  /** Reject every in-flight JSON-RPC request so callers unwind instead of hanging. */
+  _failPending(err) {
+    for (const [, pending] of this._pending) {
+      try { pending.reject(err); } catch { /* already settled */ }
+    }
+    this._pending.clear();
   }
 }

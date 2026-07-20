@@ -22,6 +22,7 @@ struct ChatView: View {
             Grok.bg.ignoresSafeArea()
             VStack(spacing: 0) {
                 transcript
+                errorBanner
                 composer
             }
         }
@@ -176,12 +177,34 @@ struct ChatView: View {
         .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
     }
 
+    // Failures here used to be written to vm.errorMessage and never shown, so a
+    // decision that didn't reach the bridge looked like it had worked.
+    @ViewBuilder private var errorBanner: some View {
+        if let message = vm.errorMessage {
+            HStack(alignment: .top, spacing: 8) {
+                Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                Text(message).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+                Spacer(minLength: 0)
+                Button { vm.errorMessage = nil } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Grok.textFaint)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Grok.danger.opacity(0.10))
+            .overlay(Rectangle().fill(Grok.danger.opacity(0.3)).frame(height: 1), alignment: .top)
+        }
+    }
+
     // Send when idle; when a turn is running, queue the draft (＋) or stop (■).
     @ViewBuilder private var trailingButtons: some View {
         if vm.busy {
             HStack(spacing: 8) {
                 if !isEmptyDraft {
                     CircleIconButton(system: "arrow.up") {
+                        // Must stop dictation here too, or the recogniser's next partial
+                        // result refills the composer with the message just queued.
+                        if dictation.isRecording { dictation.stop() }
                         vm.enqueue(draft); draft = ""; Haptics.tap()
                     }
                 }
@@ -205,7 +228,9 @@ struct ChatView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "clock").font(.system(size: 9, weight: .semibold))
                             Text(msg.count > 22 ? String(msg.prefix(22)) + "…" : msg).lineLimit(1)
-                            Button { vm.queued.remove(at: i) } label: {
+                            // The index is captured at render time while the queue is
+                            // drained from the stream task — check it's still valid.
+                            Button { if vm.queued.indices.contains(i) { vm.queued.remove(at: i) } } label: {
                                 Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
                             }
                         }

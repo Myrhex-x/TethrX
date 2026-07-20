@@ -100,7 +100,18 @@ final class AppState: ObservableObject {
     func forget(_ bridge: SavedBridge) {
         Keychain.delete(account: bridge.tokenAccount)
         savedBridges.removeAll { $0.id == bridge.id }
-        if activeBridgeId == bridge.id { activeBridgeId = nil }
+        if activeBridgeId == bridge.id {
+            // Without this the app stays connected with the credentials still in place,
+            // and the next launch's rememberCurrentBridge() silently re-creates the
+            // entry — so "Forget" appeared to do nothing.
+            activeBridgeId = nil
+            connected = false
+            health = nil
+            sessions = []
+            baseURLString = ""
+            token = ""
+            userDisconnected = true
+        }
         persistBridges()
     }
 

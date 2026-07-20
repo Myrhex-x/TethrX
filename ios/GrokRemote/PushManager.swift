@@ -16,9 +16,27 @@ final class PushManager: NSObject, ObservableObject {
     /// Set by the app; called whenever a fresh device token arrives.
     var onToken: ((String) -> Void)?
     /// Tapping a notification should open that session.
-    var onOpenSession: ((String) -> Void)?
+    var onOpenSession: ((String) -> Void)? { didSet { flushPending() } }
     /// Approve/Reject tapped on the notification — resolve it against the bridge.
-    var onPermissionDecision: ((_ sessionId: String, _ requestId: String, _ optionId: String) async -> Void)?
+    var onPermissionDecision: ((_ sessionId: String, _ requestId: String, _ optionId: String) async -> Void)? {
+        didSet { flushPending() }
+    }
+
+    // On a cold launch the notification response arrives before the app has wired these
+    // handlers up. iOS never redelivers it, so hold onto it and replay once we can act.
+    private var pendingOpen: String?
+    private var pendingDecision: (sessionId: String, requestId: String, optionId: String)?
+
+    private func flushPending() {
+        if let id = pendingOpen, let handler = onOpenSession {
+            pendingOpen = nil
+            handler(id)
+        }
+        if let decision = pendingDecision, let handler = onPermissionDecision {
+            pendingDecision = nil
+            Task { await handler(decision.sessionId, decision.requestId, decision.optionId) }
+        }
+    }
 
     private override init() {
         super.init()
@@ -98,11 +116,18 @@ extension PushManager: UNUserNotificationCenterDelegate {
             case "APPROVE", "REJECT":
                 let optionId = (action == "APPROVE") ? allowId : rejectId
                 if !sessionId.isEmpty, !requestId.isEmpty, let optionId {
-                    // Await the round trip so iOS doesn't suspend us mid-request.
-                    await self.onPermissionDecision?(sessionId, requestId, optionId)
+                    if let handler = self.onPermissionDecision {
+                        // Await the round trip so iOS doesn't suspend us mid-request.
+                        await handler(sessionId, requestId, optionId)
+                    } else {
+                        self.pendingDecision = (sessionId, requestId, optionId)
+                    }
                 }
             default:
-                if !sessionId.isEmpty { self.onOpenSession?(sessionId) }
+                if !sessionId.isEmpty {
+                    if let handler = self.onOpenSession { handler(sessionId) }
+                    else { self.pendingOpen = sessionId }
+                }
             }
             completionHandler()
         }
@@ -111,6 +136,16 @@ extension PushManager: UNUserNotificationCenterDelegate {
 
 /// Minimal app delegate purely to receive the APNs device token.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    /// The delegate must be in place before launch finishes, otherwise a notification
+    /// that launched the app is never delivered to it at all.
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        MainActor.assumeIsolated {
+            UNUserNotificationCenter.current().delegate = PushManager.shared
+        }
+        return true
+    }
+
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Task { @MainActor in PushManager.shared.didRegister(deviceToken) }
