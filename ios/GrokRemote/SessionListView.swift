@@ -14,6 +14,8 @@ struct SessionListView: View {
     @State private var collapsed: Set<String> = []
     @State private var query = ""
     @State private var showSettings = false
+    @State private var creatingFolder = false
+    @State private var newFolderName = ""
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -45,6 +47,13 @@ struct SessionListView: View {
                     foldering = nil
                 }
                 Button("Cancel", role: .cancel) { foldering = nil }
+            }
+            .alert("New folder", isPresented: $creatingFolder) {
+                TextField("Folder name", text: $newFolderName)
+                Button("Create") { app.createFolder(newFolderName); newFolderName = "" }
+                Button("Cancel", role: .cancel) { newFolderName = "" }
+            } message: {
+                Text("Then use the ••• button on any session to move it in.")
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView().environmentObject(app).environmentObject(lock).environmentObject(snippets)
@@ -117,9 +126,17 @@ struct SessionListView: View {
 
     private var sessions: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 12) {
                 Eyebrow("SESSIONS")
                 Spacer()
+                Button { Haptics.tap(); newFolderName = ""; creatingFolder = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "folder.badge.plus").font(.system(size: 12, weight: .medium))
+                        Text("New folder").font(Grok.mono(11))
+                    }
+                    .foregroundStyle(Grok.textDim)
+                }
+                .buttonStyle(.plain)
                 Text("\(app.sessions.count)").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
             }
             .padding(.bottom, 12)
@@ -145,6 +162,11 @@ struct SessionListView: View {
                                      key: group.folder, count: group.items.count)
                     }
                     if !collapsed.contains(group.folder) {
+                        if group.items.isEmpty {
+                            Text("// empty — use ••• on a session to move it here")
+                                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                                .padding(.vertical, 10)
+                        }
                         ForEach(Array(group.items.enumerated()), id: \.element.id) { index, session in
                             if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
                             sessionLink(session)
@@ -169,11 +191,17 @@ struct SessionListView: View {
     }
 
     // Ungrouped sessions first, then folders alphabetically; order within a group preserved.
+    // Freshly-created (still empty) folders are shown too, so they're somewhere to drop
+    // sessions into — but they're hidden while searching, where they'd just be noise.
     private var groupedSessions: [(folder: String, items: [SessionInfo])] {
         let groups = Dictionary(grouping: filteredSessions) { ($0.folder?.isEmpty == false) ? $0.folder! : "" }
+        let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
         var out: [(String, [SessionInfo])] = []
         if let ungrouped = groups[""], !ungrouped.isEmpty { out.append(("", ungrouped)) }
-        for name in groups.keys.filter({ !$0.isEmpty }).sorted() { out.append((name, groups[name]!)) }
+        let named = Set(groups.keys.filter { !$0.isEmpty })
+        for name in (searching ? named : named.union(app.folders)).sorted() {
+            out.append((name, groups[name] ?? []))
+        }
         return out
     }
 
@@ -195,7 +223,20 @@ struct SessionListView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func folderHeader(_ name: String, key: String, count: Int) -> some View {
+    @ViewBuilder private func folderHeader(_ name: String, key: String, count: Int) -> some View {
+        let header = folderHeaderButton(name, key: key, count: count)
+        if key.isEmpty {
+            header
+        } else {
+            header.contextMenu {
+                Button(role: .destructive) { Task { await app.deleteFolder(key) } } label: {
+                    Label("Delete folder", systemImage: "folder.badge.minus")
+                }
+            }
+        }
+    }
+
+    private func folderHeaderButton(_ name: String, key: String, count: Int) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.15)) {
                 if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
@@ -217,13 +258,27 @@ struct SessionListView: View {
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
-        NavigationLink(value: session) { SessionRow(session: session) }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
-                moveMenu(session)
-                Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
+        HStack(spacing: 2) {
+            NavigationLink(value: session) { SessionRow(session: session) }
+                .buttonStyle(.plain)
+            // Visible affordance — the same actions used to be long-press only.
+            Menu {
+                menuItems(session)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Grok.textDim)
+                    .frame(width: 36, height: 48)
+                    .contentShape(Rectangle())
             }
+        }
+        .contextMenu { menuItems(session) }
+    }
+
+    @ViewBuilder private func menuItems(_ session: SessionInfo) -> some View {
+        Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
+        moveMenu(session)
+        Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
     }
 
     private func moveMenu(_ session: SessionInfo) -> some View {
@@ -285,7 +340,6 @@ struct SessionRow: View {
                 }
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.textFaint)
         }
         .padding(.vertical, 16)
         .contentShape(Rectangle())

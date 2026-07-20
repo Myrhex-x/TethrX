@@ -8,6 +8,7 @@ struct SettingsView: View {
     @ObservedObject private var push = PushManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var revealToken = false
+    @State private var addingComputer = false
     @State private var report: UsageReport?
     @State private var loadingUsage = false
     @State private var newSnippet = ""
@@ -31,6 +32,9 @@ struct SettingsView: View {
             .background(Grok.bg)
             .scrollIndicators(.hidden)
             .task { await loadUsage() }
+            .sheet(isPresented: $addingComputer) {
+                AddComputerSheet().environmentObject(app)
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .grokBar()
@@ -176,9 +180,13 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Text("Tap to switch computers. Long-press to forget one. Pair another by disconnecting and scanning its QR code.")
+                Text("Tap to switch computers. Long-press to forget one.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
             }
+            Button { Haptics.tap(); addingComputer = true } label: {
+                Label("Add another computer", systemImage: "plus.circle")
+            }
+            .buttonStyle(PillButton(kind: .subtle))
         }
     }
 

@@ -44,6 +44,7 @@ final class AppState: ObservableObject {
         defaultAutoApprove = d.bool(forKey: "bridge.autoApprove")
         userDisconnected = d.bool(forKey: "bridge.userDisconnected")
         activeBridgeId = d.string(forKey: "bridge.activeId")
+        customFolders = d.stringArray(forKey: "bridge.folders") ?? []
         if let data = d.data(forKey: "bridge.saved"),
            let list = try? JSONDecoder().decode([SavedBridge].self, from: data) {
             savedBridges = list
@@ -206,9 +207,46 @@ final class AppState: ObservableObject {
         try? await client.registerDevice(token)
     }
 
-    /// Distinct non-empty folder names across sessions, for the "move to folder" menu.
+    /// Folders the user created that may not have any sessions in them yet. Merged
+    /// with the folders implied by existing sessions.
+    @Published var customFolders: [String] = [] {
+        didSet { UserDefaults.standard.set(customFolders, forKey: "bridge.folders") }
+    }
+
+    /// Every folder name — created-but-empty ones included.
     var folders: [String] {
-        Array(Set(sessions.compactMap { $0.folder }.filter { !$0.isEmpty })).sorted()
+        let used = sessions.compactMap { $0.folder }.filter { !$0.isEmpty }
+        return Array(Set(used).union(customFolders)).sorted()
+    }
+
+    func createFolder(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !folders.contains(trimmed) else { return }
+        customFolders.append(trimmed)
+    }
+
+    /// Remove a folder; any sessions inside it move back to Ungrouped.
+    func deleteFolder(_ name: String) async {
+        customFolders.removeAll { $0 == name }
+        for session in sessions where session.folder == name {
+            await setFolder(session.id, folder: "")
+        }
+    }
+
+    /// Pair an additional computer without losing the current one: if the new
+    /// credentials don't connect, the previous connection is restored.
+    func addComputer(address: String, pairingToken: String) async -> Bool {
+        let prevAddress = baseURLString
+        let prevToken = token
+        baseURLString = address
+        token = pairingToken
+        await connect()
+        if connected { return true }
+        // Failed — put the old computer back and reconnect to it.
+        baseURLString = prevAddress
+        token = prevToken
+        await connect()
+        return false
     }
 
     /// Move a session into a folder (or clear it with an empty string).
