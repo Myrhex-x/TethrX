@@ -25,6 +25,10 @@ struct TethrXApp: App {
             .animation(.easeInOut(duration: 0.2), value: lock.locked)
             .task {
                 push.onToken = { token in Task { await app.registerDevice(token) } }
+                push.onOpenSession = { id in Task { @MainActor in app.pendingOpenSessionId = id } }   // tap → jump to session
+                push.onPermissionDecision = { sessionId, requestId, optionId in
+                    await app.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
+                }
                 push.refreshIfEnabled()            // re-register if the user enabled push before
             }
             .onChange(of: scenePhase) { _, phase in

@@ -83,14 +83,24 @@ export class Apns {
     });
   }
 
-  /** Deliver an alert to every registered device; prune tokens APNs reports dead. */
-  async send({ title, body, sessionId }) {
+  /** Deliver an alert to every registered device; prune tokens APNs reports dead.
+   *  `category` drives the notification's action buttons on the phone; the request /
+   *  option ids let it approve or reject a tool right from the notification. */
+  async send({ title, body, sessionId, category, requestId, allowOptionId, rejectOptionId }) {
     if (!this.enabled || this.tokens.length === 0) return;
     let jwt;
     try { jwt = this._providerToken(); } catch { return; }
     const payloadStr = JSON.stringify({
-      aps: { alert: { title, body }, sound: "default", "thread-id": sessionId || "" },
+      aps: {
+        alert: { title, body },
+        sound: "default",
+        "thread-id": sessionId || "",
+        ...(category ? { category } : {}),
+      },
       sessionId: sessionId || "",
+      ...(requestId ? { requestId } : {}),
+      ...(allowOptionId ? { allowOptionId } : {}),
+      ...(rejectOptionId ? { rejectOptionId } : {}),
     });
     const client = http2.connect("https://api.push.apple.com");
     client.on("error", () => {});

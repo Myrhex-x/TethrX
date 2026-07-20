@@ -4,8 +4,18 @@ import Foundation
 struct HealthInfo: Codable {
     let ok: Bool
     let name: String?
+    let host: String?          // the computer's hostname — used to name a paired bridge
     let grok: String?
     let grokAvailable: Bool
+}
+
+/// A paired computer. Its pairing token lives in the Keychain, keyed by `id`,
+/// so several machines (laptop + desktop) can stay paired at once.
+struct SavedBridge: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var address: String
+    var tokenAccount: String { "bridge.token." + id }
 }
 
 /// A Grok conversation tracked by the bridge.

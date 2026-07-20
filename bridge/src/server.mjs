@@ -22,13 +22,14 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize as normPath, sep } from "node:path";
 import { timingSafeEqual, randomBytes } from "node:crypto";
-import { networkInterfaces } from "node:os";
+import { networkInterfaces, hostname } from "node:os";
 
 import { config } from "./config.mjs";
 import { SessionStore } from "./sessions.mjs";
 import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
+import * as awake from "./awake.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
@@ -182,10 +183,13 @@ async function serveStatic(res, urlPath) {
 
 // Push a notification via ntfy, but only when nobody is actively watching this
 // session (so you're alerted precisely when the app is backgrounded).
-async function pushNotify(session, { title, message, priority = "default", tags, actions }) {
+async function pushNotify(session, { title, message, priority = "default", tags, actions, category, requestId, allowOptionId, rejectOptionId }) {
   if (session.subscriberCount > 0) return;   // someone's watching live — no need to alert
   // Native push straight to the phone (when an APNs key is configured).
-  apns.send({ title, body: message, sessionId: session.id }).catch(() => {});
+  apns.send({
+    title, body: message, sessionId: session.id,
+    category, requestId, allowOptionId, rejectOptionId,
+  }).catch(() => {});
   // Optional ntfy fallback.
   if (config.ntfy) {
     try {
@@ -200,11 +204,12 @@ async function pushNotify(session, { title, message, priority = "default", tags,
 // Push an approval alert with Approve/Reject buttons (when a public URL is set) so
 // you can resolve a permission from the lock screen without opening the app.
 function notifyPermission(session, event) {
+  const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId));
+  const reject = (event.options || []).find((o) => /reject|deny/i.test(o.kind || o.optionId));
+
   let actions;
   if (config.publicUrl && event.requestId) {
     const base = config.publicUrl.replace(/\/$/, "");
-    const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId));
-    const reject = (event.options || []).find((o) => /reject|deny/i.test(o.kind || o.optionId));
     const parts = [];
     if (allow) parts.push(`http, Approve, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, allow.optionId)}, clear=true`);
     if (reject) parts.push(`http, Reject, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, reject.optionId)}, clear=true`);
@@ -214,7 +219,22 @@ function notifyPermission(session, event) {
     title: `${session.title} — approval needed`,
     message: event.command || event.title || "Grok wants to run a tool",
     priority: "high", tags: "warning", actions,
+    // Drives Approve/Reject buttons on the iOS notification itself.
+    category: "PERMISSION",
+    requestId: event.requestId,
+    allowOptionId: allow?.optionId,
+    rejectOptionId: reject?.optionId,
   });
+}
+
+// Grok's ACP surfaces a raw JSON-RPC blob when its CLI isn't signed in (which can
+// happen silently after grok auto-updates). Turn that into something actionable.
+function friendlyTurnError(err) {
+  const raw = String(err?.message || err);
+  if (/Authentication required|no auth method|unauthenticated|not authenticated/i.test(raw)) {
+    return "Grok Build isn't signed in on your computer. Open a terminal there, run `grok`, and sign in — then send this again.";
+  }
+  return raw;
 }
 
 // Kick off a Grok turn WITHOUT blocking the HTTP response. Events flow to the
@@ -226,6 +246,8 @@ function startTurn(session, body) {
 function startHeadlessTurn(session, body) {
   const signal = session.beginTurn();
   session.emit({ kind: "turn_start", text: body.text, at: new Date().toISOString() });
+
+  awake.acquire();   // don't let the machine sleep out from under a running turn
 
   runHeadlessTurn({
     grokBin: config.grokBin,
@@ -247,9 +269,9 @@ function startHeadlessTurn(session, body) {
       pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
     })
     .catch((err) => {
-      session.emit({ kind: "error", message: String(err.message || err) });
+      session.emit({ kind: "error", message: friendlyTurnError(err) });
     })
-    .finally(() => { session.endTurn(); store.save(); session.saveHistory(); });
+    .finally(() => { awake.release(); session.endTurn(); store.save(); session.saveHistory(); });
 }
 
 // Lazily create + start the long-lived ACP process for a session, wiring its events
@@ -296,6 +318,7 @@ async function ensureAcp(session) {
 function startAcpTurn(session, body) {
   session.beginTurn();
   session.emit({ kind: "turn_start", text: body.text, at: new Date().toISOString() });
+  awake.acquire();   // don't let the machine sleep out from under a running turn
 
   (async () => {
     try {
@@ -306,9 +329,10 @@ function startAcpTurn(session, body) {
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
       pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
     } catch (err) {
-      session.emit({ kind: "error", message: String(err.message || err) });
+      session.emit({ kind: "error", message: friendlyTurnError(err) });
       session.acp = null; // force a fresh process on the next turn
     } finally {
+      awake.release();
       session.endTurn();
       store.save();
       session.saveHistory();
@@ -349,6 +373,7 @@ async function handle(req, res) {
     return send(res, 200, {
       ok: true,
       name: config.name,
+      host: hostname(),          // lets the phone name this computer in its bridge list
       grok: version,
       grokAvailable: Boolean(version),
     });

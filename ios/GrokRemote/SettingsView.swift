@@ -18,6 +18,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     connection
+                    computers
                     usage
                     defaults
                     notifications
@@ -140,6 +141,44 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("SECURITY")
             toggleRow("Require \(lock.biometryName)", "Lock the app on open — it can run commands on your computer", $lock.enabled)
+        }
+    }
+
+    private var computers: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("COMPUTERS")
+            if app.savedBridges.isEmpty {
+                Text("Computers you pair show up here.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            } else {
+                ForEach(app.savedBridges) { bridge in
+                    Button {
+                        Haptics.tap()
+                        Task { await app.switchTo(bridge) }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: bridge.id == app.activeBridgeId ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 14))
+                                .foregroundStyle(bridge.id == app.activeBridgeId ? Grok.accent : Grok.textFaint)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                                Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                    .lineLimit(1).truncationMode(.middle)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(role: .destructive) { app.forget(bridge) } label: {
+                            Label("Forget", systemImage: "trash")
+                        }
+                    }
+                }
+                Text("Tap to switch computers. Long-press to forget one. Pair another by disconnecting and scanning its QR code.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            }
         }
     }
 

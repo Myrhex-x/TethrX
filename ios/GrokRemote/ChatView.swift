@@ -406,6 +406,48 @@ struct ChatBubble: View {
         return (try? AttributedString(markdown: text, options: opts)) ?? AttributedString(text)
     }
 
+    /// One run of a message: either prose (inline markdown) or a fenced code block.
+    struct Segment {
+        let isCode: Bool
+        let language: String
+        let text: String
+    }
+
+    /// Split a (possibly still-streaming) message on ``` fences so code renders as a
+    /// real block instead of collapsing into inline text.
+    static func segments(_ s: String) -> [Segment] {
+        var out: [Segment] = []
+        var inCode = false
+        var language = ""
+        var buf: [String] = []
+
+        func flush() {
+            let text = buf.joined(separator: "\n")
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                out.append(Segment(isCode: inCode, language: language, text: text))
+            }
+            buf = []
+        }
+
+        for line in s.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                flush()
+                if inCode {
+                    inCode = false
+                    language = ""
+                } else {
+                    inCode = true
+                    language = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                }
+            } else {
+                buf.append(line)
+            }
+        }
+        flush()
+        return out.isEmpty ? [Segment(isCode: false, language: "", text: s)] : out
+    }
+
     var body: some View {
         switch item.role {
         case .user:
@@ -421,13 +463,21 @@ struct ChatBubble: View {
             }
 
         case .assistant:
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 10) {
                 Eyebrow("GROK")
-                Text(Self.markdown(item.text))
-                    .font(Grok.sans(15))
-                    .foregroundStyle(Grok.text)
-                    .lineSpacing(3)
-                    .textSelection(.enabled)
+                // Index-keyed so streaming appends don't rebuild every segment.
+                ForEach(Array(Self.segments(item.text).enumerated()), id: \.offset) { _, seg in
+                    if seg.isCode {
+                        CodeBlock(code: seg.text, language: seg.language)
+                    } else {
+                        Text(Self.markdown(seg.text))
+                            .font(Grok.sans(15))
+                            .foregroundStyle(Grok.text)
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -463,6 +513,52 @@ struct ChatBubble: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.danger.opacity(0.4), lineWidth: 1))
         }
+    }
+}
+
+/// A fenced code block: monospace, horizontally scrollable so long lines aren't
+/// wrapped into mush, with its own copy button.
+struct CodeBlock: View {
+    let code: String
+    var language: String = ""
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text(language.isEmpty ? "code" : language.lowercased())
+                    .font(Grok.mono(9, .medium)).tracking(0.6).foregroundStyle(Grok.textFaint)
+                Spacer(minLength: 0)
+                Button {
+                    UIPasteboard.general.string = code
+                    Haptics.tap()
+                    withAnimation(.easeOut(duration: 0.15)) { copied = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+                        withAnimation(.easeIn(duration: 0.2)) { copied = false }
+                    }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(copied ? Grok.accent : Grok.textDim)
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+
+            Rectangle().fill(Grok.hairline).frame(height: 1)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(Grok.mono(12))
+                    .foregroundStyle(Grok.text)
+                    .lineSpacing(2)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+            }
+        }
+        .background(Grok.bg)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

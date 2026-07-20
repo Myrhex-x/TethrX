@@ -15,6 +15,11 @@ final class AppState: ObservableObject {
     /// manually Connect again. Persisted so an explicit Disconnect survives relaunch.
     @Published var userDisconnected: Bool { didSet { UserDefaults.standard.set(userDisconnected, forKey: "bridge.userDisconnected") } }
 
+    /// Every computer that's been paired, so you can switch between e.g. a laptop
+    /// and a desktop. Tokens live in the Keychain, one slot per bridge.
+    @Published var savedBridges: [SavedBridge] = []
+    @Published var activeBridgeId: String?
+
     @Published var health: HealthInfo?
     @Published var sessions: [SessionInfo] = []
     @Published var connected = false
@@ -38,6 +43,63 @@ final class AppState: ObservableObject {
         defaultPlanMode = d.bool(forKey: "bridge.planMode")
         defaultAutoApprove = d.bool(forKey: "bridge.autoApprove")
         userDisconnected = d.bool(forKey: "bridge.userDisconnected")
+        activeBridgeId = d.string(forKey: "bridge.activeId")
+        if let data = d.data(forKey: "bridge.saved"),
+           let list = try? JSONDecoder().decode([SavedBridge].self, from: data) {
+            savedBridges = list
+        }
+    }
+
+    // MARK: Paired computers
+
+    private func persistBridges() {
+        if let data = try? JSONEncoder().encode(savedBridges) {
+            UserDefaults.standard.set(data, forKey: "bridge.saved")
+        }
+        UserDefaults.standard.set(activeBridgeId, forKey: "bridge.activeId")
+    }
+
+    /// After a successful connect, remember this computer (and its token) so it can
+    /// be switched back to later. Named from the bridge's reported hostname.
+    private func rememberCurrentBridge() {
+        let addr = normalizedBase
+        guard !addr.isEmpty, !token.isEmpty else { return }
+        let name = (health?.host?.isEmpty == false) ? health!.host! : (URL(string: addr)?.host ?? addr)
+        if let i = savedBridges.firstIndex(where: { $0.address == addr }) {
+            savedBridges[i].name = name
+            activeBridgeId = savedBridges[i].id
+            Keychain.save(token, account: savedBridges[i].tokenAccount)
+        } else {
+            let bridge = SavedBridge(id: UUID().uuidString, name: name, address: addr)
+            savedBridges.append(bridge)
+            activeBridgeId = bridge.id
+            Keychain.save(token, account: bridge.tokenAccount)
+        }
+        persistBridges()
+    }
+
+    /// Switch the app to a different paired computer and connect to it.
+    func switchTo(_ bridge: SavedBridge) async {
+        guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
+            errorMessage = "No saved token for \(bridge.name) — pair that computer again."
+            return
+        }
+        connected = false
+        health = nil
+        sessions = []
+        baseURLString = bridge.address
+        token = saved                  // didSet also refreshes the active Keychain slot
+        activeBridgeId = bridge.id
+        persistBridges()
+        await connect()
+    }
+
+    /// Forget a paired computer and drop its stored token.
+    func forget(_ bridge: SavedBridge) {
+        Keychain.delete(account: bridge.tokenAccount)
+        savedBridges.removeAll { $0.id == bridge.id }
+        if activeBridgeId == bridge.id { activeBridgeId = nil }
+        persistBridges()
     }
 
     private func store(_ key: String, _ value: String) {
@@ -73,6 +135,7 @@ final class AppState: ObservableObject {
             health = h
             sessions = try await client.listSessions()
             connected = true
+            rememberCurrentBridge()                                        // keep the paired-computer list current
             if let t = pushToken { try? await client.registerDevice(t) }   // (re)register for push
             if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
         } catch {
@@ -127,6 +190,13 @@ final class AppState: ObservableObject {
             try await client.renameSession(id, title: trimmed)
             if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].title = trimmed }
         } catch { errorMessage = friendly(error) }
+    }
+
+    /// Resolve a tool permission straight from a notification action — no session
+    /// view involved, so this works even when the app was launched in the background.
+    func resolvePermission(sessionId: String, requestId: String, optionId: String) async {
+        guard let client else { return }
+        try? await client.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
     }
 
     /// Store the APNs token and push it to the bridge (if we're connected).

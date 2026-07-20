@@ -4,9 +4,11 @@ import Security
 /// Minimal Keychain wrapper for the pairing token (a secret — kept out of UserDefaults).
 enum Keychain {
     private static let service = "com.tethrx.app"
-    private static let account = "bridge.token"
+    /// The active bridge's token. Each saved bridge also gets its own slot,
+    /// "bridge.token.<uuid>", so several computers can be paired at once.
+    static let defaultAccount = "bridge.token"
 
-    static func save(_ value: String) {
+    static func save(_ value: String, account: String = defaultAccount) {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -20,7 +22,7 @@ enum Keychain {
         SecItemAdd(add as CFDictionary, nil)
     }
 
-    static func load() -> String? {
+    static func load(account: String = defaultAccount) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -32,5 +34,13 @@ enum Keychain {
         guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
               let data = out as? Data else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    static func delete(account: String) {
+        SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ] as CFDictionary)
     }
 }
