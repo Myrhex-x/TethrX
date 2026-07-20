@@ -27,6 +27,7 @@ struct SessionListView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
+                    if app.bridgeNeedsUpdate { updateBanner }
                     workingDir
                     sessions
                 }
@@ -124,6 +125,46 @@ struct SessionListView: View {
             }
         }
         .padding(.bottom, 4)
+    }
+
+    // MARK: Bridge update banner
+
+    /// Shown when the connected bridge predates what this app was built for —
+    /// without it, the newer features fail with bare errors and no explanation.
+    private var updateBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12)).foregroundStyle(Grok.text)
+                Text("Your bridge needs an update").font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
+            }
+            Text("This version of the app needs bridge \(AppState.wantedBridgeVersion) or newer. On your computer, run:")
+                .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Text("npm i -g tethrx-bridge")
+                    .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Button {
+                    UIPasteboard.general.string = "npm i -g tethrx-bridge"
+                    Haptics.tap()
+                } label: {
+                    Image(systemName: "doc.on.doc").font(.system(size: 11, weight: .medium)).foregroundStyle(Grok.textDim)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(Grok.bg)
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Grok.hairline, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+            Text("Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: Working directory

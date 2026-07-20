@@ -127,6 +127,19 @@ struct UsageReport: Codable {
     var costUSD: Double { totals.costUsdTicks / 1e10 }
 }
 
+/// Tiny numeric semver comparison. nil counts as older — bridges before 0.1.12
+/// didn't report a version at all.
+enum Semver {
+    static func isOlder(_ a: String?, than b: String) -> Bool {
+        guard let a, !a.isEmpty else { return true }
+        let x = a.split(separator: ".").compactMap { Int($0) }
+        let y = b.split(separator: ".").compactMap { Int($0) }
+        guard x.count == 3, y.count == 3 else { return false }
+        for i in 0..<3 where x[i] != y[i] { return x[i] < y[i] }
+        return false
+    }
+}
+
 /// Human-friendly formatting for tokens, cost, and durations.
 enum Fmt {
     static func tokens(_ n: Int) -> String {

@@ -5,6 +5,13 @@ import SwiftUI
 /// and default working directory to UserDefaults so pairing survives relaunches.
 @MainActor
 final class AppState: ObservableObject {
+    /// The bridge version this app's features are built against. A connected
+    /// bridge older than this gets a visible "update your bridge" banner —
+    /// otherwise the new buttons would just 404 with no explanation.
+    static let wantedBridgeVersion = "0.1.12"
+    var bridgeNeedsUpdate: Bool {
+        connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
+    }
     @Published var baseURLString: String { didSet { store("bridge.baseURL", baseURLString) } }
     @Published var token: String { didSet { Keychain.save(token) } }
     /// Cert fingerprint for pinned HTTPS to the ACTIVE bridge ("" = plain HTTP).
