@@ -188,8 +188,8 @@ final class AppState: ObservableObject {
         let prevBase = baseURLString
         baseURLString = "https://\(host):\(tls.port)"
         pin = tls.fingerprint
-        if let upgraded = client, (try? await upgraded.health()) != nil {
-            health = try? await upgraded.health()   // refresh over the pinned channel
+        if let upgraded = client, let refreshed = try? await upgraded.health() {
+            health = refreshed   // the pinned channel is live — stay on it
             return
         }
         baseURLString = prevBase

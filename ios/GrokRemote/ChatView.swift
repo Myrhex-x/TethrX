@@ -25,6 +25,7 @@ struct ChatView: View {
         ZStack {
             Grok.bg.ignoresSafeArea()
             VStack(spacing: 0) {
+                actionStrip
                 transcript
                 errorBanner
                 composer
@@ -32,12 +33,18 @@ struct ChatView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .grokBar()
+        // No trailing toolbar items AT ALL: on iOS 26 the system wraps them in a
+        // liquid-glass capsule, and three bare icons + a badge + a dot squeezed
+        // into one pill read as broken. The actions live in `actionStrip` below,
+        // as labeled buttons; the live dot rides next to the title.
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 1) {
                     HStack(spacing: 7) {
                         TethrXMark(size: 15)
                         Text(name).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                        Circle().fill(vm.live ? Grok.accent : Grok.textFaint).frame(width: 6, height: 6)
+                            .accessibilityLabel(vm.live ? "Connected" : "Reconnecting")
                     }
                     // Context and tokens live here so they're readable at a glance,
                     // rather than only inside the details sheet.
@@ -46,37 +53,6 @@ struct ChatView: View {
                             .font(Grok.mono(9))
                             .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
                     }
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 10) {
-                    Button { showFiles = true } label: {
-                        Image(systemName: "folder").font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Grok.textDim)
-                    .accessibilityLabel("Browse project files")
-
-                    Button { showGit = true } label: {
-                        Image(systemName: "arrow.triangle.branch").font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Grok.textDim)
-                    .accessibilityLabel("Review changes")
-
-                    Button { showDetails = true } label: {
-                        Image(systemName: "chart.bar.doc.horizontal").font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(Grok.textDim)
-                    .accessibilityLabel("Session details")
-
-                    if vm.mode == "plan" {
-                        Text("PLAN").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Grok.accent).clipShape(Capsule())
-                    }
-                    // Just the dot now: the usage readout under the title is the
-                    // information worth the space, and this still shows connection state.
-                    Circle().fill(vm.live ? Grok.accent : Grok.textFaint).frame(width: 7, height: 7)
-                        .accessibilityLabel(vm.live ? "Connected" : "Reconnecting")
                 }
             }
         }
@@ -97,6 +73,28 @@ struct ChatView: View {
         } message: {
             Text("To dictate messages, allow Microphone and Speech Recognition for TethrX in Settings.")
         }
+    }
+
+    // The session's places, as plainly labeled buttons in the app's own chip
+    // language — Files (project tree), Changes (git), Session (usage/details).
+    private var actionStrip: some View {
+        HStack(spacing: 8) {
+            stripButton("Files") { showFiles = true }
+            stripButton("Changes") { showGit = true }
+            stripButton("Session") { showDetails = true }
+            Spacer(minLength: 0)
+            if vm.mode == "plan" {
+                Text("PLAN").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Grok.accent).clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+    }
+
+    private func stripButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button { Haptics.tap(); action() } label: { Text(title).chip(on: false) }
+            .buttonStyle(.plain)
     }
 
     private var transcript: some View {
