@@ -53,9 +53,13 @@
 	<string>Transcribe your dictated voice into text to send to Grok.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<!-- The bridge speaks plain HTTP on your LAN / loopback. Allow cleartext to
-		     local-network hosts only; public HTTPS relays need no exception. -->
-		<key>NSAllowsLocalNetworking</key>
+		<!-- The bridge speaks plain HTTP on whatever network links the phone to your
+		     computer: LAN, Tailscale, or an iPhone Personal Hotspot (172.20.10.x).
+		     NSAllowsLocalNetworking alone does NOT cover the hotspot subnet, which made
+		     hotspot pairing fail with an ATS error. NOTE: on iOS 10+ NSAllowsArbitraryLoads
+		     is IGNORED whenever NSAllowsLocalNetworking is also present, so it must stand
+		     alone. Superseded once the bridge serves pinned HTTPS. -->
+		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
 </dict>
