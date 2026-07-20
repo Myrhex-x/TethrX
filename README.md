@@ -7,6 +7,8 @@ Drive **Grok Build** running on your computer from your **iPhone** — like [Her
 
 Your phone is only a control plane. Grok, its tools, and your code stay on your machine; the phone sends prompts, watches Grok work **tool-by-tool**, and **approves or rejects** each action.
 
+**Public TestFlight:** https://testflight.apple.com/join/nR19zett — you still run the bridge yourself (below).
+
 ```
 ┌────────────┐   HTTP + SSE    ┌─────────────────────┐   JSON-RPC (ACP)   ┌───────────┐
 │  iOS app   │  ────────────▶  │   bridge daemon     │  ───────────────▶  │  grok     │
@@ -18,6 +20,23 @@ Your phone is only a control plane. Grok, its tools, and your code stay on your 
 - **`ios/`** — a native SwiftUI app (xAI design language): pairing, session list, and a live console with tool activity and approval cards.
 
 Everything below is **built and tested** against a real `grok` install.
+
+---
+
+## What the app does
+
+- **Live console** — Grok's reasoning, tool calls, **command output**, and file diffs as they happen, with code rendered as real blocks you can scroll and copy.
+- **Approvals** — nothing runs until you tap. Also answerable straight from the notification.
+- **Plan mode** — read the plan before Grok builds it.
+- **Review the work** — changed files, per-file diffs, and **commit or discard** from the phone.
+- **Slash commands** — grok's own (`/compact`, `/context`, …) plus any skills you have installed.
+- **Voice dictation**, **queued follow-ups**, and reusable prompt snippets.
+- **Sessions** — search, folders, and several paired computers you can switch between.
+- **Siri** — start a task or ask what Grok is doing without opening the app.
+- **Home-screen widget** and a **Live Activity** on the lock screen / Dynamic Island.
+- **Usage** — context window, tokens, and cost per session.
+- **Face ID lock**, since the bridge can run commands on your machine.
+- Your computer is kept **awake** for as long as a task is running.
 
 ---
 
@@ -77,13 +96,31 @@ Never expose the bridge directly to the public internet — it can run code on y
 
 ## Push notifications (optional)
 
-So you're alerted when Grok **needs approval** or **finishes** while the app is backgrounded:
+So you're alerted when Grok **needs approval** or **finishes** while the app is backgrounded. The bridge only pushes when no client is actively watching that session, so you're never double-notified.
 
-```bash
-GROK_REMOTE_NTFY="https://ntfy.sh/your-secret-topic" node bridge/src/server.mjs
+**Native push (APNs).** Because the bridge is *your* server, it pushes with *your* APNs key — nothing routes through a third party. Create an APNs auth key (Keys → Apple Push Notifications service) in your Apple developer account, then add to `~/.grok-remote/config.json`:
+
+```json
+{
+  "apns": {
+    "keyPath": "/Users/you/.grok-remote/AuthKey_XXXXXXXXXX.p8",
+    "keyId": "XXXXXXXXXX",
+    "teamId": "YOURTEAMID"
+  }
+}
 ```
 
-Subscribe to that topic in the [ntfy](https://ntfy.sh) app on your phone. The bridge only pushes when no client is actively watching that session (so you're not double-notified).
+Scope the key to **Sandbox & Production** — a TestFlight build uses the production environment. Then enable notifications in the app's Settings. Approvals arrive with **Approve / Reject** buttons on the notification itself.
+
+> This requires an Apple developer account, so it's genuinely optional. Without it everything else works; you just won't get alerts while the app is closed.
+
+**ntfy (no developer account needed).**
+
+```bash
+GROK_REMOTE_NTFY="https://ntfy.sh/your-secret-topic" npx tethrx-bridge
+```
+
+Subscribe to that topic in the [ntfy](https://ntfy.sh) app.
 
 ---
 
@@ -116,12 +153,19 @@ State (pairing token, session registry, redirected grok-home) lives in `~/.grok-
 
 - [x] **ACP transport** — tool calls, plans, live approve/reject on the phone
 - [x] **Plan mode** — Grok drafts a plan; review + approve on the phone before it builds
-- [x] **Context resume across restarts** — ACP `session/load` restores conversation; event history persisted + replayed so past sessions open and follow
-- [x] **Lock-screen approvals** — ntfy action buttons resolve a permission without opening the app
-- [x] Delete / rename sessions, idle ACP-process cleanup
-- [x] Persistence, launchd service, TLS, ntfy push, Keychain, reasoning-effort picker, app icon
+- [x] **Context resume across restarts** — ACP `session/load` restores conversation; event history persisted + replayed
+- [x] **Lock-screen approvals** — native APNs (and ntfy) action buttons resolve a permission without opening the app
+- [x] **Command output + code blocks** — see *why* something failed, not just that it did
+- [x] **Git review** — changed files, per-file diffs, commit or discard from the phone
+- [x] **Slash commands** — grok's built-ins and your installed skills
+- [x] **Voice dictation, queued follow-ups, prompt snippets**
+- [x] **Sessions** — search, folders, several paired computers
+- [x] **Siri (App Intents)**, home-screen widget, Live Activity
+- [x] **Sleep prevention** — the machine stays awake while a turn runs
+- [x] Persistence, launchd service, TLS, Keychain, reasoning-effort picker, Face ID lock
+- [ ] **Pinned HTTPS** — self-signed cert with its fingerprint in the pairing QR, so cleartext is never needed
 - [ ] **Relay** — for cellular without Tailscale (`grok agent headless --grok-ws-url wss://…` exists)
-- [ ] **Image attachments** — *blocked:* grok 0.2.103 ACP reports `promptCapabilities.image=false`. Text/file context (`embeddedContext`) is supported; images await grok support.
+- [ ] **Image attachments** — *blocked:* grok's ACP reports `promptCapabilities.image=false`. Text/file context (`embeddedContext`) works; images await grok support.
 
 ---
 
@@ -131,12 +175,20 @@ State (pairing token, session registry, redirected grok-home) lives in `~/.grok-
 grok-remote/
 ├── bridge/
 │   ├── src/{server,acp,grok,sessions,config}.mjs   # daemon (ACP + headless)
-│   ├── scripts/{install-service,gen-cert}.sh        # launchd + TLS
-│   ├── public/index.html                            # web test client
-│   └── test/*.mjs                                    # smoke + ACP + verify tests
+│   ├── src/{apns,awake,git}.mjs                    # push, sleep prevention, git review
+│   ├── scripts/{install-service,gen-cert}.sh       # launchd + TLS
+│   ├── public/index.html                           # web test client
+│   └── test/*.mjs                                  # smoke + ACP + verify tests
 ├── ios/
 │   ├── GrokRemote.xcodeproj
-│   ├── GrokRemote/                                   # SwiftUI sources (synced group)
-│   └── tools/probe.swift                             # live test of the app's networking
-└── sandbox/                                          # scratch dir for demo Grok sessions
+│   ├── GrokRemote/                                 # SwiftUI sources (synced group)
+│   ├── TethrXWidget/                               # Live Activity + home-screen widget
+│   └── tools/probe.swift                           # live test of the app's networking
+└── sandbox/                                        # scratch dir for demo Grok sessions
 ```
+
+---
+
+## Licence
+
+[Apache License 2.0](LICENSE). TethrX is an independent client for Grok Build and is not affiliated with, endorsed by, or sponsored by xAI.
