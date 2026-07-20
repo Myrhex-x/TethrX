@@ -138,14 +138,21 @@ final class ChatViewModel: ObservableObject {
         guard let requestId = item.requestId else { return }
         let idx = items.firstIndex(where: { $0.id == item.id })
         if let idx { items[idx].decided = optionId ?? "cancelled" }   // optimistic — hide the buttons
-        if always { autoApprove = true }
         do {
             try await client.resolvePermission(sessionId: session.id, requestId: requestId, optionId: optionId, always: always)
+            if always { autoApprove = true }
         } catch {
-            // The bridge never heard the decision, so Grok is still blocked. Put the
-            // buttons back rather than leaving a card that claims it was answered.
-            if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-            errorMessage = "Couldn't send that decision. Check the connection and try again."
+            if Self.isConflict(error) {
+                // 409: nothing is waiting on this anymore (answered elsewhere, or the
+                // session restarted). Re-showing the buttons would just fail again.
+                if let idx, items.indices.contains(idx) { items[idx].decided = "cancelled" }
+                errorMessage = "That approval was no longer pending — grok isn't waiting on it."
+            } else {
+                // The bridge never heard the decision, so Grok is still blocked. Put the
+                // buttons back rather than leaving a card that claims it was answered.
+                if let idx, items.indices.contains(idx) { items[idx].decided = nil }
+                errorMessage = "Couldn't send that decision. Check the connection and try again."
+            }
         }
     }
 
@@ -157,8 +164,13 @@ final class ChatViewModel: ObservableObject {
         do {
             try await client.resolvePlan(sessionId: session.id, requestId: requestId, approved: approved)
         } catch {
-            if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-            errorMessage = "Couldn't send that decision. Check the connection and try again."
+            if Self.isConflict(error) {
+                if let idx, items.indices.contains(idx) { items[idx].decided = "rejected" }
+                errorMessage = "That plan review was no longer pending."
+            } else {
+                if let idx, items.indices.contains(idx) { items[idx].decided = nil }
+                errorMessage = "Couldn't send that decision. Check the connection and try again."
+            }
         }
     }
 

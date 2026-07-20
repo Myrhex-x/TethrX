@@ -41,9 +41,21 @@ const apns = loadApns(config);   // native push (disabled unless an APNs key is 
 // pairing token is never embedded in an ntfy notification.
 const approvalTokens = new Map(); // token -> { sessionId, requestId, optionId, exp }
 function mintApprovalToken(sessionId, requestId, optionId) {
+  const now = Date.now();
+  for (const [k, v] of approvalTokens) if (v.exp < now) approvalTokens.delete(k); // sweep stale
   const t = randomBytes(18).toString("base64url");
-  approvalTokens.set(t, { sessionId, requestId, optionId, exp: Date.now() + 15 * 60 * 1000 });
+  approvalTokens.set(t, { sessionId, requestId, optionId, exp: now + 15 * 60 * 1000 });
   return t;
+}
+
+// What a push notification calls the session. Unnamed sessions are titled
+// "New session", which is useless on a lock screen with several of them — fall
+// back to the working directory's folder name, like the app's own list does.
+function displayTitle(session) {
+  const t = String(session.title || "").trim();
+  if (t && t !== "New session") return t;
+  if (session.cwd) return String(session.cwd).split("/").filter(Boolean).pop() || "session";
+  return "session";
 }
 
 // For ACP + ask-mode, run Grok under a redirected HOME that enables per-tool prompts
@@ -247,7 +259,7 @@ function notifyPermission(session, event) {
     if (parts.length) actions = parts.join("; ");
   }
   pushNotify(session, {
-    title: `${session.title} — approval needed`,
+    title: `${displayTitle(session)} — approval needed`,
     message: event.command || event.title || "Grok wants to run a tool",
     priority: "high", tags: "warning", actions,
     // Drives Approve/Reject buttons on the iOS notification itself.
@@ -309,7 +321,7 @@ function startHeadlessTurn(session, body) {
     .then((result) => {
       // Grok emits its own `end`; add a bridge-level marker for the client's state machine.
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
+      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark" });
     })
     .catch((err) => {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
@@ -343,7 +355,7 @@ async function ensureAcp(session) {
         notifyPermission(session, event);
       }
       if (event.kind === "plan_review") {
-        pushNotify(session, { title: `${session.title} — plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
+        pushNotify(session, { title: `${displayTitle(session)} — plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
       }
       session.emit(event);
     },
@@ -378,7 +390,7 @@ function startAcpTurn(session, body) {
       session.addUsage(result);                                    // fold grok's token report in
       session.emit({ kind: "usage", usage: session.usage });       // live meter update
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      pushNotify(session, { title: session.title, message: "Grok finished the turn.", tags: "white_check_mark" });
+      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark" });
     } catch (err) {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
       try { session.acp?.stop(); } catch { /* ignore */ }   // don't orphan the child
@@ -388,6 +400,16 @@ function startAcpTurn(session, body) {
       session.endTurn();
       store.save();
       session.saveHistory();
+      // An effort change during a running turn can't reach the live process
+      // (--reasoning-effort is a spawn argument), so recycle it now that the turn
+      // is over; the next turn respawns with the new effort and resumes context
+      // via session/load. Without this the chip claimed an effort the process
+      // never used, for as long as it happened to live.
+      if (session._recycleAcp) {
+        session._recycleAcp = false;
+        try { session.acp?.stop(); } catch { /* ignore */ }
+        session.acp = null;
+      }
       // After a plan is approved, auto-continue into execution once the plan turn ends.
       if (session._executeOnComplete) {
         session._executeOnComplete = false;
@@ -509,9 +531,13 @@ async function handle(req, res) {
     const session = store.get(pm[1]);
     if (!session) return send(res, 404, { error: "no such session" });
     const body = await readJson(req).catch(() => ({}));
-    if (body.always) { session.autoApprove = true; store.save(); } // "always allow" for this session
     const ok = session.acp ? session.acp.resolvePermission(pm[2], body.optionId ?? null) : false;
-    return send(res, 200, { ok });
+    // A dead process or an already-answered request used to return 200 {ok:false},
+    // which every client read as success — the card said "approved" while grok
+    // wasn't waiting on anything. Fail loudly and only honor side effects on success.
+    if (!ok) return send(res, 409, { error: "that approval is no longer pending" });
+    if (body.always) { session.autoApprove = true; store.save(); } // "always allow" for this session
+    return send(res, 200, { ok: true });
   }
 
   // Approve/reject a plan: /api/sessions/:id/plan/:requestId  { approved }
@@ -521,9 +547,13 @@ async function handle(req, res) {
     if (!session) return send(res, 404, { error: "no such session" });
     const body = await readJson(req).catch(() => ({}));
     const approved = body.approved !== false;
-    if (approved) session._executeOnComplete = true; // auto-run once the plan turn ends
     const ok = session.acp ? session.acp.resolvePlan(plm[2], approved) : false;
-    return send(res, 200, { ok });
+    if (!ok) return send(res, 409, { error: "that plan review is no longer pending" });
+    // Only arm the auto-continue when the approval actually landed. Setting it first
+    // meant a failed approve left the flag behind, and some LATER unrelated turn
+    // would suddenly follow up with "proceed with the approved plan".
+    if (approved) session._executeOnComplete = true; // auto-run once the plan turn ends
+    return send(res, 200, { ok: true });
   }
 
   // /api/sessions/:id[/...]
@@ -571,8 +601,11 @@ async function handle(req, res) {
       if (typeof body.effort === "string") {
         session.effort = body.effort || undefined;
         // Apply next turn: drop an idle ACP process so it respawns with the new effort
-        // (context resumes via session/load).
+        // (context resumes via session/load). Mid-turn, mark it for recycling when the
+        // turn ends — otherwise the change silently never applied while the long-lived
+        // process survived (which, with 20-minute idle reaping, could be the whole day).
         if (session.acp && session.status === "idle") { try { session.acp.stop(); } catch { /* ignore */ } session.acp = null; }
+        else if (session.acp) session._recycleAcp = true;
       }
       if (typeof body.autoApprove === "boolean") session.autoApprove = body.autoApprove;
       store.save();

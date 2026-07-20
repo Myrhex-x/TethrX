@@ -30,6 +30,12 @@ struct SettingsView: View {
             .background(Grok.bg)
             .scrollIndicators(.hidden)
             .task { await loadUsage() }
+            // Switching computers happens inside this very sheet — without this the
+            // usage panel kept showing the PREVIOUS computer's totals.
+            .onChange(of: app.activeBridgeId) { _, _ in
+                report = nil
+                Task { await loadUsage() }
+            }
             .sheet(isPresented: $addingComputer) {
                 AddComputerSheet().environmentObject(app)
             }

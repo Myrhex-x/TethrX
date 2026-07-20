@@ -1,6 +1,6 @@
 {
   "name": "tethrx-bridge",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Run Grok Build from your phone — the local bridge for the TethrX iOS app. Exposes a running Grok Build install to your phone over HTTP + SSE, with per-tool approvals.",
   "type": "module",
   "bin": {

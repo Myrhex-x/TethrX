@@ -8,6 +8,9 @@ import AVFoundation
 final class Dictation: ObservableObject {
     @Published var isRecording = false
     @Published var transcript = ""
+    /// Speech or microphone permission was refused. Without surfacing this, a denied
+    /// permission made the mic button do nothing at all, forever, with no explanation.
+    @Published var denied = false
 
     private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -23,10 +26,13 @@ final class Dictation: ObservableObject {
     func start(base: String) {
         self.base = base.trimmingCharacters(in: .whitespacesAndNewlines)
         SFSpeechRecognizer.requestAuthorization { speech in
-            guard speech == .authorized else { return }
+            guard speech == .authorized else {
+                Task { @MainActor in self.denied = true }
+                return
+            }
             AVAudioApplication.requestRecordPermission { mic in
                 Task { @MainActor in
-                    guard mic else { return }
+                    guard mic else { self.denied = true; return }
                     self.begin()
                 }
             }

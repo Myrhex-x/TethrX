@@ -69,13 +69,19 @@ struct SessionListView: View {
         }
         .task { await app.reloadSessions(); openPending() }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
-        .onChange(of: app.sessions.count) { _, _ in openPending() }
+        // The whole array, not just its count: switching to another computer can
+        // land on the same number of sessions, which would swallow the deep-open.
+        .onChange(of: app.sessions) { _, _ in openPending() }
     }
 
-    /// Debug deep-open (see AppState.handleLaunchArguments).
+    /// Open the session a notification (or debug launch argument) pointed at.
     private func openPending() {
-        guard let id = app.pendingOpenSessionId,
-              let session = app.sessions.first(where: { $0.id == id }) else { return }
+        guard let id = app.pendingOpenSessionId else { return }
+        guard let session = app.sessions.first(where: { $0.id == id }) else {
+            // Not on this computer — it may live on another paired one.
+            Task { await app.locateAndOpen(id) }
+            return
+        }
         app.pendingOpenSessionId = nil
         if !path.contains(session) { path.append(session) }
     }

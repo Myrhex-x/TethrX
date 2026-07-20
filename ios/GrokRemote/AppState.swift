@@ -226,11 +226,52 @@ final class AppState: ObservableObject {
         } catch { errorMessage = friendly(error) }
     }
 
+    /// A client for any paired computer (not just the active one), using its own
+    /// Keychain token slot.
+    func client(for bridge: SavedBridge) -> BridgeClient? {
+        guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty,
+              let url = URL(string: bridge.address) else { return nil }
+        return BridgeClient(config: .init(baseURL: url, token: saved))
+    }
+
     /// Resolve a tool permission straight from a notification action — no session
     /// view involved, so this works even when the app was launched in the background.
+    ///
+    /// The push may have come from a computer that ISN'T the active one (you can be
+    /// paired to several). Sending the decision only to the active bridge meant a
+    /// 404 that was silently swallowed — the button "worked" and grok stayed blocked
+    /// forever. Try the active computer first, then every other paired one.
     func resolvePermission(sessionId: String, requestId: String, optionId: String) async {
-        guard let client else { return }
-        try? await client.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
+        if let client, (try? await client.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
+            return
+        }
+        for bridge in savedBridges where bridge.id != activeBridgeId {
+            guard let other = client(for: bridge) else { continue }
+            if (try? await other.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
+                return
+            }
+        }
+    }
+
+    /// Tapping a notification should open its session — even when that session lives
+    /// on a different paired computer. Probe the other computers; if one has it,
+    /// switch there (the session list then opens it via `pendingOpenSessionId`).
+    private var locatingSessionId: String?
+    func locateAndOpen(_ id: String) async {
+        guard locatingSessionId != id else { return }
+        locatingSessionId = id
+        defer { locatingSessionId = nil }
+        guard !sessions.contains(where: { $0.id == id }) else { return }   // it's local after all
+        for bridge in savedBridges where bridge.id != activeBridgeId {
+            guard let other = client(for: bridge),
+                  let list = try? await other.listSessions(),
+                  list.contains(where: { $0.id == id }) else { continue }
+            await switchTo(bridge)   // reachability was just proven by listSessions
+            return
+        }
+        // Nowhere to be found (deleted, or its computer is offline). Clear it so it
+        // can't fire as a surprise navigation after some later manual switch.
+        if pendingOpenSessionId == id { pendingOpenSessionId = nil }
     }
 
     /// Store the APNs token and push it to the bridge (if we're connected).

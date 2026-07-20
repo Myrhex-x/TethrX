@@ -71,6 +71,14 @@ struct ChatView: View {
         .onDisappear { vm.stop() }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
         .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session) }
+        .alert("Microphone access needed", isPresented: $dictation.denied) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("To dictate messages, allow Microphone and Speech Recognition for TethrX in Settings.")
+        }
     }
 
     private var transcript: some View {
