@@ -12,8 +12,6 @@ struct SettingsView: View {
     @State private var report: UsageReport?
     @State private var loadingUsage = false
     @State private var newSnippet = ""
-    @AppStorage("usage.budgetUSD") private var budgetUSD: Double = 0
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -77,17 +75,6 @@ struct SettingsView: View {
             }
 
             if let r = report {
-                if budgetUSD > 0 {
-                    let frac = min(1, r.costUSD / budgetUSD)
-                    UsageBar(fraction: frac)
-                    HStack {
-                        Text("\(Fmt.cost(r.costUSD)) / \(Fmt.cost(budgetUSD))")
-                            .font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text)
-                        Spacer()
-                        Text("\(Fmt.cost(max(0, budgetUSD - r.costUSD))) left")
-                            .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
-                    }
-                }
                 row("Total tokens", Fmt.tokens(r.totals.totalTokens))
                 row("Input", Fmt.tokens(r.totals.inputTokens))
                 row("Output", Fmt.tokens(r.totals.outputTokens))
@@ -103,20 +90,7 @@ struct SettingsView: View {
                 Text("Connect to the bridge to see usage.").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
             }
 
-            HStack {
-                Text("Budget (USD)").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
-                Spacer()
-                TextField("none", value: $budgetUSD, format: .number)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .font(Grok.mono(12)).foregroundStyle(Grok.text)
-                    .frame(width: 90)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Grok.raised)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            Text("Grok doesn't report an account quota over the bridge, so “left” means your per-session context window plus any spend budget you set here.")
+            Text("Totals across every session on this computer. Cost is grok's own estimate, not billing data from your account.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
         }
     }
