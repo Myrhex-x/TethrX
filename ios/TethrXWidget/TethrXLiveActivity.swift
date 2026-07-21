@@ -24,16 +24,37 @@ struct TethrXLiveActivity: Widget {
             .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
+                // The leading/trailing regions sit BESIDE the sensor cutout, where
+                // width is scarce and the island's curves clip anything wide — a
+                // text badge there lost its last letters. Icons only up top; the
+                // words live in the full-width bottom region, padded clear of the
+                // rounded corners (which otherwise shaved the first character).
                 DynamicIslandExpandedRegion(.leading) {
-                    mark(20)
+                    mark(20).padding(.leading, 6).padding(.top, 2)
                 }
-                DynamicIslandExpandedRegion(.trailing) { badge(context.state.phase) }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Image(systemName: glyph(context.state.phase))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.trailing, 6).padding(.top, 2)
+                }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.attributes.sessionName).font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        Text(context.state.detail).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                    HStack(alignment: .lastTextBaseline, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(context.attributes.sessionName)
+                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                                .lineLimit(1)
+                            Text(context.state.detail)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Text(label(context.state.phase))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(context.state.phase == "waiting" || context.state.phase == "error" ? .white : .white.opacity(0.7))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 6)
                 }
             } compactLeading: {
                 mark(16)
