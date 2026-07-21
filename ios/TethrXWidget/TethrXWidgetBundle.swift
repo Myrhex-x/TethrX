@@ -118,7 +118,7 @@ struct StatusWidgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
-    private func stat(_ value: String, _ caption: String) -> some View {
+    private func stat(_ value: String, _ caption: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value).font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
             Text(caption).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.4))

@@ -91,10 +91,10 @@ struct TethrXLiveActivity: Widget {
     }
     private func label(_ phase: String) -> String {
         switch phase {
-        case "waiting": return "APPROVE"
-        case "done": return "DONE"
-        case "error": return "ERROR"
-        default: return "WORKING"
+        case "waiting": return String(localized: "APPROVE")
+        case "done": return String(localized: "DONE")
+        case "error": return String(localized: "ERROR")
+        default: return String(localized: "WORKING")
         }
     }
 }
