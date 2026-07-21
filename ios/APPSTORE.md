@@ -58,10 +58,10 @@ setup wizard. Standard practice for companion apps:
 > bridge can be started on any Mac with `npx tethrx-bridge` (Node 20+), and the
 > app pairs by scanning the QR code it prints.
 
-- **Stronger option (recommended, one day of work): a built-in demo mode** — a
-  "Try the demo" button on the pairing screen backed by canned session data, so
-  a reviewer can experience the app with zero hardware. This also helps every
-  curious person who downloads the app before installing the bridge.
+- **Demo mode is BUILT (build 32)** — "Try the demo" on the pairing screen loads
+  canned sessions and a scripted conversation, so a reviewer can experience the
+  full app with zero hardware. Mention it explicitly in the review notes:
+  "A demo mode is available from the Try the demo button on the first screen."
 
 ## Known risks to keep an eye on
 
@@ -82,10 +82,12 @@ setup wizard. Standard practice for companion apps:
 
 ## Nice-to-have before a big public push
 
-- Demo mode (above).
-- Accessibility pass: the app uses fixed font sizes, so Dynamic Type currently
-  does nothing; VoiceOver labels exist for icon buttons but a full pass is due.
+- ~~Demo mode~~ — built (build 32).
+- ~~Accessibility~~ — Dynamic Type now scales all fonts (capped at the first
+  accessibility size) and icon-only buttons carry VoiceOver labels (build 32).
+- ~~Localization~~ — French ships in build 32; the per-app language picker
+  appears automatically in iOS Settings → TethrX. A handful of dynamically
+  composed strings remain English.
 - Widget-target `PrivacyInfo.xcprivacy` (the widget reads UserDefaults via the
   App Group): the app-level manifest covers review today, a per-target copy is
   belt and braces.
-- Localization (French first) if you want featured placement in FR.

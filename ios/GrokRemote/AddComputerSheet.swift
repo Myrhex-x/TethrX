@@ -80,7 +80,7 @@ struct AddComputerSheet: View {
                     Button { Task { await add() } } label: {
                         HStack(spacing: 10) {
                             if working { ProgressView().controlSize(.small).tint(.white) }
-                            Text(working ? "CONNECTING" : "ADD COMPUTER").tracking(1.4)
+                            (working ? Text("CONNECTING") : Text("ADD COMPUTER")).tracking(1.4)
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))
@@ -162,7 +162,7 @@ struct AddComputerSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func field(_ label: String, _ placeholder: String, _ text: Binding<String>, secure: Bool) -> some View {
+    private func field(_ label: LocalizedStringResource, _ placeholder: LocalizedStringKey, _ text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Eyebrow(label)
             FieldBox {

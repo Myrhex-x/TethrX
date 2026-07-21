@@ -1,0 +1,2526 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "Set up your phone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurez votre téléphone"
+          }
+        }
+      }
+    },
+    "STEP %lld / %lld": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ÉTAPE %lld / %lld"
+          }
+        }
+      }
+    },
+    "Install Grok Build": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer Grok Build"
+          }
+        }
+      }
+    },
+    "TethrX drives Grok Build — xAI's terminal coding agent. Install it on your computer with one command:": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TethrX pilote Grok Build — l'agent de programmation en terminal de xAI. Installez-le sur votre ordinateur avec une seule commande :"
+          }
+        }
+      }
+    },
+    "Already installed? Check with  grok --version  and skip ahead.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déjà installé ? Vérifiez avec  grok --version  et passez à la suite."
+          }
+        }
+      }
+    },
+    "Grok Build is installed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok Build est installé"
+          }
+        }
+      }
+    },
+    "Sign in to Grok": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez-vous à Grok"
+          }
+        }
+      }
+    },
+    "Run Grok once on your computer. It opens your browser to sign in with your xAI account, then remembers you.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lancez Grok une fois sur votre ordinateur. Votre navigateur s'ouvre pour vous connecter avec votre compte xAI, puis il se souvient de vous."
+          }
+        }
+      }
+    },
+    "Sign-in trouble? Some privacy browsers (Brave, and others with strict shields) block the localhost redirect the login uses. Set Safari or Chrome as your default browser, run  grok login  to retry, then switch back. You're set when  grok --version  prints a version without complaints.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problème de connexion ? Certains navigateurs privés (Brave, entre autres) bloquent la redirection localhost utilisée par la connexion. Définissez Safari ou Chrome comme navigateur par défaut, relancez avec  grok login , puis revenez en arrière. C'est bon quand  grok --version  affiche une version sans se plaindre."
+          }
+        }
+      }
+    },
+    "I'm signed in": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je suis connecté"
+          }
+        }
+      }
+    },
+    "Install Node.js": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer Node.js"
+          }
+        }
+      }
+    },
+    "The bridge runs on Node.js 20 or newer. Install it from nodejs.org if you don't already have it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le bridge fonctionne avec Node.js 20 ou plus récent. Installez-le depuis nodejs.org si vous ne l'avez pas déjà."
+          }
+        }
+      }
+    },
+    "Should print v20 or higher.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doit afficher v20 ou plus."
+          }
+        }
+      }
+    },
+    "Node is installed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node est installé"
+          }
+        }
+      }
+    },
+    "Start the bridge": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Démarrer le bridge"
+          }
+        }
+      }
+    },
+    "One command downloads and starts the bridge on your computer. It prints a pairing token and keeps running — leave it going.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une seule commande télécharge et démarre le bridge sur votre ordinateur. Il affiche un jeton d'appairage et reste actif — laissez-le tourner."
+          }
+        }
+      }
+    },
+    "Want it always-on? Install once with  npm i -g tethrx-bridge  then run  tethrx-bridge.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour l'avoir en permanence : installez avec  npm i -g tethrx-bridge  puis lancez  tethrx-bridge."
+          }
+        }
+      }
+    },
+    "The bridge is running": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le bridge est lancé"
+          }
+        }
+      }
+    },
+    "How will your phone reach it?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comment votre téléphone va-t-il s'y connecter ?"
+          }
+        }
+      }
+    },
+    "Pick how this phone connects to the bridge:": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez comment ce téléphone joint le bridge :"
+          }
+        }
+      }
+    },
+    "Same Wi-Fi": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Même Wi-Fi"
+          }
+        }
+      }
+    },
+    "phone + computer on one network — simplest": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "téléphone + ordinateur sur le même réseau — le plus simple"
+          }
+        }
+      }
+    },
+    "From anywhere": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depuis n'importe où"
+          }
+        }
+      }
+    },
+    "works on cellular too, via Tailscale": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fonctionne aussi en cellulaire, via Tailscale"
+          }
+        }
+      }
+    },
+    "Install Tailscale on your computer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer Tailscale sur votre ordinateur"
+          }
+        }
+      }
+    },
+    "Tailscale is a free private network that links this phone to your computer from anywhere. Install it on your computer, then sign in to create a free account — you can use Google, Apple, GitHub, or email.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale est un réseau privé gratuit qui relie ce téléphone à votre ordinateur depuis n'importe où. Installez-le sur votre ordinateur, puis connectez-vous pour créer un compte gratuit — avec Google, Apple, GitHub ou un e-mail."
+          }
+        }
+      }
+    },
+    "Get it from the Mac App Store or tailscale.com/download. Once you're signed in, a menu-bar icon shows it's connected.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disponible sur le Mac App Store ou tailscale.com/download. Une fois connecté, une icône dans la barre des menus confirme la connexion."
+          }
+        }
+      }
+    },
+    "Installed and signed in": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installé et connecté"
+          }
+        }
+      }
+    },
+    "Install Tailscale on this phone": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer Tailscale sur ce téléphone"
+          }
+        }
+      }
+    },
+    "Now install Tailscale from the App Store on this phone and sign in with the same account you just used on your computer. Using the same account on both is what links the two devices.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installez maintenant Tailscale depuis l'App Store sur ce téléphone et connectez-vous avec le même compte que sur votre ordinateur. C'est ce compte commun qui relie les deux appareils."
+          }
+        }
+      }
+    },
+    "Open the Tailscale app and check that both your computer and this phone show up in the list and appear connected.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrez l'app Tailscale et vérifiez que votre ordinateur et ce téléphone apparaissent tous deux dans la liste, connectés."
+          }
+        }
+      }
+    },
+    "Signed in with the same account": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecté avec le même compte"
+          }
+        }
+      }
+    },
+    "Open the pairing page": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la page d'appairage"
+          }
+        }
+      }
+    },
+    "On your computer, type this address into the browser's address bar:": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur votre ordinateur, saisissez cette adresse dans la barre d'adresse du navigateur :"
+          }
+        }
+      }
+    },
+    "Type it yourself — for your security the page refuses to open from a clicked link. It shows QR codes for Wi-Fi and Tailscale plus your token, and only works on the computer running the bridge.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez-la vous-même — par sécurité, la page refuse de s'ouvrir depuis un lien cliqué. Elle affiche les QR codes Wi-Fi et Tailscale ainsi que votre jeton, et ne fonctionne que sur l'ordinateur qui exécute le bridge."
+          }
+        }
+      }
+    },
+    "I see the QR codes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je vois les QR codes"
+          }
+        }
+      }
+    },
+    "Scan the Tailscale code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scannez le code Tailscale"
+          }
+        }
+      }
+    },
+    "Scan the Wi-Fi code": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scannez le code Wi-Fi"
+          }
+        }
+      }
+    },
+    "On the pairing page, tap Scan to pair and aim at the code labelled TAILSCALE.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur la page d'appairage, touchez Scanner pour appairer et visez le code marqué TAILSCALE."
+          }
+        }
+      }
+    },
+    "On the pairing page, tap Scan to pair and aim at the code labelled WI-FI / LAN.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur la page d'appairage, touchez Scanner pour appairer et visez le code marqué WI-FI / LAN."
+          }
+        }
+      }
+    },
+    "Scan to pair": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanner pour appairer"
+          }
+        }
+      }
+    },
+    "or enter by hand": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ou saisir à la main"
+          }
+        }
+      }
+    },
+    "BRIDGE ADDRESS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ADRESSE DU BRIDGE"
+          }
+        }
+      }
+    },
+    "PAIRING TOKEN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JETON D'APPAIRAGE"
+          }
+        }
+      }
+    },
+    "from the pairing page": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "depuis la page d'appairage"
+          }
+        }
+      }
+    },
+    "CONNECT": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SE CONNECTER"
+          }
+        }
+      }
+    },
+    "CONNECTING": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CONNEXION"
+          }
+        }
+      }
+    },
+    "back": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "retour"
+          }
+        }
+      }
+    },
+    "FOUND NEARBY": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TROUVÉS À PROXIMITÉ"
+          }
+        }
+      }
+    },
+    "Welcome back": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bon retour"
+          }
+        }
+      }
+    },
+    "This phone is already paired. Reconnect to the same computer — or set it up again below.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce téléphone est déjà appairé. Reconnectez-vous au même ordinateur — ou refaites la configuration ci-dessous."
+          }
+        }
+      }
+    },
+    "Reconnect": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reconnecter"
+          }
+        }
+      }
+    },
+    "Reconnecting…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnexion…"
+          }
+        }
+      }
+    },
+    "Try the demo": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essayer la démo"
+          }
+        }
+      }
+    },
+    "A client for Grok Build · independent, not affiliated with xAI": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un client pour Grok Build · indépendant, non affilié à xAI"
+          }
+        }
+      }
+    },
+    "That doesn't look like a TethrX pairing code.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceci ne ressemble pas à un code d'appairage TethrX."
+          }
+        }
+      }
+    },
+    "WORKING DIRECTORY": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DOSSIER DE TRAVAIL"
+          }
+        }
+      }
+    },
+    "/Users/you/project — blank = daemon default": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/Users/vous/projet — vide = dossier par défaut"
+          }
+        }
+      }
+    },
+    "New sessions run Grok in this folder. Plan mode, effort, and approvals are set inside each session.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les nouvelles sessions lancent Grok dans ce dossier. Le mode plan, l'effort et les approbations se règlent dans chaque session."
+          }
+        }
+      }
+    },
+    "SESSIONS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SESSIONS"
+          }
+        }
+      }
+    },
+    "New folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau dossier"
+          }
+        }
+      }
+    },
+    "New folder…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau dossier…"
+          }
+        }
+      }
+    },
+    "search sessions": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rechercher des sessions"
+          }
+        }
+      }
+    },
+    "// no sessions yet — tap + to start": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// aucune session — touchez + pour commencer"
+          }
+        }
+      }
+    },
+    "// nothing matches “%@”": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// rien ne correspond à « %@ »"
+          }
+        }
+      }
+    },
+    "Ungrouped": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans dossier"
+          }
+        }
+      }
+    },
+    "// empty — use ••• on a session to move it here": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// vide — utilisez ••• sur une session pour la déplacer ici"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renommer"
+          }
+        }
+      }
+    },
+    "Move to folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déplacer vers un dossier"
+          }
+        }
+      }
+    },
+    "Remove from folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer du dossier"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer"
+          }
+        }
+      }
+    },
+    "Delete folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le dossier"
+          }
+        }
+      }
+    },
+    "Move up": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monter"
+          }
+        }
+      }
+    },
+    "Move down": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descendre"
+          }
+        }
+      }
+    },
+    "Rename session": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renommer la session"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom"
+          }
+        }
+      }
+    },
+    "Folder name": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom du dossier"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler"
+          }
+        }
+      }
+    },
+    "Move": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déplacer"
+          }
+        }
+      }
+    },
+    "Create": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créer"
+          }
+        }
+      }
+    },
+    "Then use the ••• button on any session to move it in.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilisez ensuite le bouton ••• d'une session pour l'y déplacer."
+          }
+        }
+      }
+    },
+    "RUNNING NOW": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN COURS"
+          }
+        }
+      }
+    },
+    "RUNNING": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN COURS"
+          }
+        }
+      }
+    },
+    "FOUND IN CONVERSATIONS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TROUVÉ DANS LES CONVERSATIONS"
+          }
+        }
+      }
+    },
+    "Sample data — nothing is connected.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données d'exemple — rien n'est connecté."
+          }
+        }
+      }
+    },
+    "Exit": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter"
+          }
+        }
+      }
+    },
+    "Your bridge needs an update": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre bridge doit être mis à jour"
+          }
+        }
+      }
+    },
+    "This version of the app needs bridge %@ or newer. On your computer, run:": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version de l'app nécessite le bridge %@ ou plus récent. Sur votre ordinateur, lancez :"
+          }
+        }
+      }
+    },
+    "Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puis redémarrez le bridge et reconnectez-vous. La discussion continue de fonctionner ; les nouveautés nécessitent la mise à jour."
+          }
+        }
+      }
+    },
+    "Pick a session": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez une session"
+          }
+        }
+      }
+    },
+    "DISCONNECTED": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DÉCONNECTÉ"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "CONNECTION": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CONNEXION"
+          }
+        }
+      }
+    },
+    "Bridge": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge"
+          }
+        }
+      }
+    },
+    "Token": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeton"
+          }
+        }
+      }
+    },
+    "Security": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sécurité"
+          }
+        }
+      }
+    },
+    "HTTPS · certificate pinned": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTTPS · certificat épinglé"
+          }
+        }
+      }
+    },
+    "HTTP": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTTP"
+          }
+        }
+      }
+    },
+    "Update the bridge (npm i -g tethrx-bridge) and reconnect — the app upgrades to pinned HTTPS automatically.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettez à jour le bridge (npm i -g tethrx-bridge) et reconnectez-vous — l'app passe automatiquement en HTTPS épinglé."
+          }
+        }
+      }
+    },
+    "View bridge log": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir le journal du bridge"
+          }
+        }
+      }
+    },
+    "Disconnect": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter"
+          }
+        }
+      }
+    },
+    "COMPUTERS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ORDINATEURS"
+          }
+        }
+      }
+    },
+    "Computers you pair show up here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les ordinateurs appairés apparaissent ici."
+          }
+        }
+      }
+    },
+    "Tap to switch computers. Long-press to forget one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touchez pour changer d'ordinateur. Appui long pour en oublier un."
+          }
+        }
+      }
+    },
+    "Add another computer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un autre ordinateur"
+          }
+        }
+      }
+    },
+    "Forget": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oublier"
+          }
+        }
+      }
+    },
+    "USAGE": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UTILISATION"
+          }
+        }
+      }
+    },
+    "Total tokens": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokens au total"
+          }
+        }
+      }
+    },
+    "Input": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrée"
+          }
+        }
+      }
+    },
+    "Output": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortie"
+          }
+        }
+      }
+    },
+    "Thinking": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réflexion"
+          }
+        }
+      }
+    },
+    "Cached read": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecture en cache"
+          }
+        }
+      }
+    },
+    "Turns": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tours"
+          }
+        }
+      }
+    },
+    "Sessions": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        }
+      }
+    },
+    "Est. cost": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coût estimé"
+          }
+        }
+      }
+    },
+    "Loading…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement…"
+          }
+        }
+      }
+    },
+    "Connect to the bridge to see usage.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez-vous au bridge pour voir l'utilisation."
+          }
+        }
+      }
+    },
+    "Totals across every session on this computer. Cost is grok's own estimate, not billing data from your account.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Totaux de toutes les sessions de cet ordinateur. Le coût est l'estimation de grok, pas une donnée de facturation de votre compte."
+          }
+        }
+      }
+    },
+    "NEW SESSION DEFAULTS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RÉGLAGES DES NOUVELLES SESSIONS"
+          }
+        }
+      }
+    },
+    "Reasoning effort": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effort de raisonnement"
+          }
+        }
+      }
+    },
+    "Auto": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
+    "High": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Élevé"
+          }
+        }
+      }
+    },
+    "Med": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moyen"
+          }
+        }
+      }
+    },
+    "Medium": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moyen"
+          }
+        }
+      }
+    },
+    "Low": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faible"
+          }
+        }
+      }
+    },
+    "Plan mode": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode plan"
+          }
+        }
+      }
+    },
+    "Grok drafts a plan to approve first": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok rédige d'abord un plan à approuver"
+          }
+        }
+      }
+    },
+    "Auto-approve tools": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approuver les outils automatiquement"
+          }
+        }
+      }
+    },
+    "Skip the approve/reject prompt": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sauter la demande d'approbation"
+          }
+        }
+      }
+    },
+    "Each session can override these from its own controls.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque session peut les modifier depuis ses propres contrôles."
+          }
+        }
+      }
+    },
+    "NOTIFICATIONS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOTIFICATIONS"
+          }
+        }
+      }
+    },
+    "Push notifications": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications push"
+          }
+        }
+      }
+    },
+    "Get alerted when Grok finishes a turn or needs approval — even with the app closed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soyez prévenu quand Grok termine ou attend une approbation — même app fermée"
+          }
+        }
+      }
+    },
+    "Requires an APNs key configured on your bridge. Delivered to this phone when it isn't actively watching a session.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite une clé APNs configurée sur votre bridge. Livrées à ce téléphone quand il ne regarde pas activement une session."
+          }
+        }
+      }
+    },
+    "SECURITY": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SÉCURITÉ"
+          }
+        }
+      }
+    },
+    "Require %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exiger %@"
+          }
+        }
+      }
+    },
+    "Lock the app on open — it can run commands on your computer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verrouiller l'app à l'ouverture — elle peut exécuter des commandes sur votre ordinateur"
+          }
+        }
+      }
+    },
+    "PROMPT SNIPPETS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXTRAITS DE PROMPTS"
+          }
+        }
+      }
+    },
+    "Reusable prompts you can tap to send from a session.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des prompts réutilisables à envoyer d'un simple toucher depuis une session."
+          }
+        }
+      }
+    },
+    "add a snippet…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ajouter un extrait…"
+          }
+        }
+      }
+    },
+    "ABOUT": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À PROPOS"
+          }
+        }
+      }
+    },
+    "App": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        }
+      }
+    },
+    "On your computer: npm i -g tethrx-bridge, then restart the bridge.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur votre ordinateur : npm i -g tethrx-bridge, puis redémarrez le bridge."
+          }
+        }
+      }
+    },
+    "A client for Grok Build · independent, not affiliated with xAI.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un client pour Grok Build · indépendant, non affilié à xAI."
+          }
+        }
+      }
+    },
+    "SCHEDULED TASKS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TÂCHES PLANIFIÉES"
+          }
+        }
+      }
+    },
+    "Run a prompt automatically — every morning, weekdays, whenever.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lancez un prompt automatiquement — chaque matin, en semaine, quand vous voulez."
+          }
+        }
+      }
+    },
+    "Add a scheduled task": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une tâche planifiée"
+          }
+        }
+      }
+    },
+    "Create a session first — a schedule runs inside one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créez d'abord une session — une tâche planifiée s'exécute dedans."
+          }
+        }
+      }
+    },
+    "Runs on your computer's clock, even with this phone off. You'll get a push when it finishes.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S'exécute à l'heure de votre ordinateur, même téléphone éteint. Vous recevrez une notification à la fin."
+          }
+        }
+      }
+    },
+    "New schedule": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouvelle planification"
+          }
+        }
+      }
+    },
+    "SESSION": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SESSION"
+          }
+        }
+      }
+    },
+    "The task runs in this session — its folder, effort, and approval settings apply.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tâche s'exécute dans cette session — son dossier, son effort et ses approbations s'appliquent."
+          }
+        }
+      }
+    },
+    "PROMPT": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PROMPT"
+          }
+        }
+      }
+    },
+    "pull main, run the tests, summarize failures…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "récupérer main, lancer les tests, résumer les échecs…"
+          }
+        }
+      }
+    },
+    "WHEN": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QUAND"
+          }
+        }
+      }
+    },
+    "Every day": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tous les jours"
+          }
+        }
+      }
+    },
+    "Weekdays": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En semaine"
+          }
+        }
+      }
+    },
+    "Weekends": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le week-end"
+          }
+        }
+      }
+    },
+    "Uses your computer's clock and time zone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilise l'horloge et le fuseau horaire de votre ordinateur."
+          }
+        }
+      }
+    },
+    "SAVE SCHEDULE": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ENREGISTRER"
+          }
+        }
+      }
+    },
+    "SAVING": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ENREGISTREMENT"
+          }
+        }
+      }
+    },
+    "Couldn't save — check the connection.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrement impossible — vérifiez la connexion."
+          }
+        }
+      }
+    },
+    "Couldn't update that schedule.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de modifier cette planification."
+          }
+        }
+      }
+    },
+    "Couldn't delete that schedule.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de supprimer cette planification."
+          }
+        }
+      }
+    },
+    "choose…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "choisir…"
+          }
+        }
+      }
+    },
+    "Files": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichiers"
+          }
+        }
+      }
+    },
+    "Changes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifs"
+          }
+        }
+      }
+    },
+    "Session": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session"
+          }
+        }
+      }
+    },
+    "queue a follow-up…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mettre une suite en file…"
+          }
+        }
+      }
+    },
+    "message grok…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "écrire à grok…"
+          }
+        }
+      }
+    },
+    "Effort": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effort"
+          }
+        }
+      }
+    },
+    "Plan": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan"
+          }
+        }
+      }
+    },
+    "Auto-approve": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-approbation"
+          }
+        }
+      }
+    },
+    "Ask each": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demander à chaque fois"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier"
+          }
+        }
+      }
+    },
+    "Edit & resend": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier et renvoyer"
+          }
+        }
+      }
+    },
+    "output": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sortie"
+          }
+        }
+      }
+    },
+    "Always allow": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toujours autoriser"
+          }
+        }
+      }
+    },
+    "Approve & build": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approuver et lancer"
+          }
+        }
+      }
+    },
+    "Keep planning": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer à planifier"
+          }
+        }
+      }
+    },
+    "✓ Approved — building": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✓ Approuvé — en cours"
+          }
+        }
+      }
+    },
+    "✗ Kept planning": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✗ Planification poursuivie"
+          }
+        }
+      }
+    },
+    "Microphone access needed": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès au micro nécessaire"
+          }
+        }
+      }
+    },
+    "Open Settings": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les réglages"
+          }
+        }
+      }
+    },
+    "To dictate messages, allow Microphone and Speech Recognition for TethrX in Settings.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour dicter des messages, autorisez le micro et la reconnaissance vocale pour TethrX dans Réglages."
+          }
+        }
+      }
+    },
+    "CONTEXT WINDOW": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FENÊTRE DE CONTEXTE"
+          }
+        }
+      }
+    },
+    "Send a message to see context usage.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyez un message pour voir l'utilisation du contexte."
+          }
+        }
+      }
+    },
+    "Compact into a fresh session": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compacter vers une nouvelle session"
+          }
+        }
+      }
+    },
+    "Compacting…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compactage…"
+          }
+        }
+      }
+    },
+    "Grok writes a handoff summary of this conversation, and a fresh session starts from it. This one stays untouched.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok rédige un résumé de passation de cette conversation, et une nouvelle session en repart. Celle-ci reste intacte."
+          }
+        }
+      }
+    },
+    "Compact this session?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compacter cette session ?"
+          }
+        }
+      }
+    },
+    "Compact": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compacter"
+          }
+        }
+      }
+    },
+    "Grok will summarize the conversation (uses some tokens), then a new session opens seeded with that summary.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok va résumer la conversation (cela consomme des tokens), puis une nouvelle session s'ouvre, amorcée avec ce résumé."
+          }
+        }
+      }
+    },
+    "Compaction failed — check the connection and try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le compactage a échoué — vérifiez la connexion et réessayez."
+          }
+        }
+      }
+    },
+    "THIS SESSION": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CETTE SESSION"
+          }
+        }
+      }
+    },
+    "Compute time": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temps de calcul"
+          }
+        }
+      }
+    },
+    "Cost is grok's own reported estimate.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le coût est l'estimation rapportée par grok."
+          }
+        }
+      }
+    },
+    "TECHNICAL": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TECHNIQUE"
+          }
+        }
+      }
+    },
+    "Model": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modèle"
+          }
+        }
+      }
+    },
+    "Transport": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transport"
+          }
+        }
+      }
+    },
+    "Directory": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dossier"
+          }
+        }
+      }
+    },
+    "Session ID": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ID de session"
+          }
+        }
+      }
+    },
+    "EXPORT": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXPORT"
+          }
+        }
+      }
+    },
+    "Share transcript as Markdown": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partager la transcription en Markdown"
+          }
+        }
+      }
+    },
+    "auto": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "auto"
+          }
+        }
+      }
+    },
+    "on": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activé"
+          }
+        }
+      }
+    },
+    "off": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "désactivé"
+          }
+        }
+      }
+    },
+    "grok default": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "défaut de grok"
+          }
+        }
+      }
+    },
+    "Grok only runs /%@ inside its own terminal, so it does nothing from here.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok n'exécute /%@ que dans son propre terminal, donc cela ne fait rien depuis ici."
+          }
+        }
+      }
+    },
+    "That approval was no longer pending — grok isn't waiting on it.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette approbation n'était plus en attente — grok ne l'attend pas."
+          }
+        }
+      }
+    },
+    "Couldn't send that decision. Check the connection and try again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d'envoyer cette décision. Vérifiez la connexion et réessayez."
+          }
+        }
+      }
+    },
+    "That plan review was no longer pending.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette revue de plan n'était plus en attente."
+          }
+        }
+      }
+    },
+    "reading git…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lecture de git…"
+          }
+        }
+      }
+    },
+    "// this session's folder isn't a git repository": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// le dossier de cette session n'est pas un dépôt git"
+          }
+        }
+      }
+    },
+    "No changes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune modification"
+          }
+        }
+      }
+    },
+    "COMMIT MESSAGE": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MESSAGE DE COMMIT"
+          }
+        }
+      }
+    },
+    "what changed…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ce qui a changé…"
+          }
+        }
+      }
+    },
+    "COMMIT ALL": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TOUT COMMITER"
+          }
+        }
+      }
+    },
+    "COMMITTING": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COMMIT EN COURS"
+          }
+        }
+      }
+    },
+    "Discard all changes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abandonner toutes les modifications"
+          }
+        }
+      }
+    },
+    "Discard all changes?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abandonner toutes les modifications ?"
+          }
+        }
+      }
+    },
+    "Discard": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abandonner"
+          }
+        }
+      }
+    },
+    "Reverts every modified file and deletes untracked ones in %@. This cannot be undone.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rétablit chaque fichier modifié et supprime les fichiers non suivis dans %@. C'est irréversible."
+          }
+        }
+      }
+    },
+    "Commit failed. Check that git is configured (user.name / user.email) on that computer.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le commit a échoué. Vérifiez que git est configuré (user.name / user.email) sur cet ordinateur."
+          }
+        }
+      }
+    },
+    "Committed.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commité."
+          }
+        }
+      }
+    },
+    "Changes discarded.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifications abandonnées."
+          }
+        }
+      }
+    },
+    "// no textual diff (binary file, or nothing to show)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// pas de diff textuel (fichier binaire, ou rien à montrer)"
+          }
+        }
+      }
+    },
+    "Working directory": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dossier de travail"
+          }
+        }
+      }
+    },
+    "reading folders…": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lecture des dossiers…"
+          }
+        }
+      }
+    },
+    "THIS FOLDER": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CE DOSSIER"
+          }
+        }
+      }
+    },
+    "Use this folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser ce dossier"
+          }
+        }
+      }
+    },
+    "// no subfolders": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// aucun sous-dossier"
+          }
+        }
+      }
+    },
+    "RECENT PROJECTS": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PROJETS RÉCENTS"
+          }
+        }
+      }
+    },
+    "Not connected.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non connecté."
+          }
+        }
+      }
+    },
+    "// empty folder": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// dossier vide"
+          }
+        }
+      }
+    },
+    "Add computer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un ordinateur"
+          }
+        }
+      }
+    },
+    "On the other computer, start the bridge and open its pairing page, then scan the code below.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur l'autre ordinateur, démarrez le bridge et ouvrez sa page d'appairage, puis scannez le code ci-dessous."
+          }
+        }
+      }
+    },
+    "NEARBY": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À PROXIMITÉ"
+          }
+        }
+      }
+    },
+    "Found on your network. Tap to fill the address — then enter that computer's token.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouvés sur votre réseau. Touchez pour remplir l'adresse — puis saisissez le jeton de cet ordinateur."
+          }
+        }
+      }
+    },
+    "ADD COMPUTER": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AJOUTER L'ORDINATEUR"
+          }
+        }
+      }
+    },
+    "Adding a computer switches to it. Your other computers stay paired — swap between them any time.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un ordinateur bascule dessus. Les autres restent appairés — changez à tout moment."
+          }
+        }
+      }
+    },
+    "Couldn't reach that computer. Check the address and that its bridge is running.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre cet ordinateur. Vérifiez l'adresse et que son bridge est lancé."
+          }
+        }
+      }
+    },
+    "Bridge log": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal du bridge"
+          }
+        }
+      }
+    },
+    "// nothing logged yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "// rien dans le journal pour l'instant"
+          }
+        }
+      }
+    },
+    "This needs bridge 0.1.14 or newer — update it with npm i -g tethrx-bridge.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite le bridge 0.1.14 ou plus récent — mettez-le à jour avec npm i -g tethrx-bridge."
+          }
+        }
+      }
+    },
+    "Enter the bridge address and pairing token.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez l'adresse du bridge et le jeton d'appairage."
+          }
+        }
+      }
+    },
+    "Can't reach the bridge. Check the address and that the daemon is running.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge injoignable. Vérifiez l'adresse et que le démon est lancé."
+          }
+        }
+      }
+    },
+    "No saved token for %@ — pair that computer again.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun jeton enregistré pour %@ — appairez de nouveau cet ordinateur."
+          }
+        }
+      }
+    },
+    "TethrX is locked": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TethrX est verrouillé"
+          }
+        }
+      }
+    },
+    "Unlock": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déverrouiller"
+          }
+        }
+      }
+    }
+  }
+}

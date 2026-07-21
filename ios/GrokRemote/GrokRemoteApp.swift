@@ -23,6 +23,9 @@ struct TethrXApp: App {
             }
             .tint(.white)                          // outline-pill language: white, not a color accent
             .preferredColorScheme(.dark)
+            // Fonts scale with Dynamic Type (see Grok.mono/sans); cap the growth
+            // so the densest layouts survive the largest accessibility sizes.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .animation(.easeInOut(duration: 0.2), value: lock.locked)
             .task {
                 push.onToken = { token in Task { await app.registerDevice(token) } }
@@ -80,7 +83,7 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Grok.bg.ignoresSafeArea()
-            if app.connected {
+            if app.connected || app.demoMode {
                 // iPad (and big landscape phones) get a real sidebar + chat split;
                 // iPhone keeps the stack.
                 if hSize == .regular {
@@ -113,7 +116,12 @@ struct SplitRootView: View {
             SessionListView(onSelect: { session in selected = session })
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380)
         } detail: {
-            if let selected, let client = app.client {
+            if let selected, app.demoMode {
+                NavigationStack {
+                    ChatView(vm: ChatViewModel(demoSession: selected))
+                }
+                .id(selected.id)
+            } else if let selected, let client = app.client {
                 NavigationStack {
                     ChatView(vm: ChatViewModel(client: client, session: selected))
                 }

@@ -22,6 +22,8 @@ final class ChatViewModel: ObservableObject {
 
     let client: BridgeClient
     let session: SessionInfo
+    /// Demo mode: canned transcript, scripted replies, zero networking.
+    let isDemo: Bool
 
     private let liveActivity = LiveActivityManager()
     var sessionName: String { session.displayName }
@@ -39,6 +41,7 @@ final class ChatViewModel: ObservableObject {
     init(client: BridgeClient, session: SessionInfo) {
         self.client = client
         self.session = session
+        self.isDemo = false
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
         self.autoApprove = session.autoApprove ?? false
@@ -50,11 +53,23 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// Demo sessions never touch the network; the client is an inert stub.
+    init(demoSession: SessionInfo) {
+        self.client = BridgeClient(config: .init(baseURL: URL(string: "http://127.0.0.1:9")!, token: "demo"))
+        self.session = demoSession
+        self.isDemo = true
+        self.planMode = demoSession.planMode ?? false
+        self.effort = demoSession.effort ?? ""
+        self.autoApprove = demoSession.autoApprove ?? false
+        self.usage = demoSession.usage
+    }
+
     /// Change plan mode / reasoning effort / auto-approve for this session, live.
     func setConfig(planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil) async {
         if let planMode { self.planMode = planMode }
         if let effort { self.effort = effort }
         if let autoApprove { self.autoApprove = autoApprove }
+        if isDemo { return }   // locals updated — that's the whole demo behavior
         do {
             let updated = try await client.setConfig(sessionId: session.id, planMode: planMode, effort: effort, autoApprove: autoApprove)
             self.planMode = updated.planMode ?? self.planMode
@@ -67,6 +82,11 @@ final class ChatViewModel: ObservableObject {
 
     /// Open (and auto-reconnect) the event stream for this session.
     func start() {
+        if isDemo {
+            if items.isEmpty, session.id == "demo-settings-dark" { items = DemoData.transcript }
+            live = true
+            return
+        }
         guard streamTask == nil else { return }
         streamTask = Task { @MainActor in
             while !Task.isCancelled {
@@ -94,6 +114,17 @@ final class ChatViewModel: ObservableObject {
     func send(_ text: String, images: [Data] = [], thumbnails: [UIImage] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
+        if isDemo {
+            var user = ChatItem(role: .user, text: trimmed)
+            user.images = thumbnails
+            user.imageCount = thumbnails.count
+            items.append(user)
+            busy = true
+            try? await Task.sleep(nanoseconds: 1_300_000_000)
+            items.append(ChatItem(role: .assistant, text: DemoData.cannedReply))
+            busy = false
+            return
+        }
         busy = true
         errorMessage = nil
         if !thumbnails.isEmpty { pendingEcho = thumbnails }
@@ -108,6 +139,7 @@ final class ChatViewModel: ObservableObject {
 
     func cancel() async {
         queued.removeAll()                       // stopping drops any queued follow-ups
+        if isDemo { busy = false; return }
         await client.cancel(sessionId: session.id)
     }
 
@@ -157,12 +189,12 @@ final class ChatViewModel: ObservableObject {
                 // 409: nothing is waiting on this anymore (answered elsewhere, or the
                 // session restarted). Re-showing the buttons would just fail again.
                 if let idx, items.indices.contains(idx) { items[idx].decided = "cancelled" }
-                errorMessage = "That approval was no longer pending — grok isn't waiting on it."
+                errorMessage = String(localized: "That approval was no longer pending — grok isn't waiting on it.")
             } else {
                 // The bridge never heard the decision, so Grok is still blocked. Put the
                 // buttons back rather than leaving a card that claims it was answered.
                 if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-                errorMessage = "Couldn't send that decision. Check the connection and try again."
+                errorMessage = String(localized: "Couldn't send that decision. Check the connection and try again.")
             }
         }
     }
@@ -177,10 +209,10 @@ final class ChatViewModel: ObservableObject {
         } catch {
             if Self.isConflict(error) {
                 if let idx, items.indices.contains(idx) { items[idx].decided = "rejected" }
-                errorMessage = "That plan review was no longer pending."
+                errorMessage = String(localized: "That plan review was no longer pending.")
             } else {
                 if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-                errorMessage = "Couldn't send that decision. Check the connection and try again."
+                errorMessage = String(localized: "Couldn't send that decision. Check the connection and try again.")
             }
         }
     }

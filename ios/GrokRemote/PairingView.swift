@@ -200,7 +200,7 @@ struct PairingView: View {
                 Button { focus = nil; Task { await app.connect() } } label: {
                     HStack(spacing: 10) {
                         if app.connecting { ProgressView().controlSize(.small).tint(.white) }
-                        Text(app.connecting ? "CONNECTING" : "CONNECT").tracking(1.5)
+                        (app.connecting ? Text("CONNECTING") : Text("CONNECT")).tracking(1.5)
                     }
                 }
                 .buttonStyle(PillButton(kind: .prominent)).disabled(app.connecting)
@@ -212,7 +212,7 @@ struct PairingView: View {
 
     // MARK: Card shell + pieces
 
-    private func cardShell<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+    private func cardShell<C: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Eyebrow("STEP \(idx + 1) / \(steps.count)")
             Text(title).font(Grok.sans(23, .semibold)).tracking(-0.4)
@@ -226,18 +226,18 @@ struct PairingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
-    private func para(_ s: String) -> some View {
+    private func para(_ s: LocalizedStringKey) -> some View {
         Text(s).font(Grok.sans(15)).foregroundStyle(Grok.textDim).lineSpacing(4)
             .fixedSize(horizontal: false, vertical: true)
     }
-    private func note(_ s: String) -> some View {
+    private func note(_ s: LocalizedStringKey) -> some View {
         Text(s).font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
     }
     private func codeLine(_ s: String) -> some View { CopyableCode(text: s) }
     private var divider: some View { Rectangle().fill(Grok.hairline).frame(height: 1) }
 
-    private func choice(_ title: String, _ sub: String, _ action: @escaping () -> Void) -> some View {
+    private func choice(_ title: LocalizedStringKey, _ sub: LocalizedStringKey, _ action: @escaping () -> Void) -> some View {
         Button { Haptics.tap(); action() } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -256,7 +256,7 @@ struct PairingView: View {
     }
 
     /// Advance control: a "completed" pill, plus a back link when not on step 1.
-    @ViewBuilder private func nav(_ label: String) -> some View {
+    @ViewBuilder private func nav(_ label: LocalizedStringKey) -> some View {
         Button { focus = nil; Haptics.tap(.medium); idx = min(idx + 1, steps.count - 1) } label: {
             HStack(spacing: 8) { Text(label); Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)) }
         }
@@ -278,9 +278,20 @@ struct PairingView: View {
         }
     }
     private var footer: some View {
-        Text("A client for Grok Build · independent, not affiliated with xAI")
-            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-            .frame(maxWidth: .infinity, alignment: .center)
+        VStack(spacing: 14) {
+            // A look around with zero hardware — for the curious, and for App Review.
+            Button { app.enterDemo() } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "play.circle").font(.system(size: 13, weight: .medium))
+                    Text("Try the demo").font(Grok.mono(12, .medium))
+                }
+                .foregroundStyle(Grok.textDim)
+            }
+            .buttonStyle(.plain)
+            Text("A client for Grok Build · independent, not affiliated with xAI")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
     }
 
     /// Shown on step 1 when credentials are already saved — a tidy "welcome back"
@@ -306,7 +317,7 @@ struct PairingView: View {
                     } else {
                         Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
                     }
-                    Text(app.connecting ? "Reconnecting…" : "Reconnect").tracking(0.3)
+                    (app.connecting ? Text("Reconnecting…") : Text("Reconnect")).tracking(0.3)
                 }
             }
             .buttonStyle(PillButton(kind: .prominent))
@@ -319,7 +330,7 @@ struct PairingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func field(label: String, placeholder: String, text: Binding<String>, secure: Bool) -> some View {
+    private func field(label: LocalizedStringResource, placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Eyebrow(label)
             FieldBox {

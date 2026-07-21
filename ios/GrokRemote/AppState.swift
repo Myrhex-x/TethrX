@@ -30,6 +30,9 @@ final class AppState: ObservableObject {
     @Published var savedBridges: [SavedBridge] = []
     @Published var activeBridgeId: String?
 
+    /// Browsing canned data with nothing connected (see DemoMode.swift).
+    @Published var demoMode = false
+
     @Published var health: HealthInfo?
     @Published var sessions: [SessionInfo] = []
     @Published var lastUsage: UsageReport?      // for the home-screen widget
@@ -103,7 +106,7 @@ final class AppState: ObservableObject {
     /// Switch the app to a different paired computer and connect to it.
     func switchTo(_ bridge: SavedBridge) async {
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
-            errorMessage = "No saved token for \(bridge.name) — pair that computer again."
+            errorMessage = String(localized: "No saved token for \(bridge.name) — pair that computer again.")
             return
         }
         connected = false
@@ -158,7 +161,7 @@ final class AppState: ObservableObject {
 
     func connect() async {
         guard let client else {
-            errorMessage = "Enter the bridge address and pairing token."
+            errorMessage = String(localized: "Enter the bridge address and pairing token.")
             return
         }
         userDisconnected = false     // an explicit Connect re-enables launch auto-reconnect
@@ -213,7 +216,23 @@ final class AppState: ObservableObject {
         bootstrapping = false
     }
 
+    // MARK: Demo mode
+
+    func enterDemo() {
+        demoMode = true
+        health = DemoData.health
+        sessions = DemoData.sessions
+        Haptics.tap()
+    }
+
+    func exitDemo() {
+        demoMode = false
+        health = nil
+        sessions = []
+    }
+
     func reloadSessions() async {
+        guard !demoMode else { return }
         guard let client else { return }
         do {
             sessions = try await client.listSessions()
@@ -238,6 +257,11 @@ final class AppState: ObservableObject {
     }
 
     func newSession() async -> SessionInfo? {
+        if demoMode {
+            let s = DemoData.freshSession(cwd: defaultCwd)
+            sessions.insert(s, at: 0)
+            return s
+        }
         guard let client else { return nil }
         do {
             let s = try await client.createSession(cwd: defaultCwd.isEmpty ? nil : defaultCwd,
@@ -253,6 +277,7 @@ final class AppState: ObservableObject {
     }
 
     func deleteSession(_ id: String) async {
+        if demoMode { sessions.removeAll { $0.id == id }; return }
         guard let client else { return }
         do {
             try await client.deleteSession(id)
@@ -262,7 +287,12 @@ final class AppState: ObservableObject {
 
     func renameSession(_ id: String, title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let client, !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return }
+        if demoMode {
+            if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].title = trimmed }
+            return
+        }
+        guard let client else { return }
         do {
             try await client.renameSession(id, title: trimmed)
             if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].title = trimmed }
@@ -410,6 +440,11 @@ final class AppState: ObservableObject {
 
     /// Move a session into a folder (or clear it with an empty string).
     func setFolder(_ id: String, folder: String) async {
+        if demoMode {
+            let t = folder.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].folder = t }
+            return
+        }
         guard let client else { return }
         let trimmed = folder.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
@@ -434,6 +469,9 @@ final class AppState: ObservableObject {
         if let i = args.firstIndex(of: "-openSession"), i + 1 < args.count {
             pendingOpenSessionId = args[i + 1]
         }
+        if args.contains("-demo") {
+            enterDemo()
+        }
         if args.contains("-autoconnect") {
             await connect()
         }
@@ -444,7 +482,7 @@ final class AppState: ObservableObject {
         if let urlErr = error as? URLError {
             switch urlErr.code {
             case .cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost:
-                return "Can't reach the bridge. Check the address and that the daemon is running."
+                return String(localized: "Can't reach the bridge. Check the address and that the daemon is running.")
             default:
                 return urlErr.localizedDescription
             }

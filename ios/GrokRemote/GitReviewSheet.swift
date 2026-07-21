@@ -133,7 +133,7 @@ struct GitReviewSheet: View {
             Button { Task { await commit() } } label: {
                 HStack(spacing: 10) {
                     if working { ProgressView().controlSize(.small).tint(.white) }
-                    Text(working ? "COMMITTING" : "COMMIT ALL").tracking(1.3)
+                    (working ? Text("COMMITTING") : Text("COMMIT ALL")).tracking(1.3)
                 }
             }
             .buttonStyle(PillButton(kind: .prominent))

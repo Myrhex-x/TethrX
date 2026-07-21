@@ -213,6 +213,14 @@ struct BridgeClient {
         return try JSONDecoder().decode(Wrapper.self, from: data).results
     }
 
+    /// The bridge's recent console output (startup, grok stderr, errors).
+    func logs() async throws -> [String] {
+        let (data, resp) = try await session.data(for: try request("/api/logs"))
+        try Self.check(resp)
+        struct Wrapper: Codable { let lines: [String] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).lines
+    }
+
     /// Register ActivityKit push tokens so the bridge can drive lock-screen
     /// activities with the app closed. kind: "start-token" | "update-token".
     func registerLiveActivity(kind: String, token: String, sessionId: String? = nil) async throws {

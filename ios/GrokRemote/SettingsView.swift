@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var revealToken = false
     @State private var addingComputer = false
+    @State private var showingLog = false
     @State private var report: UsageReport?
     @State private var loadingUsage = false
     @State private var newSnippet = ""
@@ -79,9 +80,19 @@ struct SettingsView: View {
                     Image(systemName: revealToken ? "eye.slash" : "eye").font(.caption)
                 }.foregroundStyle(Grok.textDim)
             }
+            if app.client != nil {
+                Button { showingLog = true } label: {
+                    Label("View bridge log", systemImage: "text.alignleft")
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+                .padding(.top, 4)
+            }
             Button { dismiss(); app.disconnect() } label: { Text("Disconnect").frame(maxWidth: .infinity) }
                 .buttonStyle(PillButton(kind: .subtle))
                 .padding(.top, 4)
+        }
+        .sheet(isPresented: $showingLog) {
+            if let client = app.client { BridgeLogSheet(client: client) }
         }
     }
 
@@ -122,9 +133,9 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reasoning effort").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
                 HStack(spacing: 8) {
-                    ForEach(efforts, id: \.1) { label, value in
-                        Button { app.defaultEffort = value } label: { Text(label).font(Grok.mono(12, .medium)) }
-                            .buttonStyle(SegPill(selected: app.defaultEffort == value))
+                    ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
+                        Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.mono(12, .medium)) }
+                            .buttonStyle(SegPill(selected: app.defaultEffort == pair.1))
                     }
                     Spacer(minLength: 0)
                 }
@@ -256,7 +267,7 @@ struct SettingsView: View {
         return false
     }
 
-    private func row(_ key: String, _ value: String) -> some View {
+    private func row(_ key: LocalizedStringKey, _ value: String) -> some View {
         HStack {
             Text(key).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
             Spacer()
@@ -264,7 +275,7 @@ struct SettingsView: View {
         }
     }
 
-    private func toggleRow(_ title: String, _ subtitle: String, _ binding: Binding<Bool>) -> some View {
+    private func toggleRow(_ title: LocalizedStringKey, _ subtitle: LocalizedStringKey, _ binding: Binding<Bool>) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(Grok.mono(12)).foregroundStyle(Grok.text)
@@ -282,6 +293,6 @@ struct SettingsView: View {
         report = try? await client.usage()
     }
 
-    private var efforts: [(String, String)] { [("Auto", ""), ("High", "high"), ("Med", "medium"), ("Low", "low")] }
+    private var efforts: [(LocalizedStringKey, String)] { [("Auto", ""), ("High", "high"), ("Med", "medium"), ("Low", "low")] }
     private var appVersion: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "" }
 }

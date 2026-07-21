@@ -251,9 +251,9 @@ struct BridgeSchedule: Codable, Identifiable, Hashable {
     var timeLabel: String { String(format: "%02d:%02d", hour, minute) }
     /// "Every day", "Weekdays", or short day names.
     var daysLabel: String {
-        if weekdays.isEmpty { return "Every day" }
-        if weekdays.sorted() == [1, 2, 3, 4, 5] { return "Weekdays" }
-        if weekdays.sorted() == [0, 6] { return "Weekends" }
+        if weekdays.isEmpty { return String(localized: "Every day") }
+        if weekdays.sorted() == [1, 2, 3, 4, 5] { return String(localized: "Weekdays") }
+        if weekdays.sorted() == [0, 6] { return String(localized: "Weekends") }
         let symbols = Calendar.current.shortWeekdaySymbols   // Sun-first, matching 0=Sunday
         return weekdays.sorted().compactMap { symbols.indices.contains($0) ? symbols[$0] : nil }.joined(separator: " ")
     }

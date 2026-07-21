@@ -23,11 +23,14 @@ enum Grok {
     static let danger = Color(red: 1.0, green: 0.45, blue: 0.45)   // errors only
 
     // MARK: Type
+    // Scaled with the user's Dynamic Type setting: `.system(size:)` alone ignores
+    // it entirely, which made the text-size accessibility setting a no-op here.
+    // The root view caps growth at the first accessibility size so layouts hold.
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+        .system(size: UIFontMetrics.default.scaledValue(for: size), weight: weight, design: .monospaced)
     }
     static func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight)
+        .system(size: UIFontMetrics.default.scaledValue(for: size), weight: weight)
     }
 }
 
@@ -36,9 +39,13 @@ enum Grok {
 struct Eyebrow: View {
     let text: String
     var comment: Bool = true
-    init(_ text: String, comment: Bool = true) { self.text = text; self.comment = comment }
+    /// Localizes then uppercases, so eyebrows translate like everything else.
+    init(_ key: LocalizedStringResource, comment: Bool = true) {
+        self.text = String(localized: key).uppercased()
+        self.comment = comment
+    }
     var body: some View {
-        Text((comment ? "// " : "") + text.uppercased())
+        Text((comment ? "// " : "") + text)
             .font(Grok.mono(11, .medium))
             .tracking(1.4)
             .foregroundStyle(Grok.textDim)
@@ -119,6 +126,8 @@ struct CircleIconButton: View {
     var filled = false
     var danger = false
     var enabled = true
+    /// VoiceOver name — icon-only buttons are otherwise read as their symbol name.
+    var a11y: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -134,6 +143,7 @@ struct CircleIconButton: View {
             .frame(width: 40, height: 40)
         }
         .disabled(!enabled)
+        .accessibilityLabel(Text(a11y ?? system))
     }
 }
 

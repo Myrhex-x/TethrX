@@ -37,6 +37,25 @@ import * as git from "./git.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
+
+// Tee everything the bridge prints into a small ring buffer, exposed at
+// GET /api/logs — so "it broke" reports can be debugged from the phone
+// instead of walking someone through Terminal over chat.
+const LOG_LIMIT = 500;
+const logBuffer = [];
+for (const level of ["log", "warn", "error"]) {
+  const original = console[level].bind(console);
+  console[level] = (...args) => {
+    original(...args);
+    try {
+      const line = args
+        .map((a) => (typeof a === "string" ? a : String(a?.stack || a?.message || JSON.stringify(a))))
+        .join(" ");
+      logBuffer.push(`${new Date().toISOString().slice(11, 19)} ${line}`);
+      if (logBuffer.length > LOG_LIMIT) logBuffer.shift();
+    } catch { /* logging must never throw */ }
+  };
+}
 const store = new SessionStore(join(config.stateDir, "sessions.json"));
 const apns = loadApns(config);   // native push (disabled unless an APNs key is configured)
 const schedules = new ScheduleStore(join(config.stateDir, "schedules.json"));
@@ -628,6 +647,11 @@ async function handle(req, res) {
   // Everything else under /api requires the pairing token.
   if (!authed(req, url)) {
     return send(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token>" });
+  }
+
+  // The bridge's recent console output (startup banner, grok stderr, errors).
+  if (pathname === "/api/logs" && req.method === "GET") {
+    return send(res, 200, { lines: logBuffer });
   }
 
   // Aggregate token/cost usage across every session (overall meter).

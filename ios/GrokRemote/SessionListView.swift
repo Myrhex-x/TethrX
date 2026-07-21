@@ -27,8 +27,10 @@ struct SessionListView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
+                    if app.demoMode { demoBanner }
                     if app.bridgeNeedsUpdate { updateBanner }
                     workingDir
+                    runningNow
                     sessions
                 }
                 .padding(20)
@@ -69,7 +71,9 @@ struct SessionListView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionInfo.self) { session in
-                if let client = app.client {
+                if app.demoMode {
+                    ChatView(vm: ChatViewModel(demoSession: session))
+                } else if let client = app.client {
                     ChatView(vm: ChatViewModel(client: client, session: session))
                 } else {
                     ZStack { Grok.bg.ignoresSafeArea(); Eyebrow("DISCONNECTED") }
@@ -119,12 +123,65 @@ struct SessionListView: View {
                 }
             }
             Spacer()
-            CircleIconButton(system: "gearshape") { showSettings = true }
-            CircleIconButton(system: "plus", filled: true, enabled: !creating) {
+            CircleIconButton(system: "gearshape", a11y: "Settings") { showSettings = true }
+            CircleIconButton(system: "plus", filled: true, enabled: !creating, a11y: "New session") {
                 Task { await startNew() }
             }
         }
         .padding(.bottom, 4)
+    }
+
+    // MARK: Demo banner
+
+    private var demoBanner: some View {
+        HStack(spacing: 10) {
+            Text("DEMO").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Grok.accent).clipShape(Capsule())
+            Text("Sample data — nothing is connected.")
+                .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+            Spacer(minLength: 0)
+            Button { app.exitDemo() } label: {
+                Text("Exit").font(Grok.mono(11, .semibold)).foregroundStyle(Grok.text)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: Running now
+
+    /// Sessions with a turn in flight, surfaced above the folders — with schedules
+    /// and long tasks, the RUNNING badges alone are too easy to lose in the list.
+    @ViewBuilder private var runningNow: some View {
+        let running = app.sessions.filter { $0.isRunning }
+        if !running.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Eyebrow("RUNNING NOW")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(running) { session in
+                            Button {
+                                if let onSelect { onSelect(session) } else if !path.contains(session) { path.append(session) }
+                            } label: {
+                                HStack(spacing: 7) {
+                                    Circle().fill(Grok.accent).frame(width: 6, height: 6)
+                                    Text(session.displayName).font(Grok.mono(12, .medium)).lineLimit(1)
+                                }
+                                .foregroundStyle(Grok.text)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
+                                .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: Bridge update banner
@@ -229,7 +286,7 @@ struct SessionListView: View {
                 let hasFolders = groups.contains { !$0.folder.isEmpty }
                 ForEach(groups, id: \.folder) { group in
                     if !group.folder.isEmpty || hasFolders {
-                        folderHeader(group.folder.isEmpty ? "Ungrouped" : group.folder,
+                        folderHeader(group.folder.isEmpty ? String(localized: "Ungrouped") : group.folder,
                                      key: group.folder, count: group.items.count)
                     }
                     if !collapsed.contains(group.folder) {

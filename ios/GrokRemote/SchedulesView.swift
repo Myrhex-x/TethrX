@@ -175,7 +175,7 @@ struct ScheduleEditorSheet: View {
                     Button { Task { await save() } } label: {
                         HStack(spacing: 10) {
                             if saving { ProgressView().controlSize(.small).tint(.white) }
-                            Text(saving ? "SAVING" : "SAVE SCHEDULE").tracking(1.3)
+                            (saving ? Text("SAVING") : Text("SAVE SCHEDULE")).tracking(1.3)
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))

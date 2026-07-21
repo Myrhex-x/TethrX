@@ -79,8 +79,10 @@ struct ChatView: View {
     // language — Files (project tree), Changes (git), Session (usage/details).
     private var actionStrip: some View {
         HStack(spacing: 8) {
-            stripButton("Files") { showFiles = true }
-            stripButton("Changes") { showGit = true }
+            if !vm.isDemo {   // these need a real computer behind them
+                stripButton("Files") { showFiles = true }
+                stripButton("Changes") { showGit = true }
+            }
             stripButton("Session") { showDetails = true }
             Spacer(minLength: 0)
             if vm.mode == "plan" {
@@ -92,7 +94,7 @@ struct ChatView: View {
         .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
     }
 
-    private func stripButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func stripButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button { Haptics.tap(); action() } label: { Text(title).chip(on: false) }
             .buttonStyle(.plain)
     }
@@ -187,7 +189,7 @@ struct ChatView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text(">").font(Grok.mono(15, .bold)).foregroundStyle(Grok.accent).padding(.top, 2)
                     TextField("", text: $draft,
-                              prompt: Text(vm.busy ? "queue a follow-up…" : "message grok…").foregroundColor(Grok.textFaint),
+                              prompt: (vm.busy ? Text("queue a follow-up…") : Text("message grok…")).foregroundColor(Grok.textFaint),
                               axis: .vertical)
                         .font(Grok.mono(14))
                         .foregroundStyle(Grok.text)
@@ -201,6 +203,7 @@ struct ChatView: View {
                                 .foregroundStyle(attachments.isEmpty ? Grok.textDim : Grok.accent)
                         }
                         .padding(.top, 1)
+                        .accessibilityLabel("Attach images")
                     }
                     if dictation.supported {
                         Button { dictation.toggle(base: draft) } label: {
@@ -210,6 +213,7 @@ struct ChatView: View {
                                 .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
                         }
                         .padding(.top, 1)
+                        .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 11)
@@ -250,18 +254,18 @@ struct ChatView: View {
         if vm.busy {
             HStack(spacing: 8) {
                 if !isEmptyDraft {
-                    CircleIconButton(system: "arrow.up") {
+                    CircleIconButton(system: "arrow.up", a11y: "Queue follow-up") {
                         // Must stop dictation here too, or the recogniser's next partial
                         // result refills the composer with the message just queued.
                         if dictation.isRecording { dictation.stop() }
                         vm.enqueue(draft); draft = ""; Haptics.tap()
                     }
                 }
-                CircleIconButton(system: "stop.fill", danger: true) { Task { await vm.cancel() } }
+                CircleIconButton(system: "stop.fill", danger: true, a11y: "Stop the turn") { Task { await vm.cancel() } }
             }
         } else {
             let sendable = !isEmptyDraft || !attachments.isEmpty
-            CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable) {
+            CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable, a11y: "Send") {
                 submit(draft)
             }
         }
@@ -362,8 +366,8 @@ struct ChatView: View {
                 .buttonStyle(.plain)
 
                 Menu {
-                    ForEach(efforts, id: \.1) { label, value in
-                        Button(label) { Task { await vm.setConfig(effort: value) } }
+                    ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
+                        Button(pair.0) { Task { await vm.setConfig(effort: pair.1) } }
                     }
                 } label: {
                     Label(effortLabel, systemImage: "gauge.with.dots.needle.50percent").chip(on: !vm.effort.isEmpty)
@@ -502,7 +506,7 @@ struct ChatView: View {
                     Task { await vm.setConfig(autoApprove: on) }
                     return
                 case .unsupported:
-                    vm.errorMessage = "Grok only runs /\(name) inside its own terminal, so it does nothing from here."
+                    vm.errorMessage = String(localized: "Grok only runs /\(name) inside its own terminal, so it does nothing from here.")
                     return
                 case .send:
                     break
@@ -528,8 +532,8 @@ struct ChatView: View {
         }
     }
 
-    private var efforts: [(String, String)] { [("Auto", ""), ("High", "high"), ("Medium", "medium"), ("Low", "low")] }
-    private var effortLabel: String { vm.effort.isEmpty ? "Effort" : vm.effort.capitalized }
+    private var efforts: [(LocalizedStringKey, String)] { [("Auto", ""), ("High", "high"), ("Medium", "medium"), ("Low", "low")] }
+    private var effortLabel: String { vm.effort.isEmpty ? String(localized: "Effort") : vm.effort.capitalized }
 
     private let bottomID = "bottom"
     private var lastText: String { vm.items.last?.text ?? "" }
@@ -1003,7 +1007,7 @@ struct SessionDetailsSheet: View {
                     .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
             }
 
-            if session.turnCount > 0, !vm.busy {
+            if session.turnCount > 0, !vm.busy, !vm.isDemo {
                 Button { confirmCompact = true } label: {
                     HStack(spacing: 10) {
                         if compacting { ProgressView().controlSize(.small).tint(.white) }
@@ -1063,17 +1067,17 @@ struct SessionDetailsSheet: View {
     private var technical: some View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("TECHNICAL")
-            row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : "grok default") : u.lastModelId)
-            row("Reasoning effort", vm.effort.isEmpty ? "auto" : vm.effort)
-            row("Plan mode", vm.planMode ? "on" : "off")
-            row("Auto-approve", vm.autoApprove ? "on" : "off")
+            row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : String(localized: "grok default")) : u.lastModelId)
+            row("Reasoning effort", vm.effort.isEmpty ? String(localized: "auto") : vm.effort)
+            row("Plan mode", vm.planMode ? String(localized: "on") : String(localized: "off"))
+            row("Auto-approve", vm.autoApprove ? String(localized: "on") : String(localized: "off"))
             row("Transport", session.transport ?? "acp")
             row("Directory", session.cwd.map { ($0 as NSString).lastPathComponent } ?? "—")
             row("Session ID", String(session.id.prefix(8)))
         }
     }
 
-    private func row(_ k: String, _ v: String) -> some View {
+    private func row(_ k: LocalizedStringKey, _ v: String) -> some View {
         HStack {
             Text(k).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
             Spacer()
@@ -1180,7 +1184,7 @@ struct PlanCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let decided = item.decided {
-                Text(decided == "approved" ? "✓ Approved — building" : "✗ Kept planning")
+                (decided == "approved" ? Text("✓ Approved — building") : Text("✗ Kept planning"))
                     .font(Grok.mono(12, .semibold)).foregroundStyle(Grok.textDim)
             } else {
                 VStack(spacing: 8) {
