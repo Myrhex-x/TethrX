@@ -129,6 +129,7 @@ struct ShareSheetView: View {
     @State private var sessions: [ShareClient.Session] = []
     @State private var selected: ShareClient.Session?
     @State private var loading = true
+    @State private var creating = false
     @State private var sending = false
     @State private var sent = false
     @State private var errorText: String?
@@ -265,14 +266,17 @@ struct ShareSheetView: View {
             if loading {
                 Text("Looking for your sessions…")
                     .font(ShareTheme.mono(12)).foregroundStyle(ShareTheme.textFaint)
-            } else if sessions.isEmpty {
-                Text("No sessions on this computer yet. Open TethrX and start one.")
-                    .font(ShareTheme.mono(12)).foregroundStyle(ShareTheme.textFaint)
             } else {
                 VStack(spacing: 6) {
                     ForEach(sessions.prefix(8)) { s in
                         Button { selected = s } label: { row(s) }.buttonStyle(.plain)
                     }
+                    // Without this, someone with no sessions yet (or who wants this
+                    // kept separate) is told to go open the app — a dead end from
+                    // inside a share sheet.
+                    Button { Task { await startNewSession() } } label: { newSessionRow }
+                        .buttonStyle(.plain)
+                        .disabled(creating)
                 }
             }
         }
@@ -303,6 +307,31 @@ struct ShareSheetView: View {
         .overlay(RoundedRectangle(cornerRadius: 10)
             .stroke(selected?.id == s.id ? ShareTheme.hairline : Color.clear, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var newSessionRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: creating ? "circle.dotted" : "plus.circle")
+                .font(.system(size: 15)).foregroundStyle(ShareTheme.textFaint)
+            Text(creating ? "Starting…" : "New session")
+                .font(ShareTheme.mono(13, .medium)).foregroundStyle(ShareTheme.textDim)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+    }
+
+    private func startNewSession() async {
+        guard let client, !creating else { return }
+        creating = true
+        errorText = nil
+        defer { creating = false }
+        do {
+            let fresh = try await client.createSession()
+            sessions.insert(fresh, at: 0)
+            selected = fresh
+        } catch {
+            errorText = error.localizedDescription
+        }
     }
 
     private var sentState: some View {

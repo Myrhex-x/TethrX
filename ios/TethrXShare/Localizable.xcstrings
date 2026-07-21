@@ -378,53 +378,6 @@
         }
       }
     },
-    "No sessions on this computer yet. Open TethrX and start one.": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucune session sur cet ordinateur pour l'instant. Ouvrez TethrX et démarrez-en une."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aún no hay sesiones en este ordenador. Abra TethrX e inicie una."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Noch keine Sitzungen auf diesem Computer. Öffnen Sie TethrX und starten Sie eine."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessuna sessione su questo computer. Apra TethrX e ne avvii una."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ainda não há sessões neste computador. Abra o TethrX e inicie uma."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このパソコンにはまだセッションがありません。TethrXを開いて開始してください。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这台电脑上还没有会话。打开 TethrX 新建一个。"
-          }
-        }
-      }
-    },
     "busy": {
       "extractionState": "manual",
       "localizations": {
@@ -703,6 +656,100 @@
           "stringUnit": {
             "state": "translated",
             "value": "请查看附带的图片。"
+          }
+        }
+      }
+    },
+    "New session": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouvelle session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nueva sesión"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Sitzung"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuova sessione"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nova sessão"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいセッション"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建会话"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Démarrage…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciando…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gestartet…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvio…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciando…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在启动…"
           }
         }
       }
