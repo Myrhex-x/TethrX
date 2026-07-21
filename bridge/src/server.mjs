@@ -8,8 +8,14 @@
 //   GET  /api/sessions/:id               -> session detail
 //   POST /api/sessions/:id/messages      -> { text, permissionMode?, alwaysApprove?, allow?, deny? }
 //   POST /api/sessions/:id/cancel        -> abort the running turn
+//   POST /api/sessions/:id/queue         -> { text } follow-up; runs now if idle
+//   POST /api/sessions/:id/branch        -> fork this session, carrying a handoff
 //   GET  /api/sessions/:id/stream        -> SSE stream of normalized Grok events
+//   GET  /api/usage/history?days=30      -> day-by-day token/cost rollups
 //   GET  /                               -> bundled web test client
+//
+// Also `tethrx-bridge service install|status|logs|restart|uninstall` to run the
+// bridge as a background service instead of a terminal process.
 //
 // Auth: every /api route (except health) requires `Authorization: Bearer <token>`.
 // SSE also accepts `?token=` because browser EventSource can't set headers (native
@@ -31,6 +37,7 @@ import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
 import { ScheduleStore, startScheduler } from "./schedules.mjs";
+import { UsageHistory } from "./usage-history.mjs";
 import { ensureTls } from "./tls.mjs";
 import * as awake from "./awake.mjs";
 import * as git from "./git.mjs";
@@ -38,11 +45,26 @@ import * as git from "./git.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
 
+// `tethrx-bridge service …` manages the background service instead of starting a
+// server. Handled before any of the boot below runs, so installing a service never
+// races the copy being installed for the port it wants.
+if (process.argv[2] === "service") {
+  const { runServiceCommand } = await import("./service.mjs");
+  process.exit(await runServiceCommand(process.argv.slice(3)));
+}
+
 // Tee everything the bridge prints into a small ring buffer, exposed at
 // GET /api/logs — so "it broke" reports can be debugged from the phone
 // instead of walking someone through Terminal over chat.
 const LOG_LIMIT = 500;
 const logBuffer = [];
+// The startup banner prints the pairing token, and these logs are made to be shared:
+// shown in the app's log viewer, tailed by `service logs`, pasted into bug reports.
+// Anything captured for later reading gets the token stripped; the live terminal
+// banner (written by `original` below, untouched) still shows it.
+function redactSecrets(text) {
+  return config.token ? String(text).split(config.token).join("<pairing token hidden>") : String(text);
+}
 for (const level of ["log", "warn", "error"]) {
   const original = console[level].bind(console);
   console[level] = (...args) => {
@@ -51,7 +73,7 @@ for (const level of ["log", "warn", "error"]) {
       const line = args
         .map((a) => (typeof a === "string" ? a : String(a?.stack || a?.message || JSON.stringify(a))))
         .join(" ");
-      logBuffer.push(`${new Date().toISOString().slice(11, 19)} ${line}`);
+      logBuffer.push(`${new Date().toISOString().slice(11, 19)} ${redactSecrets(line)}`);
       if (logBuffer.length > LOG_LIMIT) logBuffer.shift();
     } catch { /* logging must never throw */ }
   };
@@ -59,6 +81,7 @@ for (const level of ["log", "warn", "error"]) {
 const store = new SessionStore(join(config.stateDir, "sessions.json"));
 const apns = loadApns(config);   // native push (disabled unless an APNs key is configured)
 const schedules = new ScheduleStore(join(config.stateDir, "schedules.json"));
+const usageHistory = new UsageHistory(join(config.stateDir, "usage-history.json"));
 
 // Pinned self-signed TLS: served on its own port; the app learns the fingerprint
 // from the pairing QR (or /api/health) and pins the exact certificate.
@@ -403,6 +426,135 @@ function startTurn(session, body) {
   return session.transport === "acp" ? startAcpTurn(session, body) : startHeadlessTurn(session, body);
 }
 
+// --- follow-up queue --------------------------------------------------------
+
+/** Tell every watcher the queue changed, so a second device (or the app coming
+ *  back from the background) shows the same pending follow-ups. */
+function emitQueue(session) {
+  session.emit({ kind: "queue", queue: session.queue });
+}
+
+// Attached images: grok's ACP rejects image content blocks (it advertises
+// promptCapabilities.image: false), but its read tool IS vision-capable — so save
+// each image to disk and point grok at the files in the prompt text.
+async function saveImages(session, images) {
+  const paths = [];
+  for (const [i, img] of images.entries()) {
+    const mime = String(img?.mimeType || "");
+    const ext = mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : null;
+    const data = typeof img?.data === "string" ? img.data : "";
+    if (!ext || !data || data.length > 14_000_000) {   // ~10MB decoded
+      return { error: "images must be jpeg/png, up to ~10MB each" };
+    }
+    let buf;
+    try { buf = Buffer.from(data, "base64"); } catch { return { error: "bad image data" }; }
+    if (!buf.length) return { error: "bad image data" };
+    const file = join(UPLOAD_DIR, `${session.id.slice(0, 8)}-${Date.now()}-${i}.${ext}`);
+    try { await writeFile(file, buf); } catch { return { error: "couldn't save the image" }; }
+    paths.push(file);
+  }
+  return { paths };
+}
+
+/** The bracketed note that tells grok where the attached images landed. */
+function imageNote(paths) {
+  const noun = paths.length === 1 ? "an image" : `${paths.length} images`;
+  const listing = paths.map((p) => `  - ${p}`).join("\n");
+  return `\n\n[The user attached ${noun}, saved on this machine at:\n${listing}\nView ${paths.length === 1 ? "it" : "them"} with your image-capable read tool before answering.]`;
+}
+
+/** Start the next queued follow-up. Called when a turn ends, and when something is
+ *  queued into an idle session (a notification reply, a share, a scheduled gap). */
+function drainQueue(session) {
+  if (session.status === "running" || !session.queue.length) return false;
+  const next = session.dequeue();
+  store.save();
+  emitQueue(session);
+  // Images were written to disk when the item was queued; the paths only become a
+  // prompt now, so grok reads them as part of the turn they belong to.
+  const paths = Array.isArray(next.imagePaths) ? next.imagePaths : [];
+  startTurn(session, paths.length
+    ? { text: (next.text || "See the attached image.") + imageNote(paths), displayText: next.text, imageCount: paths.length }
+    : { text: next.text });
+  return true;
+}
+
+/** Everything a turn's `finally` has to decide: continue an approved plan first,
+ *  otherwise pull the next follow-up off the queue. */
+function continueAfterTurn(session) {
+  if (session._executeOnComplete) {
+    session._executeOnComplete = false;
+    startTurn(session, { text: "Proceed with the approved plan and implement it now." });
+    return;
+  }
+  drainQueue(session);
+}
+
+// --- forking (compact + branch) ---------------------------------------------
+
+const SUMMARY_PROMPT =
+  "Write a dense handoff summary of this entire conversation for a fresh session that will continue the work: " +
+  "the goal, what has been done (files touched, commands run, decisions made), the current state, and what remains " +
+  "or is unresolved. Use markdown lists. Do not use any tools. Do not add any preamble or closing remarks.";
+
+/** Run one summary turn in this session and return a handoff for a fresh one.
+ *  Resolves to `{ summary }` or `{ error }` — never throws. */
+async function summarizeForHandoff(session, label) {
+  const startId = session._nextEventId;
+  session.beginTurn();
+  session.emit({ kind: "turn_start", text: label, at: new Date().toISOString() });
+  awake.acquire();
+  try {
+    const acp = await ensureAcp(session);
+    const result = await acp.prompt(SUMMARY_PROMPT);
+    session.addUsage(result);
+    usageHistory.record(result.usage);
+    session.emit({ kind: "usage", usage: session.usage });
+    session.emit({ kind: "turn_complete", stopReason: result.stopReason });
+  } catch (err) {
+    session.emit({ kind: "error", message: friendlyTurnError(err) });
+    try { session.acp?.stop(); } catch { /* ignore */ }
+    session.acp = null;
+    return { error: friendlyTurnError(err) };
+  } finally {
+    // Deliberately NOT continueAfterTurn: a queued follow-up must not fire in the
+    // middle of a fork, or it lands in the session being summarized rather than the
+    // fresh one the user is about to be moved to.
+    awake.release();
+    session.endTurn();
+    store.save();
+    session.saveHistory();
+  }
+
+  const summary = session._events
+    .filter((r) => r.id > startId && r.event.kind === "text")
+    .map((r) => r.event.text).join("").trim();
+  return summary ? { summary } : { error: "grok produced no summary" };
+}
+
+/** The settings a forked session inherits (everything except identity + history). */
+function forkSettings(session) {
+  return {
+    cwd: session.cwd, model: session.model, effort: session.effort,
+    transport: session.transport, planMode: session.planMode,
+    autoApprove: session.autoApprove, folder: session.folder,
+  };
+}
+
+/** "Refactor auth" -> "Refactor auth (2)" -> "Refactor auth (3)". Numbered against
+ *  the titles already in use, not against the source: branching one session twice
+ *  otherwise produced two siblings with identical names. */
+function branchTitle(title) {
+  const base = String(title || "").trim();
+  const root = base && base !== "New session" ? base.replace(/\s*\(\d+\)$/, "") : "Branch";
+  const taken = new Set(store.list().map((s) => String(s.title || "")));
+  for (let n = 2; n < 200; n++) {
+    const candidate = `${root} (${n})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${root} (branch)`;
+}
+
 function startHeadlessTurn(session, body) {
   const signal = session.beginTurn();
   session.emit({ kind: "turn_start", text: body.text, at: new Date().toISOString() });
@@ -426,17 +578,20 @@ function startHeadlessTurn(session, body) {
     .then((result) => {
       // Grok emits its own `end`; add a bridge-level marker for the client's state machine.
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark" });
+      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark", category: "REPLY" });
     })
     .catch((err) => {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
       pushNotify(session, {
         title: displayTitle(session),
         message: `Turn failed: ${friendlyTurnError(err)}`.slice(0, 170),
-        priority: "high", tags: "x",
+        priority: "high", tags: "x", category: "REPLY",
       });
     })
-    .finally(() => { awake.release(); session.endTurn(); store.save(); session.saveHistory(); });
+    .finally(() => {
+      awake.release(); session.endTurn(); store.save(); session.saveHistory();
+      continueAfterTurn(session);
+    });
 }
 
 // Lazily create + start the long-lived ACP process for a session, wiring its events
@@ -514,10 +669,11 @@ function startAcpTurn(session, body) {
       const acp = await ensureAcp(session);
       const result = await acp.prompt(body.text);
       session.addUsage(result);                                    // fold grok's token report in
+      usageHistory.record(result.usage);                           // day-by-day rollup
       session.emit({ kind: "usage", usage: session.usage });       // live meter update
       warnContextIfNearlyFull(session);
       session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark" });
+      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark", category: "REPLY" });
       laTurnEnd(session, "done", "Finished");
     } catch (err) {
       session.emit({ kind: "error", message: friendlyTurnError(err) });
@@ -526,7 +682,7 @@ function startAcpTurn(session, body) {
       pushNotify(session, {
         title: displayTitle(session),
         message: `Turn failed: ${friendlyTurnError(err)}`.slice(0, 170),
-        priority: "high", tags: "x",
+        priority: "high", tags: "x", category: "REPLY",
       });
       laTurnEnd(session, "error", "Something went wrong");
       try { session.acp?.stop(); } catch { /* ignore */ }   // don't orphan the child
@@ -546,11 +702,8 @@ function startAcpTurn(session, body) {
         try { session.acp?.stop(); } catch { /* ignore */ }
         session.acp = null;
       }
-      // After a plan is approved, auto-continue into execution once the plan turn ends.
-      if (session._executeOnComplete) {
-        session._executeOnComplete = false;
-        startTurn(session, { text: "Proceed with the approved plan and implement it now." });
-      }
+      // Continue an approved plan, else pull the next queued follow-up.
+      continueAfterTurn(session);
     }
   })();
 }
@@ -665,6 +818,11 @@ async function handle(req, res) {
       if (u.contextWindow) contextWindow = u.contextWindow;
     }
     return send(res, 200, { totals, sessionCount: sessions.length, contextWindow });
+  }
+
+  // Day-by-day usage, so cost has a trend and not just a lifetime total.
+  if (pathname === "/api/usage/history" && req.method === "GET") {
+    return send(res, 200, { days: usageHistory.list(url.searchParams.get("days") || 30) });
   }
 
   // Register this phone's APNs device token so the bridge can push alerts.
@@ -803,7 +961,27 @@ async function handle(req, res) {
     // wasn't waiting on anything. Fail loudly and only honor side effects on success.
     if (!ok) return send(res, 409, { error: "that approval is no longer pending" });
     if (body.always) { session.autoApprove = true; store.save(); } // "always allow" for this session
+    // "Deny & explain": the reason becomes the next thing grok hears. Queued rather
+    // than sent, because rejecting a tool doesn't reliably end the turn — and drained
+    // straight away in case it did.
+    const reason = String(body.reason || "").trim();
+    if (reason) {
+      session.enqueue(reason, "reason");
+      store.save();
+      emitQueue(session);
+      drainQueue(session);
+    }
     return send(res, 200, { ok: true });
+  }
+
+  // Drop one queued follow-up: /api/sessions/:id/queue/:itemId
+  const qm = pathname.match(/^\/api\/sessions\/([0-9a-fA-F-]{36})\/queue\/([0-9a-fA-F-]{36})$/);
+  if (qm && req.method === "DELETE") {
+    const session = store.get(qm[1]);
+    if (!session) return send(res, 404, { error: "no such session" });
+    const removed = session.removeQueued(qm[2]);
+    if (removed) { store.save(); emitQueue(session); }
+    return send(res, removed ? 200 : 404, { ok: removed, queue: session.queue });
   }
 
   // Approve/reject a plan: /api/sessions/:id/plan/:requestId  { approved }
@@ -856,31 +1034,16 @@ async function handle(req, res) {
         return send(res, 409, { error: "a turn is already running in this session" });
       }
 
-      // Attached images: grok's ACP rejects image content blocks (it advertises
-      // promptCapabilities.image: false), but its read tool IS vision-capable — so
-      // save each image to disk and point grok at the files in the prompt text.
       if (images.length) {
         if (session.transport !== "acp") return send(res, 400, { error: "images need the acp transport" });
         if (images.length > 3) return send(res, 400, { error: "up to 3 images per message" });
-        const paths = [];
-        for (const [i, img] of images.entries()) {
-          const mime = String(img?.mimeType || "");
-          const ext = mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : null;
-          const data = typeof img?.data === "string" ? img.data : "";
-          if (!ext || !data || data.length > 14_000_000) {   // ~10MB decoded
-            return send(res, 400, { error: "images must be jpeg/png, up to ~10MB each" });
-          }
-          let buf;
-          try { buf = Buffer.from(data, "base64"); } catch { return send(res, 400, { error: "bad image data" }); }
-          if (!buf.length) return send(res, 400, { error: "bad image data" });
-          const file = join(UPLOAD_DIR, `${session.id.slice(0, 8)}-${Date.now()}-${i}.${ext}`);
-          try { await writeFile(file, buf); } catch { return send(res, 500, { error: "couldn't save the image" }); }
-          paths.push(file);
-        }
-        const noun = paths.length === 1 ? "an image" : `${paths.length} images`;
-        const listing = paths.map((p) => `  - ${p}`).join("\n");
-        const note = `\n\n[The user attached ${noun}, saved on this machine at:\n${listing}\nView ${paths.length === 1 ? "it" : "them"} with your image-capable read tool before answering.]`;
-        startTurn(session, { text: (text.trim() || "See the attached image.") + note, displayText: text, imageCount: paths.length });
+        const saved = await saveImages(session, images);
+        if (saved.error) return send(res, 400, { error: saved.error });
+        startTurn(session, {
+          text: (text.trim() || "See the attached image.") + imageNote(saved.paths),
+          displayText: text,
+          imageCount: saved.paths.length,
+        });
         return send(res, 202, { ok: true, sessionId: session.id, turn: session.turnCount });
       }
 
@@ -901,46 +1064,81 @@ async function handle(req, res) {
       if (session.status === "running") return send(res, 409, { error: "a turn is already running" });
       if (!session.turnCount) return send(res, 400, { error: "nothing to compact yet" });
 
-      const SUMMARY_PROMPT =
-        "Write a dense handoff summary of this entire conversation for a fresh session that will continue the work: " +
-        "the goal, what has been done (files touched, commands run, decisions made), the current state, and what remains " +
-        "or is unresolved. Use markdown lists. Do not use any tools. Do not add any preamble or closing remarks.";
-
-      const startId = session._nextEventId;
-      session.beginTurn();
-      session.emit({ kind: "turn_start", text: "Compacting this conversation…", at: new Date().toISOString() });
-      awake.acquire();
-      try {
-        const acp = await ensureAcp(session);
-        const result = await acp.prompt(SUMMARY_PROMPT);
-        session.addUsage(result);
-        session.emit({ kind: "usage", usage: session.usage });
-        session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      } catch (err) {
-        session.emit({ kind: "error", message: friendlyTurnError(err) });
-        try { session.acp?.stop(); } catch { /* ignore */ }
-        session.acp = null;
-        return send(res, 500, { error: friendlyTurnError(err) });
-      } finally {
-        awake.release();
-        session.endTurn();
-        store.save();
-        session.saveHistory();
-      }
-
-      const summary = session._events
-        .filter((r) => r.id > startId && r.event.kind === "text")
-        .map((r) => r.event.text).join("").trim();
-      if (!summary) return send(res, 500, { error: "grok produced no summary" });
+      const handoff = await summarizeForHandoff(session, "Compacting this conversation…");
+      if (handoff.error) return send(res, 500, { error: handoff.error });
 
       const fresh = store.create({
-        cwd: session.cwd, model: session.model, effort: session.effort,
-        transport: session.transport, planMode: session.planMode,
-        autoApprove: session.autoApprove, folder: session.folder,
+        ...forkSettings(session),
         title: session.title === "New session" ? undefined : session.title,
-        seedContext: summary,
+        seedContext: handoff.summary,
       });
       return send(res, 201, fresh.toJSON());
+    }
+
+    // Branch: same handoff, opposite intent. Compaction retires a session that ran
+    // out of room; branching keeps BOTH, so a second approach can be tried without
+    // losing the first — and without re-explaining the project to a blank session.
+    if (sub === "branch" && req.method === "POST") {
+      if (session.transport !== "acp") return send(res, 400, { error: "branching needs the acp transport" });
+      if (session.status === "running") return send(res, 409, { error: "a turn is already running" });
+      const body = await readJson(req).catch(() => ({}));
+
+      // Nothing has been said yet, so there is nothing to carry over: a branch of an
+      // empty session is just a second session with the same settings. Burning a grok
+      // turn to summarize silence would be slow, costly and useless.
+      let seedContext = null;
+      if (session.turnCount > 0) {
+        const handoff = await summarizeForHandoff(session, "Summarizing, to branch this session…");
+        if (handoff.error) return send(res, 500, { error: handoff.error });
+        seedContext = handoff.summary;
+      }
+
+      const fresh = store.create({
+        ...forkSettings(session),
+        title: String(body.title || "").trim() || branchTitle(session.title),
+        seedContext,
+      });
+      return send(res, 201, fresh.toJSON());
+    }
+
+    // Follow-ups to run when the current turn finishes. Held by the BRIDGE, so they
+    // survive the app being closed — and so a notification reply or a share can add
+    // one without the app ever opening.
+    if (sub === "queue" && req.method === "GET") {
+      return send(res, 200, { queue: session.queue });
+    }
+    if (sub === "queue" && req.method === "POST") {
+      const body = await readJson(req).catch(() => ({}));
+      const images = Array.isArray(body.images) ? body.images : [];
+      if (images.length > 3) return send(res, 400, { error: "up to 3 images per message" });
+      if (images.length && session.transport !== "acp") {
+        return send(res, 400, { error: "images need the acp transport" });
+      }
+      // Text can be empty when images carry the meaning (a shared screenshot).
+      const item = session.enqueue(body.text || (images.length ? "See the attached image." : ""),
+                                   typeof body.source === "string" ? body.source : "phone");
+      if (!item) return send(res, 400, { error: "missing 'text'" });
+      if (images.length) {
+        const saved = await saveImages(session, images);
+        if (saved.error) {
+          session.removeQueued(item.id);
+          return send(res, 400, { error: saved.error });
+        }
+        item.imagePaths = saved.paths;
+      }
+      store.save();
+      emitQueue(session);
+      // An idle session has nothing to wait for, so run it now. That's what lets one
+      // endpoint serve both "queue this for later" and "just send this" — the caller
+      // (a lock-screen reply, a share sheet) doesn't have to know which it is.
+      const started = drainQueue(session);
+      return send(res, 201, { ok: true, item, started, queue: session.queue });
+    }
+    if (sub === "queue" && req.method === "DELETE") {
+      session.queue = [];
+      store.save();
+      emitQueue(session);
+      return send(res, 200, { ok: true, queue: session.queue });
     }
 
     // Live per-session settings: /api/sessions/:id/config { planMode?, effort?, autoApprove? }
@@ -1088,6 +1286,7 @@ function shutdown() {
   }
   try { bonjour?.kill(); } catch { /* ignore */ }
   try { awake.release(); } catch { /* ignore */ }
+  try { usageHistory.flush(); } catch { /* ignore */ }   // counters are batched; don't lose the tail
   process.exit(0);
 }
 
@@ -1109,9 +1308,24 @@ process.on("SIGTERM", shutdown);
 // A stray rejection should not take the daemon down and strand the phone.
 process.on("unhandledRejection", (err) => console.error("[bridge] unhandled rejection:", err));
 
+// A turn dies with the process, so anything queued behind it is left stranded: the
+// machine reboots overnight, and in the morning the follow-ups are still sitting
+// there, having waited for a turn that no longer exists. Pick them back up. Delayed
+// a little so the server is listening (and the phone can reconnect to watch) first.
+function resumeQueuedWork() {
+  const pending = store.list().filter((s) => (s.queue || []).length);
+  if (!pending.length) return;
+  console.log(`[bridge] resuming ${pending.length} session${pending.length === 1 ? "" : "s"} with queued follow-ups`);
+  for (const summary of pending) {
+    const session = store.get(summary.id);
+    if (session) drainQueue(session);
+  }
+}
+
 server.listen(config.port, listenHost, async () => {
   advertiseBonjour();
   pinnedServer?.listen(tlsPort, listenHost);
+  setTimeout(resumeQueuedWork, 2500).unref?.();
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);

@@ -107,8 +107,8 @@ struct ChatView: View {
                         ForEach(vm.items) { item in
                             switch item.role {
                             case .permission:
-                                PermissionCard(item: item) { optionId, always in
-                                    Task { await vm.decide(item, optionId: optionId, always: always) }
+                                PermissionCard(item: item) { optionId, always, reason in
+                                    Task { await vm.decide(item, optionId: optionId, always: always, reason: reason) }
                                 }.id(item.id)
                             case .plan:
                                 PlanCard(item: item) { approved in
@@ -258,7 +258,9 @@ struct ChatView: View {
                         // Must stop dictation here too, or the recogniser's next partial
                         // result refills the composer with the message just queued.
                         if dictation.isRecording { dictation.stop() }
-                        vm.enqueue(draft); draft = ""; Haptics.tap()
+                        let text = draft
+                        draft = ""; Haptics.tap()
+                        Task { await vm.enqueue(text) }
                     }
                 }
                 CircleIconButton(system: "stop.fill", danger: true, a11y: "Stop the turn") { Task { await vm.cancel() } }
@@ -329,20 +331,23 @@ struct ChatView: View {
         }
     }
 
-    // Queued follow-ups waiting for the current turn to finish; tap × to drop one.
+    // Follow-ups the computer is holding for when this turn ends; tap × to drop one.
+    // They live on the bridge, so they run even if the app is closed — the chip is a
+    // view of that, not the queue itself.
     @ViewBuilder private var queuedRow: some View {
         if !vm.queued.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(vm.queued.enumerated()), id: \.offset) { i, msg in
+                    ForEach(vm.queued) { msg in
                         HStack(spacing: 6) {
-                            Image(systemName: "clock").font(.system(size: 9, weight: .semibold))
-                            Text(msg.count > 22 ? String(msg.prefix(22)) + "…" : msg).lineLimit(1)
-                            // The index is captured at render time while the queue is
-                            // drained from the stream task — check it's still valid.
-                            Button { if vm.queued.indices.contains(i) { vm.queued.remove(at: i) } } label: {
+                            Image(systemName: msg.source == "reply" ? "bell.badge" : "clock")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text(msg.text.count > 22 ? String(msg.text.prefix(22)) + "…" : msg.text)
+                                .lineLimit(1)
+                            Button { Task { await vm.removeQueued(msg) } } label: {
                                 Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
                             }
+                            .accessibilityLabel("Remove queued follow-up")
                         }
                         .font(Grok.mono(11, .medium))
                         .foregroundStyle(Grok.textDim)
@@ -876,7 +881,15 @@ struct DiffView: View {
 /// pills, reject as outline; once decided, the buttons collapse to the outcome.
 struct PermissionCard: View {
     let item: ChatItem
-    let onDecide: (String?, Bool) -> Void   // (optionId, alwaysAllow)
+    let onDecide: (String?, Bool, String?) -> Void   // (optionId, alwaysAllow, denyReason)
+
+    /// Denying on its own tells Grok "no" and nothing else, so it usually tries a
+    /// near-identical thing next. Typing the reason here sends it as the follow-up.
+    @State private var explaining = false
+    @State private var reason = ""
+    @FocusState private var reasonFocused: Bool
+
+    private var denyOptions: [PermissionOption] { item.options.filter { !$0.isAllow } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -896,21 +909,32 @@ struct PermissionCard: View {
                 Text(outcomeLabel(decided))
                     .font(Grok.mono(12, .semibold))
                     .foregroundStyle(Grok.textDim)
+            } else if explaining, let deny = denyOptions.first {
+                explainBox(deny)
             } else {
                 VStack(spacing: 8) {
                     if let allow = item.options.first(where: { $0.isAllow }) {
-                        Button { onDecide(allow.optionId, false) } label: {
+                        Button { onDecide(allow.optionId, false, nil) } label: {
                             Text(allow.name).lineLimit(2).multilineTextAlignment(.center)
                         }
                         .buttonStyle(PillButton(kind: .prominent))
-                        Button { onDecide(allow.optionId, true) } label: {
+                        Button { onDecide(allow.optionId, true, nil) } label: {
                             Label("Always allow", systemImage: "bolt.fill").lineLimit(1)
                         }
                         .buttonStyle(PillButton(kind: .subtle))
                     }
-                    ForEach(item.options.filter { !$0.isAllow }) { opt in
-                        Button { onDecide(opt.optionId, false) } label: {
+                    ForEach(denyOptions) { opt in
+                        Button { onDecide(opt.optionId, false, nil) } label: {
                             Text(opt.name).lineLimit(2).multilineTextAlignment(.center)
+                        }
+                        .buttonStyle(PillButton(kind: .subtle))
+                    }
+                    if !denyOptions.isEmpty {
+                        Button {
+                            explaining = true
+                            reasonFocused = true
+                        } label: {
+                            Label("Deny & explain", systemImage: "text.bubble").lineLimit(1)
                         }
                         .buttonStyle(PillButton(kind: .subtle))
                     }
@@ -922,6 +946,41 @@ struct PermissionCard: View {
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// Deny, and say why in the same breath. The text is queued as the next message,
+    /// so Grok reads the correction instead of guessing at a bare refusal.
+    @ViewBuilder private func explainBox(_ deny: PermissionOption) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("", text: $reason,
+                      prompt: Text("why not? e.g. use the staging database instead")
+                          .foregroundColor(Grok.textFaint),
+                      axis: .vertical)
+                .font(Grok.mono(13))
+                .foregroundStyle(Grok.text)
+                .lineLimit(1...4)
+                .focused($reasonFocused)
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .background(Grok.bg)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .accessibilityLabel("Reason for denying")
+
+            HStack(spacing: 8) {
+                Button { explaining = false; reason = "" } label: {
+                    Text("Back").lineLimit(1)
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+
+                Button {
+                    let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+                    onDecide(deny.optionId, false, trimmed.isEmpty ? nil : trimmed)
+                } label: {
+                    Text("Deny & send").lineLimit(1)
+                }
+                .buttonStyle(PillButton(kind: .prominent))
+            }
+        }
     }
 
     private func outcomeLabel(_ optionId: String) -> String {
@@ -943,6 +1002,9 @@ struct SessionDetailsSheet: View {
     @State private var confirmCompact = false
     @State private var compacting = false
     @State private var compactError: String?
+    @State private var confirmBranch = false
+    @State private var branching = false
+    @State private var branchError: String?
 
     private var u: SessionUsage { vm.usage ?? SessionUsage() }
     private var session: SessionInfo { vm.session }
@@ -1023,12 +1085,54 @@ struct SessionDetailsSheet: View {
                     Text(compactError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
                 }
             }
+
+            if !vm.busy, !vm.isDemo {
+                Button { confirmBranch = true } label: {
+                    HStack(spacing: 10) {
+                        if branching { ProgressView().controlSize(.small).tint(.white) }
+                        Label(branching ? "Branching…" : "Branch this session",
+                              systemImage: "arrow.triangle.branch")
+                    }
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+                .disabled(branching)
+                Text("Starts a second session that already knows everything this one knows — for trying another approach without losing this one.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                if let branchError {
+                    Text(branchError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                }
+            }
         }
         .alert("Compact this session?", isPresented: $confirmCompact) {
             Button("Compact") { Task { await compact() } }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Grok will summarize the conversation (uses some tokens), then a new session opens seeded with that summary.")
+        }
+        .alert("Branch this session?", isPresented: $confirmBranch) {
+            Button("Branch") { Task { await branch() } }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            // Worth saying plainly: an empty session costs nothing to branch, one with
+            // history costs a summary turn.
+            Text(session.turnCount > 0
+                 ? "Grok will summarize this conversation (uses some tokens) so the new session starts with the same context. This session keeps running as it is."
+                 : "A second session opens with the same folder and settings.")
+        }
+    }
+
+    private func branch() async {
+        branching = true
+        branchError = nil
+        defer { branching = false }
+        do {
+            let fresh = try await vm.client.branch(sessionId: session.id)
+            Haptics.success()
+            await app.reloadSessions()
+            dismiss()
+            app.pendingOpenSessionId = fresh.id
+        } catch {
+            branchError = String(localized: "Couldn't branch this session — check the connection and try again.")
         }
     }
 

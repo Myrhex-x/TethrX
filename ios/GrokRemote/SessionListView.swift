@@ -455,7 +455,26 @@ struct SessionListView: View {
     @ViewBuilder private func menuItems(_ session: SessionInfo) -> some View {
         Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
         moveMenu(session)
+        // Branching a session with history costs a summary turn, so it stays out of
+        // reach while one is running — same rule the bridge enforces.
+        if !app.demoMode, !session.isRunning {
+            Button { Task { await branch(session) } } label: {
+                Label("Branch", systemImage: "arrow.triangle.branch")
+            }
+        }
         Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
+    }
+
+    private func branch(_ session: SessionInfo) async {
+        guard let client = app.client else { return }
+        do {
+            let fresh = try await client.branch(sessionId: session.id)
+            Haptics.success()
+            await app.reloadSessions()
+            app.pendingOpenSessionId = fresh.id
+        } catch {
+            app.errorMessage = String(localized: "Couldn't branch that session.")
+        }
     }
 
     private func moveMenu(_ session: SessionInfo) -> some View {

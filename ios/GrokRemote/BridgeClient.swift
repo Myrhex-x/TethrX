@@ -205,6 +205,53 @@ struct BridgeClient {
         return try JSONDecoder().decode(SessionInfo.self, from: data)
     }
 
+    // MARK: Follow-up queue
+
+    /// Queue a follow-up. The bridge runs it when the current turn ends — or straight
+    /// away if nothing is running, which is what lets a notification reply or a share
+    /// use this one call without knowing the session's state.
+    @discardableResult
+    func enqueue(sessionId: String, text: String, source: String = "phone") async throws -> [QueuedMessage] {
+        let (data, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/queue", method: "POST",
+                             json: ["text": text, "source": source]))
+        try Self.check(resp)
+        struct Wrapper: Codable { let queue: [QueuedMessage] }
+        return (try? JSONDecoder().decode(Wrapper.self, from: data).queue) ?? []
+    }
+
+    func dequeue(sessionId: String, itemId: String) async throws {
+        let (_, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/queue/\(itemId)", method: "DELETE"))
+        try Self.check(resp)
+    }
+
+    func clearQueue(sessionId: String) async throws {
+        let (_, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/queue", method: "DELETE"))
+        try Self.check(resp)
+    }
+
+    /// Fork a session: a new one that starts knowing everything this one knows.
+    /// Slow when there's history (the bridge runs a summary turn) — long timeout.
+    func branch(sessionId: String, title: String? = nil) async throws -> SessionInfo {
+        var body: [String: Any] = [:]
+        if let title, !title.isEmpty { body["title"] = title }
+        var req = try request("/api/sessions/\(sessionId)/branch", method: "POST", json: body)
+        req.timeoutInterval = 300
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        return try JSONDecoder().decode(SessionInfo.self, from: data)
+    }
+
+    /// Day-by-day token/cost rollups (`GET /api/usage/history`).
+    func usageHistory(days: Int = 30) async throws -> [UsageDay] {
+        let (data, resp) = try await session.data(for: try getQuery("/api/usage/history", query: ["days": String(days)]))
+        try Self.check(resp)
+        struct Wrapper: Codable { let days: [UsageDay] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).days
+    }
+
     /// Full-text search across every session's conversation history.
     func search(_ query: String) async throws -> [SearchResult] {
         let (data, resp) = try await session.data(for: try getQuery("/api/search", query: ["q": query]))
@@ -236,10 +283,13 @@ struct BridgeClient {
             for: try request("/api/sessions/\(sessionId)/cancel", method: "POST", json: [:]))
     }
 
-    /// Answer a pending ACP permission request. Pass nil to cancel.
-    func resolvePermission(sessionId: String, requestId: String, optionId: String?, always: Bool = false) async throws {
+    /// Answer a pending ACP permission request. Pass nil to cancel. A `reason` is
+    /// queued as the next message, so denying can say why in one step.
+    func resolvePermission(sessionId: String, requestId: String, optionId: String?,
+                           always: Bool = false, reason: String? = nil) async throws {
         var body: [String: Any] = optionId.map { ["optionId": $0] } ?? [:]
         if always { body["always"] = true }
+        if let reason, !reason.isEmpty { body["reason"] = reason }
         let (_, resp) = try await session.data(
             for: try request("/api/sessions/\(sessionId)/permissions/\(requestId)", method: "POST", json: body))
         try Self.check(resp)

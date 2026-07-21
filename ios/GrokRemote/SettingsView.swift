@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showingLog = false
     @State private var report: UsageReport?
     @State private var loadingUsage = false
+    @State private var showingUsageHistory = false
     @State private var newSnippet = ""
     var body: some View {
         NavigationStack {
@@ -122,8 +123,19 @@ struct SettingsView: View {
                 Text("Connect to the bridge to see usage.").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
             }
 
+            if app.client != nil {
+                Button { showingUsageHistory = true } label: {
+                    Label("Day by day", systemImage: "chart.bar")
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+                .padding(.top, 2)
+            }
+
             Text("Totals across every session on this computer. Cost is grok's own estimate, not billing data from your account.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+        }
+        .sheet(isPresented: $showingUsageHistory) {
+            if let client = app.client { UsageHistorySheet(client: client) }
         }
     }
 

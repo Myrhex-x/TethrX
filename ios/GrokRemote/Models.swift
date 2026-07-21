@@ -43,6 +43,42 @@ struct SearchResult: Codable, Identifiable {
     var id: String { sessionId }
 }
 
+/// A follow-up waiting for the running turn to finish. Held by the BRIDGE, so it
+/// survives the app being closed — and so a lock-screen reply can add one.
+struct QueuedMessage: Codable, Identifiable, Hashable {
+    var id: String
+    var text: String
+    var source: String?    // "phone" | "reply" | "share" | "reason"
+    var at: String?
+}
+
+/// One day's token/cost totals from `GET /api/usage/history`.
+struct UsageDay: Codable, Identifiable, Hashable {
+    var date: String       // YYYY-MM-DD, the computer's local day
+    var turns = 0
+    var inputTokens = 0
+    var outputTokens = 0
+    var reasoningTokens = 0
+    var cachedReadTokens = 0
+    var totalTokens = 0
+    var costUsdTicks: Double = 0
+    var apiDurationMs: Double = 0
+
+    var id: String { date }
+    var costUSD: Double { costUsdTicks / 1e10 }
+
+    /// "Mon", for the chart's axis.
+    var weekdayLabel: String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.timeZone = .current
+        guard let d = parser.date(from: date) else { return "" }
+        let out = DateFormatter()
+        out.setLocalizedDateFormatFromTemplate("EEE")
+        return out.string(from: d)
+    }
+}
+
 /// A Grok conversation tracked by the bridge.
 struct SessionInfo: Codable, Identifiable, Hashable {
     let id: String
@@ -59,6 +95,8 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var createdAt: String
     var lastEventId: Int?
     var usage: SessionUsage?
+    /// Follow-ups the bridge will run when the current turn ends.
+    var queue: [QueuedMessage]?
 
     var isRunning: Bool { status == "running" }
 

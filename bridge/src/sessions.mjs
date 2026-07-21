@@ -26,7 +26,7 @@ function normalizeUsage(u) {
 }
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext, queue }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -42,6 +42,10 @@ class Session {
     this.status = "idle";                // "idle" | "running"
     this.turnCount = turnCount || 0;
     this.usage = normalizeUsage(usage);  // token/cost usage, accumulated + persisted
+    // Follow-ups waiting for the running turn to finish. This lives on the BRIDGE,
+    // not the phone: queueing three instructions and then locking your phone is the
+    // whole point, and a queue held in the app's memory dies with the app.
+    this.queue = Array.isArray(queue) ? queue.filter((q) => q && typeof q.text === "string") : [];
 
     this.historyPath = null;             // set by the store; where events are persisted
     this.acp = null;                     // AcpSession (lazy, set by the server for ACP sessions)
@@ -67,7 +71,30 @@ class Session {
       createdAt: this.createdAt,
       lastEventId: this._nextEventId,
       usage: this.usage,
+      queue: this.queue,
     };
+  }
+
+  // --- follow-up queue ----------------------------------------------------
+
+  /** Add a follow-up. `source` is for the app's own labelling ("phone", "reply",
+   *  "share"), never sent to grok. */
+  enqueue(text, source = "phone") {
+    const t = String(text || "").trim();
+    if (!t) return null;
+    const item = { id: randomUUID(), text: t, source, at: new Date().toISOString() };
+    this.queue.push(item);
+    return item;
+  }
+
+  dequeue() {
+    return this.queue.shift() || null;
+  }
+
+  removeQueued(itemId) {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((q) => q.id !== itemId);
+    return this.queue.length !== before;
   }
 
   /** Fold one turn's grok-reported usage into the session totals. */
@@ -96,7 +123,7 @@ class Session {
       transport: this.transport, title: this.title, folder: this.folder || "", planMode: this.planMode,
       autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
       createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
-      seedContext: this.seedContext,
+      seedContext: this.seedContext, queue: this.queue,
     };
   }
 

@@ -33,6 +33,9 @@ struct TethrXApp: App {
                 push.onPermissionDecision = { sessionId, requestId, optionId in
                     await app.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
                 }
+                push.onReply = { sessionId, text in
+                    await app.queueReply(sessionId: sessionId, text: text)
+                }
                 push.refreshIfEnabled()            // re-register if the user enabled push before
                 observeLiveActivities()
             }

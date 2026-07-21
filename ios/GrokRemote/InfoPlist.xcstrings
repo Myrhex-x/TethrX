@@ -1,236 +1,300 @@
 {
-  "sourceLanguage": "en",
-  "version": "1.0",
-  "strings": {
-    "NSCameraUsageDescription": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scannez le QR code d'appairage affiché par le bridge sur votre ordinateur pour vous connecter."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escanea el código QR de emparejamiento que muestra el bridge en tu computadora para conectar."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scannen Sie den Kopplungs-QR-Code, den die Bridge auf Ihrem Computer anzeigt, um sich zu verbinden."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scansiona il codice QR di abbinamento mostrato dal bridge sul tuo computer per connetterti."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escaneie o código QR de pareamento exibido pelo bridge no seu computador para conectar."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続するには、コンピュータのブリッジが表示するペアリングQRコードをスキャンします。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "扫描电脑上桥接程序显示的配对二维码以进行连接。"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "TethrX"
           }
         }
       }
     },
-    "NSMicrophoneUsageDescription": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dictez vos messages à Grok avec votre voix."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dicta mensajes a Grok con tu voz."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diktieren Sie Grok Nachrichten mit Ihrer Stimme."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detta i messaggi a Grok con la tua voce."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dite mensagens para o Grok com sua voz."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音声でGrokへのメッセージを入力します。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用语音向 Grok 口述消息。"
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "TethrX"
           }
         }
       }
     },
-    "NSSpeechRecognitionUsageDescription": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcrit votre dictée en texte à envoyer à Grok."
+    "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Scannen Sie den Kopplungs-QR-Code, den die Bridge auf Ihrem Computer anzeigt, um sich zu verbinden."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcribe tu voz a texto para enviarlo a Grok."
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Scan the pairing QR code shown by the bridge on your computer to connect."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wandelt Ihre Diktate in Text für Grok um."
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Escanea el código QR de emparejamiento que muestra el bridge en tu computadora para conectar."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trascrive la tua voce in testo da inviare a Grok."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Scannez le QR code d'appairage affiché par le bridge sur votre ordinateur pour vous connecter."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcreve sua voz em texto para enviar ao Grok."
+        "it" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Scansiona il codice QR di abbinamento mostrato dal bridge sul tuo computer per connetterti."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "話した内容をテキストに変換してGrokに送信します。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "接続するには、コンピュータのブリッジが表示するペアリングQRコードをスキャンします。"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将您的语音转写为文字并发送给 Grok。"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Escaneie o código QR de pareamento exibido pelo bridge no seu computador para conectar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "扫描电脑上桥接程序显示的配对二维码以进行连接。"
           }
         }
       }
     },
-    "NSFaceIDUsageDescription": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Déverrouillez TethrX avec Face ID, car il peut exécuter des commandes sur votre ordinateur."
+    "NSFaceIDUsageDescription" : {
+      "comment" : "Privacy - Face ID Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Entsperren Sie TethrX mit Face ID, da es Befehle auf Ihrem Computer ausführen kann."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desbloquea TethrX con Face ID, ya que puede ejecutar comandos en tu computadora."
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unlock TethrX with Face ID, since it can run commands on your computer."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entsperren Sie TethrX mit Face ID, da es Befehle auf Ihrem Computer ausführen kann."
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Desbloquea TethrX con Face ID, ya que puede ejecutar comandos en tu computadora."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sblocca TethrX con Face ID, poiché può eseguire comandi sul tuo computer."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Déverrouillez TethrX avec Face ID, car il peut exécuter des commandes sur votre ordinateur."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desbloqueie o TethrX com Face ID, já que ele pode executar comandos no seu computador."
+        "it" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Sblocca TethrX con Face ID, poiché può eseguire comandi sul tuo computer."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrXはコンピュータ上でコマンドを実行できるため、Face IDでロックを解除します。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrXはコンピュータ上でコマンドを実行できるため、Face IDでロックを解除します。"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用面容 ID 解锁 TethrX，因为它可以在您的电脑上运行命令。"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Desbloqueie o TethrX com Face ID, já que ele pode executar comandos no seu computador."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "使用面容 ID 解锁 TethrX，因为它可以在您的电脑上运行命令。"
           }
         }
       }
     },
-    "NSLocalNetworkUsageDescription": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX se connecte au bridge qui tourne sur votre ordinateur via votre réseau local."
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Privacy - Local Network Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrX verbindet sich über Ihr lokales Netzwerk mit der Bridge auf Ihrem Computer."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX se conecta al bridge que se ejecuta en tu computadora a través de tu red local."
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Grok Remote connects to the bridge daemon running on your computer over your local network."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX verbindet sich über Ihr lokales Netzwerk mit der Bridge auf Ihrem Computer."
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrX se conecta al bridge que se ejecuta en tu computadora a través de tu red local."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX si connette al bridge in esecuzione sul tuo computer tramite la rete locale."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrX se connecte au bridge qui tourne sur votre ordinateur via votre réseau local."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O TethrX se conecta ao bridge em execução no seu computador pela rede local."
+        "it" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrX si connette al bridge in esecuzione sul tuo computer tramite la rete locale."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrXはローカルネットワーク経由で、コンピュータ上のブリッジに接続します。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrXはローカルネットワーク経由で、コンピュータ上のブリッジに接続します。"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX 通过本地网络连接到您电脑上运行的桥接程序。"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O TethrX se conecta ao bridge em execução no seu computador pela rede local."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "TethrX 通过本地网络连接到您电脑上运行的桥接程序。"
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Diktieren Sie Grok Nachrichten mit Ihrer Stimme."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Dictate messages to Grok using your voice."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Dicta mensajes a Grok con tu voz."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Dictez vos messages à Grok avec votre voix."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Detta i messaggi a Grok con la tua voce."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "音声でGrokへのメッセージを入力します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Dite mensagens para o Grok com sua voz."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "用语音向 Grok 口述消息。"
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription" : {
+      "comment" : "Privacy - Speech Recognition Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Wandelt Ihre Diktate in Text für Grok um."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Transcribe your dictated voice into text to send to Grok."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Transcribe tu voz a texto para enviarlo a Grok."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Transcrit votre dictée en texte à envoyer à Grok."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Trascrive la tua voce in testo da inviare a Grok."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "話した内容をテキストに変換してGrokに送信します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Transcreve sua voz em texto para enviar ao Grok."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "将您的语音转写为文字并发送给 Grok。"
           }
         }
       }
     }
-  }
+  },
+  "version" : "1.0"
 }

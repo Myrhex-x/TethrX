@@ -51,6 +51,34 @@ jobs:
           curl -fsS -H 'Sec-Fetch-Site: none' localhost:4180/pair -o /tmp/pair.html
           node -e "const h=require('fs').readFileSync('/tmp/pair.html','utf8');const m=h.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/);if(!m)throw new Error('no inline script');new Function(m[1]);console.log('pair page script parses')"
 
+          # logs must never carry the pairing token — they get pasted into bug reports
+          curl -fsS -H "Authorization: Bearer $TOKEN" localhost:4180/api/logs -o /tmp/logs.json
+          node -e "const t=process.argv[1];const s=require('fs').readFileSync('/tmp/logs.json','utf8');if(s.includes(t))throw new Error('pairing token leaked into /api/logs');console.log('logs redacted')" "$TOKEN"
+
+          # daily usage rollups
+          curl -fsS -H "Authorization: Bearer $TOKEN" 'localhost:4180/api/usage/history?days=3' | grep -q '"days"'
+
+          # the follow-up queue: survives on the bridge, and is listable + clearable.
+          # (No grok binary on CI, so the turn itself can't run — the queue mechanics can.)
+          SID=$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+                  -d '{"cwd":"/tmp","title":"ci"}' localhost:4180/api/sessions \
+                | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).id))")
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            -d '{"text":"queued from ci"}' "localhost:4180/api/sessions/$SID/queue" | grep -q '"ok":true'
+          curl -fsS -X DELETE -H "Authorization: Bearer $TOKEN" "localhost:4180/api/sessions/$SID/queue" | grep -q '"ok":true'
+
+          # Branching an empty session must NOT need grok, and must get its own name.
+          # Deliberately a FRESH session: queueing into an idle one starts a turn, and
+          # branching refuses (409) while a turn is running.
+          BID=$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+                  -d '{"cwd":"/tmp","title":"fork"}' localhost:4180/api/sessions \
+                | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).id))")
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+            -d '{}' "localhost:4180/api/sessions/$BID/branch" | grep -q '"title":"fork (2)"'
+
+          # `service` must never fall through into starting a server
+          node bridge/src/server.mjs service status | grep -q 'TethrX bridge service'
+
   ios:
     name: ios (build)
     runs-on: macos-15

@@ -21,11 +21,16 @@ final class PushManager: NSObject, ObservableObject {
     var onPermissionDecision: ((_ sessionId: String, _ requestId: String, _ optionId: String) async -> Void)? {
         didSet { flushPending() }
     }
+    /// Typed straight into the notification — queued on the bridge for that session.
+    var onReply: ((_ sessionId: String, _ text: String) async -> Void)? {
+        didSet { flushPending() }
+    }
 
     // On a cold launch the notification response arrives before the app has wired these
     // handlers up. iOS never redelivers it, so hold onto it and replay once we can act.
     private var pendingOpen: String?
     private var pendingDecision: (sessionId: String, requestId: String, optionId: String)?
+    private var pendingReply: (sessionId: String, text: String)?
 
     private func flushPending() {
         if let id = pendingOpen, let handler = onOpenSession {
@@ -36,6 +41,10 @@ final class PushManager: NSObject, ObservableObject {
             pendingDecision = nil
             Task { await handler(decision.sessionId, decision.requestId, decision.optionId) }
         }
+        if let reply = pendingReply, let handler = onReply {
+            pendingReply = nil
+            Task { await handler(reply.sessionId, reply.text) }
+        }
     }
 
     private override init() {
@@ -44,7 +53,8 @@ final class PushManager: NSObject, ObservableObject {
         registerCategories()
     }
 
-    /// The "PERMISSION" category gives approval pushes their action buttons.
+    /// Action buttons for the two kinds of push: an approval that needs a decision,
+    /// and a finished turn that usually wants a follow-up.
     private func registerCategories() {
         // Approving lets a command run on the user's computer, so require the device
         // to be unlocked (Face ID makes that a glance). Rejecting is always safe.
@@ -52,10 +62,26 @@ final class PushManager: NSObject, ObservableObject {
                                            options: [.authenticationRequired])
         let reject = UNNotificationAction(identifier: "REJECT", title: "Reject",
                                           options: [.destructive])
+        // Denying with a correction attached, without unlocking into the app.
+        let replyWhileWaiting = UNTextInputNotificationAction(
+            identifier: "REPLY", title: String(localized: "Reply"), options: [.authenticationRequired],
+            textInputButtonTitle: String(localized: "Send"),
+            textInputPlaceholder: String(localized: "Message Grok…"))
         let permission = UNNotificationCategory(identifier: "PERMISSION",
-                                                actions: [approve, reject],
+                                                actions: [approve, reject, replyWhileWaiting],
                                                 intentIdentifiers: [], options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([permission])
+
+        // "Grok finished" is the moment you most often want to say what's next. Typing
+        // it here queues it on the computer without ever opening the app.
+        let reply = UNTextInputNotificationAction(
+            identifier: "REPLY", title: String(localized: "Reply"), options: [.authenticationRequired],
+            textInputButtonTitle: String(localized: "Send"),
+            textInputPlaceholder: String(localized: "Message Grok…"))
+        let replyCategory = UNNotificationCategory(identifier: "REPLY",
+                                                   actions: [reply],
+                                                   intentIdentifiers: [], options: [])
+
+        UNUserNotificationCenter.current().setNotificationCategories([permission, replyCategory])
     }
 
     /// Ask permission and register for remote notifications (user opted in).
@@ -111,8 +137,17 @@ extension PushManager: UNUserNotificationCenterDelegate {
         let rejectId = info["rejectOptionId"] as? String
         let action = response.actionIdentifier
 
+        // Text typed into the notification itself.
+        let replyText = (response as? UNTextInputNotificationResponse)?.userText
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
         Task { @MainActor in
             switch action {
+            case "REPLY":
+                guard !sessionId.isEmpty, !replyText.isEmpty else { break }
+                if let handler = self.onReply { await handler(sessionId, replyText) }
+                else { self.pendingReply = (sessionId, replyText) }
+
             case "APPROVE", "REJECT":
                 let optionId = (action == "APPROVE") ? allowId : rejectId
                 if !sessionId.isEmpty, !requestId.isEmpty, let optionId {

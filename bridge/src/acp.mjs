@@ -119,6 +119,7 @@ export class AcpSession {
 
     this.proc = null;
     this.rl = null;
+    this._replaying = false;         // true while session/load echoes prior history
     this.grokSessionId = null;
     this.contextWindow = null;       // model's max context tokens (from initialize)
     this.currentModelId = null;      // grok's chosen model when we don't pin one
@@ -169,11 +170,20 @@ export class AcpSession {
     // Resume prior context if we have a grok sessionId; otherwise start fresh.
     if (this.resumeSessionId) {
       try {
+        // session/load replays the ENTIRE prior conversation as session/update
+        // notifications before it resolves. The bridge already keeps that history
+        // itself (and replays it to clients over SSE), so letting the replay through
+        // appended a second copy of the whole conversation to the transcript every
+        // time the process was recreated — after idle reaping, a crash, or a restart.
+        // Grok still gets its context; only the echo to our clients is suppressed.
+        this._replaying = true;
         await this._request("session/load", { sessionId: this.resumeSessionId, cwd: this.cwd, mcpServers: [] });
         this.grokSessionId = this.resumeSessionId;
       } catch {
         const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] });
         this.grokSessionId = res?.sessionId;
+      } finally {
+        this._replaying = false;
       }
     } else {
       const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] });
@@ -274,6 +284,7 @@ export class AcpSession {
   _onNotification(msg) {
     const u = msg.params?.update;
     if (!u) return;
+    if (this._replaying) return;   // session/load echoing history we already have
     const text = (c) => c?.text ?? (typeof c === "string" ? c : "");
     switch (u.sessionUpdate) {
       case "agent_message_chunk": this.onEvent({ kind: "text", text: text(u.content) }); break;

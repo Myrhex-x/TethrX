@@ -26,20 +26,24 @@ Everything below is **built and tested** against a real `grok` install.
 ## What the app does
 
 - **Live console** — Grok's reasoning, tool calls, **command output**, and file diffs as they happen, with code rendered as real blocks you can scroll and copy.
-- **Approvals** — nothing runs until you tap. Also answerable straight from the notification.
+- **Approvals** — nothing runs until you tap. Also answerable straight from the notification — including **Deny & explain**, which refuses and tells Grok what to do instead in one step.
 - **Plan mode** — read the plan before Grok builds it.
 - **Review the work** — changed files, per-file diffs, and **commit or discard** from the phone.
 - **Browse the project** — the session's file tree and any text file, read-only, from the phone.
 - **Attach images** — send a screenshot or mockup; the bridge saves it and Grok views the file with its vision-capable read tool.
 - **Scheduled tasks** — "weekdays at 9: pull main and run the tests", fired on your computer's clock, results pushed to your phone.
 - **Slash commands** — grok's skills, plus the built-ins the app can honor.
-- **Voice dictation**, **queued follow-ups**, and reusable prompt snippets.
+- **Queued follow-ups** — line up the next instructions and put your phone away. The queue lives on your computer, so it survives closing the app, and picks up again after a reboot.
+- **Reply from the notification** — type the next instruction on the lock screen; it's queued without opening the app.
+- **Share into a session** — send a link, some text, or a screenshot from any app straight to Grok via the share sheet.
+- **Branch a session** — fork the conversation so a second one starts knowing everything the first one knows, for trying another approach without losing this one.
+- **Voice dictation** and reusable prompt snippets.
 - **Sessions** — search, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing.
 - **Siri** — start a task or ask what Grok is doing without opening the app.
 - **Home-screen widget** and a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+).
-- **Usage** — context window, tokens, and cost per session, with a push when a session's context runs low.
+- **Usage** — context window, tokens, and cost per session, plus **day-by-day** totals across everything, and a push when a session's context runs low.
 - **Face ID lock**, since the bridge can run commands on your machine.
-- Your computer is kept **awake** for as long as a task is running.
+- Your computer is kept **awake** for as long as a task is running, and the bridge can install itself as a **background service** so it's there after a reboot.
 - **iPad** — sidebar + conversation split layout.
 
 ---
@@ -54,13 +58,29 @@ Needs **Node.js 20+** and **Grok Build** installed + signed in.
 npx tethrx-bridge
 ```
 
-It prints a **pairing token** and its address. Want it always-on?
+It prints a **pairing token** and its address.
+
+**Want it always-on?** Install it as a background service — it then starts when you
+log in and restarts itself if it crashes, so the bridge is still there after a reboot:
 
 ```bash
-npm i -g tethrx-bridge && tethrx-bridge
-# or, from a clone of this repo, the launchd service:
-bash bridge/scripts/install-service.sh
+npm i -g tethrx-bridge
+tethrx-bridge service install --host 0.0.0.0
 ```
+
+`--host 0.0.0.0` is what makes it reachable from your phone; only do that on a network
+you trust, since the pairing token is what protects the bridge. Manage it with:
+
+```bash
+tethrx-bridge service status      # installed? loaded? answering? can it see grok?
+tethrx-bridge service logs        # recent output (the pairing token is redacted)
+tethrx-bridge service restart
+tethrx-bridge service uninstall   # sessions and pairing are left untouched
+```
+
+macOS installs a LaunchAgent, Linux a `systemd --user` unit; both run as you, never
+as root. On Linux, add `loginctl enable-linger $USER` to keep it running when you're
+logged out.
 
 **Easiest pairing:** open **`http://localhost:4180/pair`** on the computer running the bridge. It shows a scannable QR code (one for Wi-Fi, one for Tailscale) plus the token to copy. That page is **loopback-only** — the token never leaves the machine.
 

@@ -13,7 +13,9 @@ final class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var usage: SessionUsage?   // live token/context/cost meter
     @Published var commands: [SlashCommand] = []   // grok's slash commands (/compact, skills…)
-    @Published var queued: [String] = []           // follow-ups to send when the turn ends
+    /// Follow-ups the BRIDGE is holding. Mirrored from it (not owned here), so they
+    /// survive the app closing and stay in step across devices.
+    @Published var queued: [QueuedMessage] = []
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
@@ -46,6 +48,7 @@ final class ChatViewModel: ObservableObject {
         self.effort = session.effort ?? ""
         self.autoApprove = session.autoApprove ?? false
         self.usage = session.usage
+        self.queued = session.queue ?? []
         // Hand each activity's update token to the bridge, so the lock-screen
         // status keeps moving after the app is closed.
         liveActivity.onPushToken = { [client, session] token in
@@ -138,37 +141,43 @@ final class ChatViewModel: ObservableObject {
     }
 
     func cancel() async {
+        let dropped = queued
         queued.removeAll()                       // stopping drops any queued follow-ups
         if isDemo { busy = false; return }
         await client.cancel(sessionId: session.id)
+        // The bridge holds the real queue now, so stopping has to clear it there too —
+        // otherwise it would helpfully start the next follow-up the moment the turn
+        // it was just told to abandon finished unwinding.
+        if !dropped.isEmpty { try? await client.clearQueue(sessionId: session.id) }
     }
 
-    /// Queue a follow-up to send automatically once the current turn finishes.
-    func enqueue(_ text: String) {
+    /// Queue a follow-up. The bridge runs it when the turn ends (or immediately, if
+    /// nothing is running); it is held there, so closing the app doesn't lose it.
+    func enqueue(_ text: String) async {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        queued.append(t)
+        if isDemo {
+            queued.append(QueuedMessage(id: UUID().uuidString, text: t, source: "phone", at: nil))
+            return
+        }
+        // Optimistic, so the chip appears instantly; the bridge's reply (and the SSE
+        // `queue` event) replaces this with the authoritative list.
+        let pending = QueuedMessage(id: UUID().uuidString, text: t, source: "phone", at: nil)
+        queued.append(pending)
+        do {
+            let confirmed = try await client.enqueue(sessionId: session.id, text: t)
+            queued = confirmed
+        } catch {
+            queued.removeAll { $0.id == pending.id }
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
-    /// Send the next queued follow-up (after a beat, so the bridge is idle again).
-    /// The message stays in the queue until the bridge has actually accepted it —
-    /// popping first meant a failed send silently destroyed what the user typed.
-    private func drainQueue() {
-        guard let next = queued.first else { return }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            guard queued.first == next else { return }   // something else already handled it
-            do {
-                try await client.send(sessionId: session.id, text: next)
-                if queued.first == next { queued.removeFirst() }
-            } catch {
-                // 409 just means a turn is still running — e.g. the bridge auto-continuing
-                // after an approved plan. Leave it queued; the next turn_complete retries.
-                if !Self.isConflict(error) {
-                    errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
-                }
-            }
-        }
+    /// Drop one queued follow-up.
+    func removeQueued(_ item: QueuedMessage) async {
+        queued.removeAll { $0.id == item.id }
+        if isDemo { return }
+        try? await client.dequeue(sessionId: session.id, itemId: item.id)
     }
 
     private static func isConflict(_ error: Error) -> Bool {
@@ -177,12 +186,19 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// Answer a permission request (Approve/Reject). optionId nil cancels the turn.
-    func decide(_ item: ChatItem, optionId: String?, always: Bool = false) async {
+    /// A `reason` given while denying is queued as the next message, so "no, do it
+    /// this way instead" is one action rather than deny-then-remember-to-explain.
+    func decide(_ item: ChatItem, optionId: String?, always: Bool = false, reason: String? = nil) async {
         guard let requestId = item.requestId else { return }
         let idx = items.firstIndex(where: { $0.id == item.id })
         if let idx { items[idx].decided = optionId ?? "cancelled" }   // optimistic — hide the buttons
+        if isDemo {
+            if let reason, !reason.isEmpty { await enqueue(reason) }
+            return
+        }
         do {
-            try await client.resolvePermission(sessionId: session.id, requestId: requestId, optionId: optionId, always: always)
+            try await client.resolvePermission(sessionId: session.id, requestId: requestId,
+                                               optionId: optionId, always: always, reason: reason)
             if always { autoApprove = true }
         } catch {
             if Self.isConflict(error) {
@@ -344,12 +360,19 @@ final class ChatViewModel: ObservableObject {
                 commands = cmds
             }
 
+        case "queue":
+            // The bridge owns the queue; this is it telling us what it now holds.
+            if let arr = event["queue"] as? [[String: Any]],
+               let data = try? JSONSerialization.data(withJSONObject: arr),
+               let items = try? JSONDecoder().decode([QueuedMessage].self, from: data) {
+                queued = items
+            }
+
         case "turn_complete":
             busy = false
             assistantIndex = nil
             thoughtIndex = nil
             liveActivity.end(phase: "done", detail: "Finished")
-            drainQueue()
 
         case "error":
             busy = false

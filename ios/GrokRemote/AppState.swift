@@ -8,7 +8,7 @@ final class AppState: ObservableObject {
     /// The bridge version this app's features are built against. A connected
     /// bridge older than this gets a visible "update your bridge" banner —
     /// otherwise the new buttons would just 404 with no explanation.
-    static let wantedBridgeVersion = "0.1.12"
+    static let wantedBridgeVersion = "0.1.15"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
@@ -68,6 +68,9 @@ final class AppState: ObservableObject {
            let list = try? JSONDecoder().decode([SavedBridge].self, from: data) {
             savedBridges = list
         }
+        // Existing pairings predate the share extension, so republish on every launch
+        // rather than only when the list changes.
+        publishToSharedGroup()
     }
 
     // MARK: Paired computers
@@ -77,6 +80,25 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(data, forKey: "bridge.saved")
         }
         UserDefaults.standard.set(activeBridgeId, forKey: "bridge.activeId")
+        publishToSharedGroup()
+    }
+
+    /// Mirror the paired computers into the App Group, and make sure each token lives
+    /// in the shared Keychain group — the share extension is a separate process and
+    /// can read neither the app's own defaults nor its private Keychain items.
+    private func publishToSharedGroup() {
+        SharedConfig.publish(
+            bridges: savedBridges.map {
+                SharedConfig.Bridge(id: $0.id, name: $0.name, address: $0.address, pin: $0.pin)
+            },
+            activeId: activeBridgeId)
+        // Re-saving is how a token minted before the shared group existed gets moved
+        // into it. Idempotent, and cheap for a handful of computers.
+        for bridge in savedBridges {
+            if let token = Keychain.load(account: bridge.tokenAccount), !token.isEmpty {
+                SharedKeychain.save(token, account: bridge.tokenAccount)
+            }
+        }
     }
 
     /// After a successful connect, remember this computer (and its token) so it can
@@ -323,6 +345,21 @@ final class AppState: ObservableObject {
             if (try? await other.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
                 return
             }
+        }
+    }
+
+    /// A reply typed into a notification. Queued on the bridge, which runs it when the
+    /// turn ends (or immediately, when nothing is running) — so the app never has to
+    /// open. Fans out across paired computers for the same reason approvals do: the
+    /// session might not belong to whichever computer happens to be active.
+    func queueReply(sessionId: String, text: String) async {
+        if let client, (try? await client.enqueue(sessionId: sessionId, text: text, source: "reply")) != nil {
+            await reloadSessions()
+            return
+        }
+        for bridge in savedBridges where bridge.id != activeBridgeId {
+            guard let other = client(for: bridge) else { continue }
+            if (try? await other.enqueue(sessionId: sessionId, text: text, source: "reply")) != nil { return }
         }
     }
 

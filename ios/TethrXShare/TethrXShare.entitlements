@@ -2,18 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>aps-environment</key>
-	<string>development</string>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.tethrx.app</string>
 	</array>
-	<!-- The app's own group stays FIRST so it remains the default for anything that
-	     doesn't name a group; the shared one lets the share extension read the
-	     pairing token the app saved. -->
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)com.tethrx.app</string>
 		<string>$(AppIdentifierPrefix)group.com.tethrx.app</string>
 	</array>
 </dict>

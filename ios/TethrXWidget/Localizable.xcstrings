@@ -1,604 +1,607 @@
 {
-  "sourceLanguage": "en",
-  "version": "1.0",
-  "strings": {
-    "Grok status": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "État de Grok"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "APPROVE" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GENEHMIGEN"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estado de Grok"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APROBAR"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grok-Status"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APPROUVER"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stato di Grok"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APPROVA"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Status do Grok"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "承認"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grokの状況"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APROVAR"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grok 状态"
-          }
-        }
-      }
-    },
-    "Whether your computer's Grok is working, and what it's cost.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si le Grok de votre ordinateur travaille, et ce qu'il a coûté."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si Grok está trabajando en tu computadora y cuánto ha costado."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ob Grok auf Ihrem Computer arbeitet und was es gekostet hat."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se il Grok del tuo computer sta lavorando e quanto è costato."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se o Grok do seu computador está trabalhando e quanto custou."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コンピュータのGrokが作業中かどうかと、これまでのコスト。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "您电脑上的 Grok 是否在工作，以及已花费的成本。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批准"
           }
         }
       }
     },
-    "Not paired": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non appairé"
+    "cost" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kosten"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin emparejar"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "costo"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht gekoppelt"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "coût"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non abbinato"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "costo"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não pareado"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コスト"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未ペアリング"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "custo"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未配对"
-          }
-        }
-      }
-    },
-    "Open TethrX to connect": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ouvrez TethrX pour vous connecter"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre TethrX para conectar"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrX öffnen, um zu verbinden"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apri TethrX per connetterti"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abra o TethrX para conectar"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrXを開いて接続"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开 TethrX 进行连接"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成本"
           }
         }
       }
     },
-    "working": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "au travail"
+    "DONE" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FERTIG"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "trabajando"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LISTO"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "arbeitet"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TERMINÉ"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "al lavoro"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FATTO"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "trabalhando"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作業中"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONCLUÍDO"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作中"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
           }
         }
       }
     },
-    "idle": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "au repos"
+    "ERROR" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FEHLER"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inactivo"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ERROR"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inaktiv"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ERREUR"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inattivo"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ERRORE"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ocioso"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エラー"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "待機中"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ERRO"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空闲"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误"
           }
         }
       }
     },
-    "sessions": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sessions"
+    "Grok status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grok-Status"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sesiones"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado de Grok"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sitzungen"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État de Grok"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sessioni"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stato di Grok"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sessões"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grokの状況"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セッション"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status do Grok"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grok 状态"
           }
         }
       }
     },
-    "tokens": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tokens"
+    "idle" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inaktiv"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tokens"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inactivo"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tokens"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "au repos"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "token"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inattivo"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tokens"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機中"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "トークン"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ocioso"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "token"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空闲"
           }
         }
       }
     },
-    "cost": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "coût"
+    "Not paired" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht gekoppelt"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "costo"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin emparejar"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kosten"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non appairé"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "costo"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non abbinato"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "custo"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未ペアリング"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コスト"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não pareado"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "成本"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配对"
           }
         }
       }
     },
-    "WORKING": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EN COURS"
+    "Open TethrX to connect" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TethrX öffnen, um zu verbinden"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TRABAJANDO"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre TethrX para conectar"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ARBEITET"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez TethrX pour vous connecter"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "IN CORSO"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri TethrX per connetterti"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TRABALHANDO"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TethrXを開いて接続"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作業中"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra o TethrX para conectar"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作中"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 TethrX 进行连接"
           }
         }
       }
     },
-    "APPROVE": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "APPROUVER"
+    "sessions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sitzungen"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "APROBAR"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sesiones"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GENEHMIGEN"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sessions"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "APPROVA"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sessioni"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "APROVAR"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "承認"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sessões"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "批准"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话"
           }
         }
       }
     },
-    "DONE": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TERMINÉ"
+    "TETHRX" : {
+
+    },
+    "tokens" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokens"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LISTO"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tokens"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "FERTIG"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tokens"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "FATTO"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "token"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CONCLUÍDO"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークン"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完了"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tokens"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完成"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "token"
           }
         }
       }
     },
-    "ERROR": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ERREUR"
+    "Whether your computer's Grok is working, and what it's cost." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ob Grok auf Ihrem Computer arbeitet und was es gekostet hat."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ERROR"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si Grok está trabajando en tu computadora y cuánto ha costado."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "FEHLER"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le Grok de votre ordinateur travaille, et ce qu'il a coûté."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ERRORE"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se il Grok del tuo computer sta lavorando e quanto è costato."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ERRO"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンピュータのGrokが作業中かどうかと、これまでのコスト。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エラー"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o Grok do seu computador está trabalhando e quanto custou."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "错误"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您电脑上的 Grok 是否在工作，以及已花费的成本。"
+          }
+        }
+      }
+    },
+    "working" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "arbeitet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trabajando"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "au travail"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "al lavoro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作業中"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trabalhando"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作中"
+          }
+        }
+      }
+    },
+    "WORKING" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ARBEITET"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TRABAJANDO"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN COURS"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IN CORSO"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作業中"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TRABALHANDO"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作中"
           }
         }
       }
     }
-  }
+  },
+  "version" : "1.0"
 }
