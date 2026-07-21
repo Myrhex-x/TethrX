@@ -19,6 +19,11 @@ Verified items were checked against the project on 2026-07-21.
 - **Universal app** — iPhone + iPad layouts both real.
 - **License / security policy** — Apache 2.0 LICENSE and SECURITY.md in the repo.
 - **Privacy policy** — PRIVACY.md in the repo (see below for the URL step).
+- **Share extension** (`TethrXShare`, build 35+) — sends the shared item to the
+  user's own computer only, on an explicit tap. It reads the pairing token from a
+  Keychain access group shared with the app; nothing is written to disk by the
+  extension, and it collects nothing. No separate privacy label is needed: an app
+  extension is covered by the containing app's answers.
 
 ## Must do before submitting (in App Store Connect)
 
@@ -38,6 +43,10 @@ Verified items were checked against the project on 2026-07-21.
    A free app with no monetization can generally declare non-trader; if you later
    charge, this becomes trader and requires published contact details.
 7. **Category** — Developer Tools.
+8. **Keychain sharing capability** — the app and share extension both carry
+   `keychain-access-groups` (`$(AppIdentifierPrefix)group.com.tethrx.app`).
+   Automatic signing provisioned this for build 35; if you ever move to manual
+   profiles, the capability has to be enabled on both App IDs.
 
 ## Guideline 2.1 (App Completeness) — the main rejection risk
 
