@@ -179,7 +179,8 @@ function pairPageHTML() {
   const loopbackOnly = ["127.0.0.1", "::1", "localhost"].includes(String(config.host));
   const data = JSON.stringify({
     token: config.token, port, addrs, loopbackOnly,
-    tlsPort: tls ? tlsPort : null, fp: tls ? tls.fingerprint : null,
+    tlsPort: tls && pinnedListening ? tlsPort : null,
+    fp: tls && pinnedListening ? tls.fingerprint : null,
   });
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pair TethrX</title><script src="/qrcode.js"></script>
@@ -758,7 +759,7 @@ async function handle(req, res) {
       // Advertising this lets an app paired over plain HTTP upgrade itself to
       // pinned HTTPS on its next connect (the QR remains the out-of-band root
       // of trust for first-time pairing).
-      tls: tls ? { port: tlsPort, fingerprint: tls.fingerprint } : null,
+      tls: tls && pinnedListening ? { port: tlsPort, fingerprint: tls.fingerprint } : null,
     });
   }
 
@@ -1264,11 +1265,18 @@ const scheme = useTls ? "https" : "http";
 // existing pairings and the loopback /pair page keep working; the app upgrades
 // itself to this port once it learns the fingerprint.
 let pinnedServer = null;
+// Only true once the TLS port is actually bound. /api/health and the pairing QR key
+// off THIS, not off "we have a certificate": advertising a listener that never came
+// up (its port taken by a second bridge, say) sent apps to pin an address that can
+// never answer — and a pinned app has no way to tell that apart from a dead bridge.
+let pinnedListening = false;
 if (tls && tlsPort !== config.port) {
   pinnedServer = createHttpsServer({ cert: tls.cert, key: tls.key }, handler);
   pinnedServer.on("error", (err) => {
-    console.error(`[bridge] pinned-https listener failed (${err.code || err.message}) — continuing HTTP-only`);
+    console.error(`[bridge] pinned-https listener failed (${err.code || err.message}) — continuing HTTP-only.`);
+    console.error(`[bridge] phones already paired over https will fall back to http://…:${config.port}.`);
     pinnedServer = null;
+    pinnedListening = false;
   });
 }
 
@@ -1324,7 +1332,7 @@ function resumeQueuedWork() {
 
 server.listen(config.port, listenHost, async () => {
   advertiseBonjour();
-  pinnedServer?.listen(tlsPort, listenHost);
+  pinnedServer?.listen(tlsPort, listenHost, () => { pinnedListening = true; });
   setTimeout(resumeQueuedWork, 2500).unref?.();
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;

@@ -60,8 +60,14 @@ struct BridgeClient {
 
     // MARK: Endpoints
 
-    func health() async throws -> HealthInfo {
-        let (data, resp) = try await session.data(for: try request("/api/health"))
+    /// `timeout` exists for the connect-time probe: a reachable bridge answers in
+    /// milliseconds, but a port that accepts the connection and then stalls (a dead
+    /// TLS listener, something else squatting the port) holds the default timeout
+    /// open — long enough that Reconnect looks like it simply doesn't work.
+    func health(timeout: TimeInterval? = nil) async throws -> HealthInfo {
+        var req = try request("/api/health")
+        if let timeout { req.timeoutInterval = timeout }
+        let (data, resp) = try await session.data(for: req)
         try Self.check(resp)
         return try JSONDecoder().decode(HealthInfo.self, from: data)
     }

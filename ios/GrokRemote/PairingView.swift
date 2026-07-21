@@ -364,9 +364,13 @@ struct PairingView: View {
         if !fp.isEmpty, !tlsPort.isEmpty, let host = addr.split(separator: ":").first {
             app.baseURLString = "https://\(host):\(tlsPort)"
             app.pin = fp
+            // The QR's plain address is the way back if that TLS port ever stops
+            // answering — without it a dead pin means re-running this whole wizard.
+            app.plainBase = addr.contains("://") ? addr : "http://\(addr)"
         } else {
             app.baseURLString = addr
             app.pin = ""
+            app.plainBase = ""
         }
         app.token = tok
         Task { await app.connect() }

@@ -43,6 +43,10 @@ enum PinnedSessions {
         defer { lock.unlock() }
         if let existing = cache[key] { return existing }
         let config = URLSessionConfiguration.default
+        // A pinned port that accepts the connection but never completes the handshake
+        // would otherwise hang far past the request timeout, which reads as a frozen
+        // Reconnect button. Bound the whole exchange, not just the idle gap.
+        config.timeoutIntervalForResource = 30
         let session = URLSession(configuration: config, delegate: PinningDelegate(pin: key), delegateQueue: nil)
         cache[key] = session
         return session

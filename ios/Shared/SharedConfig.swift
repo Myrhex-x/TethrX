@@ -66,33 +66,38 @@ enum SharedKeychain {
     static let teamPrefix = "KKRU446268."          // DEVELOPMENT_TEAM, as in the entitlements
     static let accessGroup = teamPrefix + "group.com.tethrx.app"
 
+    /// Copy a token into the shared group. Deliberately NEVER deletes first: this runs
+    /// on every launch, and a delete followed by a failed add would destroy the only
+    /// copy of the pairing token and silently force the user to pair again.
     @discardableResult
     static func save(_ value: String, account: String) -> Bool {
+        guard !value.isEmpty else { return false }
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(base as CFDictionary)   // clears any copy, in any entitled group
-        guard !value.isEmpty else { return false }
-        var add = base
-        add[kSecValueData as String] = Data(value.utf8)
-        // A share or a notification reply can arrive while the phone is locked, so the
-        // token has to be readable after the first unlock.
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        // Some OS versions want the team-prefixed group, some accept the bare app-group
+        // identifier. Try both before giving up; a failure here costs the share
+        // extension, never the app's own pairing.
+        for group in [accessGroup, "group.com.tethrx.app"] {
+            var query = base
+            query[kSecAttrAccessGroup as String] = group
 
-        add[kSecAttrAccessGroup as String] = accessGroup
-        if SecItemAdd(add as CFDictionary, nil) == errSecSuccess { return true }
+            var update = query
+            update[kSecValueData as String] = Data(value.utf8)
+            // A share or a notification reply can arrive while the phone is locked, so
+            // the token has to be readable after the first unlock.
+            update[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
-        // Some OS versions accept an app-group identifier as a keychain group without
-        // the team prefix. Try that rather than leaving the token unshared.
-        add[kSecAttrAccessGroup as String] = "group.com.tethrx.app"
-        if SecItemAdd(add as CFDictionary, nil) == errSecSuccess { return true }
-
-        // Neither form was allowed: keep the token working for the app itself, even
-        // though the share extension won't see it.
-        add.removeValue(forKey: kSecAttrAccessGroup as String)
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+            let added = SecItemAdd(update as CFDictionary, nil)
+            if added == errSecSuccess { return true }
+            if added == errSecDuplicateItem {
+                let attrs: [String: Any] = [kSecValueData as String: Data(value.utf8)]
+                if SecItemUpdate(query as CFDictionary, attrs as CFDictionary) == errSecSuccess { return true }
+            }
+        }
+        return false
     }
 
     static func load(account: String) -> String? {

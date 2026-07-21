@@ -8,7 +8,7 @@ final class AppState: ObservableObject {
     /// The bridge version this app's features are built against. A connected
     /// bridge older than this gets a visible "update your bridge" banner —
     /// otherwise the new buttons would just 404 with no explanation.
-    static let wantedBridgeVersion = "0.1.15"
+    static let wantedBridgeVersion = "0.1.16"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
@@ -17,6 +17,11 @@ final class AppState: ObservableObject {
     /// Cert fingerprint for pinned HTTPS to the ACTIVE bridge ("" = plain HTTP).
     /// Not a secret — it's the hash of the certificate every client receives.
     @Published var pin: String { didSet { store("bridge.pin", pin) } }
+    /// The plain-HTTP address this computer was reached on before it was upgraded to
+    /// pinned HTTPS. Kept so a pinned connection that stops answering — its port taken
+    /// by a second bridge, a network that blocks it, a regenerated certificate — can
+    /// fall back instead of stranding the app on an address that can never connect.
+    @Published var plainBase: String { didSet { store("bridge.plainBase", plainBase) } }
     @Published var defaultCwd: String { didSet { store("bridge.cwd", defaultCwd) } }
     @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort) } }   // "", high, medium, low
     @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
@@ -54,6 +59,7 @@ final class AppState: ObservableObject {
         let d = UserDefaults.standard
         baseURLString = d.string(forKey: "bridge.baseURL") ?? ""
         pin = d.string(forKey: "bridge.pin") ?? ""
+        plainBase = d.string(forKey: "bridge.plainBase") ?? ""
         // A launch-arg token (debug) wins; otherwise load the secret from the Keychain.
         token = d.string(forKey: "bridge.token") ?? Keychain.load() ?? ""
         defaultCwd = d.string(forKey: "bridge.cwd") ?? ""
@@ -167,7 +173,15 @@ final class AppState: ObservableObject {
     }
 
     /// A ready-to-use client, or nil if not enough info to build one.
+    ///
+    /// Demo mode deliberately has NO client. Someone who paired a computer earlier and
+    /// then taps "Try the demo" still has a valid address and token, so every screen
+    /// that reached for a client went and talked to their real machine behind the demo
+    /// — search hit real conversations, Settings showed real usage and real computers.
+    /// Cutting it off here fixes all of them at once, because every caller already
+    /// handles "no client".
     var client: BridgeClient? {
+        guard !demoMode else { return nil }
         guard let url = URL(string: normalizedBase), !token.isEmpty, !normalizedBase.isEmpty else { return nil }
         return BridgeClient(config: .init(baseURL: url, token: token, pin: pin.isEmpty ? nil : pin))
     }
@@ -182,6 +196,9 @@ final class AppState: ObservableObject {
     }
 
     func connect() async {
+        // Connecting for real ends the demo. This has to happen BEFORE the client is
+        // built, because demo mode deliberately has none.
+        if demoMode { exitDemo() }
         guard let client else {
             errorMessage = String(localized: "Enter the bridge address and pairing token.")
             return
@@ -191,21 +208,68 @@ final class AppState: ObservableObject {
         errorMessage = nil
         defer { connecting = false }
         do {
-            let h = try await client.health()
-            health = h
-            await upgradeToPinnedTLS(from: h)                              // http → pinned https when the bridge offers it
-            sessions = try await self.client!.listSessions()
-            connected = true
-            rememberCurrentBridge()                                        // keep the paired-computer list current
-            lastUsage = try? await client.usage()
-            publishWidgetSnapshot()
-            if let t = pushToken { try? await client.registerDevice(t) }   // (re)register for push
-            if let t = laStartToken { try? await client.registerLiveActivity(kind: "start-token", token: t) }
-            if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
+            try await establish(with: client)
         } catch {
+            // A pinned HTTPS address that stops answering used to strand the app for
+            // good: the upgrade path only runs when there is NO pin, so every later
+            // Reconnect retried the same dead port and the only way out was walking
+            // the whole setup wizard again. Try the plain-HTTP address instead.
+            if await recoverFromDeadPin() { return }
             connected = false
             errorMessage = friendly(error)
         }
+    }
+
+    /// One connection attempt against an already-built client. Throws so the caller
+    /// can decide whether a failure is recoverable.
+    private func establish(with c: BridgeClient) async throws {
+        // Short probe: a live bridge replies instantly, and failing fast is what lets
+        // the pinned-HTTPS fallback below happen while the user is still watching.
+        let h = try await c.health(timeout: 8)
+        health = h
+        await upgradeToPinnedTLS(from: h)                                   // http → pinned https when offered
+        sessions = try await self.client!.listSessions()
+        connected = true
+        rememberCurrentBridge()                                             // keep the paired-computer list current
+        lastUsage = try? await self.client?.usage()
+        publishWidgetSnapshot()
+        if let t = pushToken { try? await self.client?.registerDevice(t) }  // (re)register for push
+        if let t = laStartToken { try? await self.client?.registerLiveActivity(kind: "start-token", token: t) }
+        if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
+    }
+
+    /// Pinned HTTPS failed. Drop back to the plain-HTTP address and try again; on
+    /// success the upgrade runs afresh, which also re-pins if the bridge minted a new
+    /// certificate. Restores the previous address if the fallback is no better.
+    private func recoverFromDeadPin() async -> Bool {
+        guard !pin.isEmpty else { return false }
+        let fallback = plainFallbackAddress()
+        guard !fallback.isEmpty, fallback != normalizedBase else { return false }
+
+        let prevBase = baseURLString, prevPin = pin
+        baseURLString = fallback
+        pin = ""
+        guard let plain = client else {
+            baseURLString = prevBase; pin = prevPin
+            return false
+        }
+        do {
+            try await establish(with: plain)
+            return true
+        } catch {
+            baseURLString = prevBase; pin = prevPin
+            return false
+        }
+    }
+
+    /// Where to fall back to when pinned HTTPS stops working: the address this bridge
+    /// was reached on before the upgrade, or failing that the same host one port down
+    /// (the TLS listener defaults to the HTTP port + 1).
+    private func plainFallbackAddress() -> String {
+        if !plainBase.isEmpty { return plainBase }
+        guard let url = URL(string: normalizedBase), let host = url.host else { return "" }
+        let httpPort = (url.port ?? 4181) - 1
+        return "http://\(host):\(httpPort)"
     }
 
     /// If we're on plain HTTP and the bridge advertises its pinned-HTTPS listener,
@@ -221,7 +285,8 @@ final class AppState: ObservableObject {
         baseURLString = "https://\(host):\(tls.port)"
         pin = tls.fingerprint
         if let upgraded = client, let refreshed = try? await upgraded.health() {
-            health = refreshed   // the pinned channel is live — stay on it
+            health = refreshed        // the pinned channel is live — stay on it
+            plainBase = prevBase      // remembered, so a dead pin can climb back down
             return
         }
         baseURLString = prevBase
@@ -232,6 +297,9 @@ final class AppState: ObservableObject {
     /// "logged in" across relaunches and TestFlight updates (token lives in the
     /// Keychain, address in UserDefaults — both survive updates).
     func bootstrap() async {
+        // Never yank someone out of the demo: the launch reconnect would replace the
+        // sample sessions with the real computer's, mid-look.
+        guard !demoMode else { return }
         guard !connected, client != nil, !userDisconnected else { return }
         bootstrapping = true
         await connect()

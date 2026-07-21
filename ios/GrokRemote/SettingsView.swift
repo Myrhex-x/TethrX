@@ -18,15 +18,26 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    connection
-                    computers
-                    usage
-                    defaults
-                    SchedulesSection()
-                    notifications
-                    security
-                    snippetsSection
-                    about
+                    if app.demoMode {
+                        // Anything that needs a real computer is left out entirely
+                        // rather than shown empty or, worse, filled from the machine
+                        // this phone happens to still be paired with.
+                        demoConnection
+                        defaults
+                        security
+                        snippetsSection
+                        about
+                    } else {
+                        connection
+                        computers
+                        usage
+                        defaults
+                        SchedulesSection()
+                        notifications
+                        security
+                        snippetsSection
+                        about
+                    }
                 }
                 .padding(20)
             }
@@ -52,6 +63,24 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// The demo has no computer behind it, and someone who paired one earlier still
+    /// has a real address and token sitting in this screen — including a reveal
+    /// button. None of that belongs in a demo, so it is replaced wholesale.
+    private var demoConnection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("CONNECTION")
+            row("Computer", DemoData.health.host ?? "demo")
+            row("Mode", String(localized: "Demo — nothing is connected"))
+            Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+            Button { dismiss(); app.exitDemo() } label: {
+                Text("Exit demo").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PillButton(kind: .subtle))
+            .padding(.top, 4)
+        }
     }
 
     private var connection: some View {
