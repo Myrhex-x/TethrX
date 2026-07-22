@@ -109,6 +109,10 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var usage: SessionUsage?
     /// Follow-ups the bridge will run when the current turn ends.
     var queue: [QueuedMessage]?
+    /// The summary a compact/branch carried over. Present only until the first
+    /// turn consumes it — the chat shows it so the fresh session doesn't look
+    /// like it forgot everything.
+    var seedContext: String?
 
     var isRunning: Bool { status == "running" }
 

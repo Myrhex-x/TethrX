@@ -120,6 +120,12 @@ struct ChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
+                        // A compacted/branched session opens empty but ISN'T amnesiac —
+                        // its first message silently carries this summary. Without the
+                        // card, people copied the summary over by hand.
+                        if vm.items.isEmpty, let seed = vm.session.seedContext, !seed.isEmpty {
+                            HandoffCard(summary: seed)
+                        }
                         ForEach(vm.items) { item in
                             switch item.role {
                             case .permission:
@@ -231,6 +237,25 @@ struct ChatView: View {
                         }
                         .padding(.top, 1)
                         .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
+                        .accessibilityHint(Text("Long-press to change the dictation language"))
+                        // Recognition language ≠ app language: someone using the app
+                        // in English may well dictate in French.
+                        .contextMenu {
+                            Section("Dictation language: \(dictation.currentLanguageLabel)") {
+                                ForEach(Dictation.languageChoices, id: \.id) { choice in
+                                    Button {
+                                        dictation.localeId = choice.id
+                                        Haptics.tap()
+                                    } label: {
+                                        if choice.id == dictation.localeId {
+                                            Label(choice.label, systemImage: "checkmark")
+                                        } else {
+                                            Text(choice.label)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 11)
@@ -583,6 +608,58 @@ private struct BottomOffsetKey: PreferenceKey {
 
 /// Animated three-dot "grok is thinking…" indicator, shown while a turn is in
 /// flight and no text has streamed yet — mirrors the terminal TUI's typing dots.
+/// Shown at the top of a freshly compacted or branched session: the summary it
+/// carries, and the reassurance that grok gets it automatically with the first
+/// message — no copy-pasting needed.
+struct HandoffCard: View {
+    let summary: String
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.merge")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.accent)
+                    .accessibilityHidden(true)
+                Text("CARRIED OVER").font(Grok.mono(10, .bold)).tracking(1.2).foregroundStyle(Grok.text)
+            }
+            Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message — nothing to paste.")
+                .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .accessibilityHidden(true)
+                    Text(expanded ? "Hide the summary" : "Read the summary")
+                        .font(Grok.mono(11, .medium))
+                }
+                .foregroundStyle(Grok.textDim)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                Text(summary)
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Grok.bg)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 14).padding(.top, 12)
+    }
+}
+
 struct TypingIndicator: View {
     @State private var animating = false
     var body: some View {

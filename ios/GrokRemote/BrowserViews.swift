@@ -12,6 +12,9 @@ struct DirectoryPickerSheet: View {
     @State private var listing: DirListing?
     @State private var loading = true
     @State private var errorText: String?
+    @State private var query = ""
+    @State private var results: [DirListing.Dir]?
+    @State private var searching = false
 
     /// Unique cwds of existing sessions, newest first — the "just take me back
     /// to my project" path.
@@ -24,21 +27,27 @@ struct DirectoryPickerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if let listing {
-                        currentFolder(listing)
-                    } else if loading {
-                        HStack(spacing: 10) {
-                            ProgressView().controlSize(.small).tint(.white)
-                            Text("reading folders…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    searchField
+                    if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                        searchResults
+                    } else {
+                        if let listing {
+                            currentFolder(listing)
+                        } else if loading {
+                            HStack(spacing: 10) {
+                                ProgressView().controlSize(.small).tint(.white)
+                                Text("reading folders…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                            }
+                            .accessibilityElement(children: .combine)
                         }
-                    }
-                    if let errorText {
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                            Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
+                        if let errorText {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                                Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
+                            }
                         }
+                        if listing?.parent == nil, !recents.isEmpty { recentsSection }
                     }
-                    if listing?.parent == nil, !recents.isEmpty { recentsSection }
                 }
                 .padding(20)
             }
@@ -53,8 +62,87 @@ struct DirectoryPickerSheet: View {
                 }
             }
             .task { await load(nil) }
+            // Debounced folder-name search across the whole home directory.
+            .task(id: query) {
+                let q = query.trimmingCharacters(in: .whitespaces)
+                guard q.count >= 2, let client = app.client else { results = nil; return }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
+                searching = true
+                defer { searching = false }
+                let found = try? await client.searchDirs(q)
+                // A cancelled fetch (user kept typing) must not clobber the results
+                // with a bogus "no folders match".
+                guard !Task.isCancelled else { return }
+                results = found ?? []
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+                .accessibilityHidden(true)
+            TextField("", text: $query, prompt: Text("search folders by name").foregroundColor(Grok.textFaint))
+                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            if searching { ProgressView().controlSize(.mini).tint(Grok.textFaint) }
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textDim)
+                        .frame(width: 36, height: 36).contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Clear search"))
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder private var searchResults: some View {
+        if let results {
+            if results.isEmpty, !searching {
+                Text("// no folders match")
+                    .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(results.enumerated()), id: \.element.path) { i, dir in
+                        if i > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
+                        Button {
+                            app.defaultCwd = dir.path
+                            Haptics.success()
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "folder").font(.system(size: 13)).foregroundStyle(Grok.textDim)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(dir.name).font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1)
+                                    Text(dir.path).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                        .lineLimit(1).truncationMode(.head)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .background(Grok.raised)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        } else if searching {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small).tint(.white)
+                Text("searching…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 
     @ViewBuilder private func currentFolder(_ l: DirListing) -> some View {

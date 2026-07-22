@@ -279,30 +279,53 @@ struct SessionListView: View {
 
     private var workingDir: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Eyebrow("WORKING DIRECTORY")
-            FieldBox {
+            Eyebrow("PROJECT FOLDER")
+            // A tappable picker, not a Unix-path text field — browsing and searching
+            // the computer's folders beats typing /Users/… on a phone keyboard.
+            Button {
+                guard !app.demoMode else { return }
+                Haptics.tap()
+                pickingCwd = true
+            } label: {
                 HStack(spacing: 10) {
-                    TextField("", text: $app.defaultCwd,
-                              prompt: Text("/Users/you/project — blank = daemon default").foregroundColor(Grok.textFaint))
-                        .font(Grok.mono(13))
-                        .foregroundStyle(Grok.text)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // Browse instead of typing a Unix path on a phone keyboard.
-                    // Hidden in demo: it browses the real computer (like Files/Changes).
-                    if !app.demoMode {
-                        Button { Haptics.tap(); pickingCwd = true } label: {
-                            Image(systemName: "folder").font(.system(size: 14, weight: .medium))
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
+                    Image(systemName: "folder").font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Grok.textDim)
-                        .accessibilityLabel(Text("Browse folders"))
+                        .accessibilityHidden(true)
+                    if app.defaultCwd.isEmpty {
+                        Text("Choose a folder — or leave it on the computer's default")
+                            .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                            .lineLimit(1)
+                    } else {
+                        Text(app.defaultCwd)
+                            .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                            .lineLimit(1).truncationMode(.head)
+                    }
+                    Spacer(minLength: 0)
+                    if !app.demoMode {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(Grok.raised)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(app.defaultCwd.isEmpty
+                                ? Text("Project folder: computer's default")
+                                : Text("Project folder: \(app.defaultCwd)"))
+            .accessibilityHint(Text("Opens the folder picker"))
+            .contextMenu {
+                if !app.defaultCwd.isEmpty {
+                    Button { app.defaultCwd = "" } label: {
+                        Label("Reset to the computer's default", systemImage: "arrow.uturn.backward")
                     }
                 }
             }
-            Text("New sessions run Grok in this folder. Plan mode, effort, and approvals are set inside each session.")
+            Text("New sessions start Grok in this folder — pick the project you want it to work on.")
                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
         }
     }

@@ -83,6 +83,9 @@ class Session {
       lastEventId: this._nextEventId,
       usage: this.usage,
       queue: this.queue,
+      // Present only until the first turn consumes it — the app shows a
+      // "carries a summary" card so a compacted session doesn't look amnesiac.
+      seedContext: this.seedContext || undefined,
     };
   }
 

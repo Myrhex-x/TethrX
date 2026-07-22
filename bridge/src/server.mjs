@@ -24,7 +24,7 @@
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { readFileSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize as normPath, resolve as resolvePath, sep } from "node:path";
@@ -448,6 +448,38 @@ function startGrokUpdateLoop() {
   setInterval(tick, 6 * 3600_000).unref?.();
 }
 
+// ---- global slash-command cache --------------------------------------------
+// Grok's command list barely changes between sessions on the same machine, so
+// the last advertisement any session received is a good answer for a session
+// that hasn't spawned its process yet.
+
+const COMMANDS_CACHE = join(config.stateDir, "commands-cache.json");
+let globalCommands = null;   // in-memory copy; file survives restarts
+
+function saveGlobalCommands(commands) {
+  globalCommands = commands;
+  try { writeFileSync(COMMANDS_CACHE, JSON.stringify(commands)); } catch { /* best-effort */ }
+}
+
+function loadGlobalCommands() {
+  if (globalCommands) return globalCommands;
+  try {
+    const parsed = JSON.parse(readFileSync(COMMANDS_CACHE, "utf8"));
+    if (Array.isArray(parsed)) globalCommands = parsed;
+  } catch { /* none yet */ }
+  if (!globalCommands && !loadGlobalCommands._scanned) {
+    // First run after this feature shipped: adopt any older session's snapshot
+    // rather than making the user burn a turn to populate the cache. Scan once —
+    // when nothing is adoptable, re-walking every session per request buys nothing.
+    loadGlobalCommands._scanned = true;
+    for (const summary of store.list()) {
+      const s = store.get(summary.id);
+      if (s?.commands?.length) { saveGlobalCommands(s.commands); break; }
+    }
+  }
+  return globalCommands || [];
+}
+
 // ---- grok plugins ----------------------------------------------------------
 // Plugins bundle skills/commands/agents/hooks/MCP servers; once installed their
 // skills are advertised over ACP and land in the phone's "/" palette on their
@@ -803,9 +835,12 @@ async function ensureAcp(session) {
         laWaiting(session, "Plan ready to review");
       }
       if (event.kind === "commands" && event.commands?.length) {
-        // Keep the snapshot so the "/" palette works before the next ACP spawn too.
+        // Keep the snapshot so the "/" palette works before the next ACP spawn too —
+        // and a global copy, so a BRAND-NEW session (no process yet) can offer
+        // commands without burning a turn first.
         session.commands = event.commands;
         store.save();
+        saveGlobalCommands(event.commands);
       }
       session.emit(event);
       if (event.kind === "tool_update" && event.diff?.path) {
@@ -1080,6 +1115,39 @@ async function handle(req, res) {
     } catch {
       return send(res, 404, { error: "can't read that folder" });
     }
+  }
+
+  // Folder-name search under home, for the working-directory picker — walking a
+  // deep tree by tapping is miserable when you know the project's name. Bounded
+  // breadth-first walk: skips hidden dirs and dependency/cache trees, and stops
+  // at hard caps so a huge home directory can't wedge the request.
+  if (pathname === "/api/fs/search" && req.method === "GET") {
+    const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+    if (q.length < 2) return send(res, 400, { error: "query too short" });
+    const home = homedir();
+    const SKIP = new Set(["node_modules", "Library", "Applications", "Pictures", "Music", ".git",
+                          "Pods", "DerivedData", "build", "dist", "target", "vendor", "venv", ".venv"]);
+    const results = [];
+    const queue = [home];
+    let visited = 0;
+    while (queue.length && visited < 6000 && results.length < 40) {
+      const dir = queue.shift();
+      visited += 1;
+      let entries = [];
+      try { entries = await readdir(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        if (!e.isDirectory() || e.name.startsWith(".") || SKIP.has(e.name)) continue;
+        const full = join(dir, e.name);
+        if (e.name.toLowerCase().includes(q)) {
+          results.push({ name: e.name, path: full });
+          if (results.length >= 40) break;
+        }
+        // Depth cap: home + 4 levels reaches ~every real project folder.
+        if (full.split(sep).length - home.split(sep).length < 4) queue.push(full);
+      }
+    }
+    results.sort((a, b) => (a.path.length - b.path.length) || a.name.localeCompare(b.name));
+    return send(res, 200, { dirs: results });
   }
 
   // Full-text search across every session's conversation history.
@@ -1378,10 +1446,15 @@ async function handle(req, res) {
     // Follow-ups to run when the current turn finishes. Held by the BRIDGE, so they
     // survive the app being closed — and so a notification reply or a share can add
     // one without the app ever opening.
-    // Grok's slash commands (built-ins + skills + saved workflows) for the "/" palette.
+    // Grok's slash commands (built-ins + skills + saved workflows) for the "/"
+    // palette. Fallback order: the live process, this session's snapshot, then
+    // the bridge-wide cache — so even a session that has never run offers the
+    // palette instead of demanding a paid turn first.
     if (sub === "commands" && req.method === "GET") {
       const live = session.acp?.availableCommands;
-      return send(res, 200, { commands: (live?.length ? live : session.commands) || [] });
+      const commands = (live?.length ? live : null) || (session.commands?.length ? session.commands : null)
+        || loadGlobalCommands();
+      return send(res, 200, { commands });
     }
 
     if (sub === "queue" && req.method === "GET") {

@@ -147,6 +147,16 @@ struct BridgeClient {
         return req
     }
 
+    /// Search folder names under home (bounded walk) for the working-dir picker.
+    func searchDirs(_ query: String) async throws -> [DirListing.Dir] {
+        var req = try getQuery("/api/fs/search", query: ["q": query])
+        req.timeoutInterval = 30
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Wrapper: Codable { let dirs: [DirListing.Dir] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).dirs
+    }
+
     /// Browse folders on the computer (home-jailed) for the working-dir picker.
     func listDirs(path: String?) async throws -> DirListing {
         let req = try path.map { try getQuery("/api/fs/dirs", query: ["path": $0]) } ?? request("/api/fs/dirs")

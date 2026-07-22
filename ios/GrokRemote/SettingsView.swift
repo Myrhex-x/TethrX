@@ -112,6 +112,8 @@ struct SettingsView: View {
     private var connection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("CONNECTION")
+            Text("The bridge is the small helper program running on your computer — this phone talks only to it, never to a cloud.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
             row("Bridge", app.normalizedBase.isEmpty ? "—" : app.normalizedBase)
             HStack {
                 Text("Security").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
@@ -212,8 +214,12 @@ struct SettingsView: View {
     private var defaults: some View {
         VStack(alignment: .leading, spacing: 16) {
             Eyebrow("NEW SESSION DEFAULTS")
+            Text("How every new session starts. Nothing here is locked in — the same controls sit above the message box inside each session.")
+                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reasoning effort").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                Text("Higher thinks longer and costs more tokens; Auto lets Grok decide.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
                 HStack(spacing: 8) {
                     ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
                         Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.mono(12, .medium)) }
@@ -222,10 +228,8 @@ struct SettingsView: View {
                     Spacer(minLength: 0)
                 }
             }
-            toggleRow("Plan mode", "Grok drafts a plan to approve first", $app.defaultPlanMode)
-            toggleRow("Auto-approve tools", "Skip the approve/reject prompt", $app.defaultAutoApprove)
-            Text("Each session can override these from its own controls.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            toggleRow("Plan mode", "Grok drafts a plan for you to approve before touching anything", $app.defaultPlanMode)
+            toggleRow("Auto-approve tools", "Run commands and edits without asking each time — faster, less oversight", $app.defaultAutoApprove)
         }
     }
 
