@@ -18102,6 +18102,523 @@
           }
         }
       }
+    },
+    "GROK PLUGINS": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLUGINS GROK"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLUGINS DE GROK"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GROK-PLUGINS"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLUGIN DI GROK"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLUGINS DO GROK"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GROKプラグイン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GROK 插件"
+          }
+        }
+      }
+    },
+    "No plugins installed. Their skills appear in the “/” menu once you add some.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun plugin installé. Leurs skills apparaissent dans le menu « / » dès que vous en ajoutez."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay plugins instalados. Sus skills aparecen en el menú “/” cuando añades alguno."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Plugins installiert. Ihre Skills erscheinen im „/“-Menü, sobald du welche hinzufügst."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun plugin installato. Le loro skill compaiono nel menu “/” quando ne aggiungi."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum plugin instalado. As skills deles aparecem no menu “/” quando você adiciona algum."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラグインはインストールされていません。追加すると、そのスキルが「/」メニューに表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装插件。添加后，其技能会出现在“/”菜单中。"
+          }
+        }
+      }
+    },
+    "Couldn't load plugins — check that grok is installed on the computer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de charger les plugins — vérifiez que grok est installé sur l'ordinateur."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron cargar los plugins — comprueba que grok está instalado en el ordenador."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugins konnten nicht geladen werden — prüfe, ob grok auf dem Computer installiert ist."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile caricare i plugin — verifica che grok sia installato sul computer."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível carregar os plugins — verifique se o grok está instalado no computador."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラグインを読み込めませんでした — コンピュータにgrokがインストールされているか確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载插件 — 请检查电脑上是否已安装 grok。"
+          }
+        }
+      }
+    },
+    "git URL or owner/repo…": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL git ou propriétaire/dépôt…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL de git o propietario/repositorio…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git-URL oder Besitzer/Repo…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL git o proprietario/repo…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL do git ou dono/repositório…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gitのURLまたはowner/repo…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "git URL 或 owner/repo…"
+          }
+        }
+      }
+    },
+    "Install plugin": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer le plugin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar el plugin"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugin installieren"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installa il plugin"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar plugin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラグインをインストール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装插件"
+          }
+        }
+      }
+    },
+    "Plugins bundle skills, agents, and tools for Grok — and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les plugins regroupent des skills, des agents et des outils pour Grok — et peuvent exécuter du code sur votre ordinateur quand Grok les utilise. N'installez que des sources de confiance. Parcourez le marketplace avec /plugins dans le terminal Grok."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los plugins agrupan skills, agentes y herramientas para Grok — y pueden ejecutar código en tu ordenador cuando Grok los usa. Instala solo fuentes de confianza. Explora el marketplace con /plugins en el terminal de Grok."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugins bündeln Skills, Agents und Tools für Grok — und können Code auf deinem Computer ausführen, wenn Grok sie nutzt. Installiere nur vertrauenswürdige Quellen. Den Marketplace erreichst du mit /plugins im Grok-Terminal."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I plugin raggruppano skill, agenti e strumenti per Grok — e possono eseguire codice sul tuo computer quando Grok li usa. Installa solo fonti di cui ti fidi. Sfoglia il marketplace con /plugins nel terminale Grok."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugins reúnem skills, agentes e ferramentas para o Grok — e podem executar código no seu computador quando o Grok os usa. Instale apenas fontes confiáveis. Explore o marketplace com /plugins no terminal do Grok."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラグインはGrok用のスキル・エージェント・ツールをまとめたもので、Grokが使用する際にコンピュータ上でコードを実行することがあります。信頼できるソースのみインストールしてください。マーケットプレイスはGrokターミナルの/pluginsで閲覧できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插件为 Grok 打包了技能、代理和工具 — 当 Grok 使用它们时，可能会在你的电脑上运行代码。请只安装你信任的来源。可在 Grok 终端中用 /plugins 浏览市场。"
+          }
+        }
+      }
+    },
+    "Remove %@?": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer %@ ?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Eliminar %@?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ entfernen?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovere %@?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover %@?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@を削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除%@？"
+          }
+        }
+      }
+    },
+    "Remove plugin": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le plugin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar el plugin"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plugin entfernen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi il plugin"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover plugin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プラグインを削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除插件"
+          }
+        }
+      }
+    },
+    "Uninstalls it from the computer. Its skills disappear from new sessions.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le désinstalle de l'ordinateur. Ses skills disparaissent des nouvelles sessions."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo desinstala del ordenador. Sus skills desaparecen de las nuevas sesiones."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deinstalliert es vom Computer. Seine Skills verschwinden aus neuen Sessions."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo disinstalla dal computer. Le sue skill scompaiono dalle nuove sessioni."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desinstala do computador. As skills dele somem das novas sessões."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コンピュータからアンインストールします。そのスキルは新しいセッションから消えます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从电脑上卸载。其技能将从新会话中消失。"
+          }
+        }
+      }
+    },
+    "That didn't go through — check the bridge log for details.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ça n'est pas passé — consultez le journal du bridge pour les détails."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se completó — revisa el registro del bridge para más detalles."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das hat nicht geklappt — Details stehen im Bridge-Log."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non è andata a buon fine — controlla il log del bridge per i dettagli."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi concluído — veja o log do bridge para detalhes."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "処理できませんでした — 詳細はブリッジのログを確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作未完成 — 请查看 bridge 日志了解详情。"
+          }
+        }
+      }
+    },
+    "Install failed — check the URL and that the computer can reach it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de l'installation — vérifiez l'URL et que l'ordinateur peut y accéder."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La instalación falló — comprueba la URL y que el ordenador pueda acceder a ella."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installation fehlgeschlagen — prüfe die URL und ob der Computer sie erreichen kann."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installazione non riuscita — controlla l'URL e che il computer possa raggiungerlo."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A instalação falhou — verifique a URL e se o computador consegue acessá-la."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールに失敗しました — URLと、コンピュータからアクセスできるかを確認してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装失败 — 请检查 URL 以及电脑能否访问它。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

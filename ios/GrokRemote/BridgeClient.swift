@@ -396,6 +396,32 @@ struct BridgeClient {
         return try JSONDecoder().decode(Wrapper.self, from: data).workflows
     }
 
+    /// Installed grok plugins on the computer.
+    func grokPlugins() async throws -> [GrokPlugin] {
+        var req = try request("/api/grok/plugins")
+        req.timeoutInterval = 30
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Wrapper: Codable { let plugins: [GrokPlugin] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).plugins
+    }
+
+    /// Manage a plugin. `install` takes `source` (git URL / GitHub shorthand);
+    /// the rest take `name`. Returns the refreshed list.
+    func grokPluginAction(_ action: String, name: String? = nil, source: String? = nil) async throws -> [GrokPlugin] {
+        var body: [String: Any] = ["action": action]
+        if let name { body["name"] = name }
+        if let source { body["source"] = source }
+        var req = try request("/api/grok/plugins", method: "POST", json: body)
+        req.timeoutInterval = 200      // installs clone a repo
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Result: Codable { let ok: Bool; let output: String?; let plugins: [GrokPlugin] }
+        let r = try JSONDecoder().decode(Result.self, from: data)
+        if !r.ok { throw BridgeError.badStatus(500) }
+        return r.plugins
+    }
+
     /// Grok binary version state on the computer (current vs latest).
     func grokUpdateStatus() async throws -> GrokUpdateStatus {
         var req = try request("/api/grok/update")

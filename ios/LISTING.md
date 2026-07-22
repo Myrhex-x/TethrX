@@ -10,7 +10,9 @@
 > Drive Grok Build from your phone — watch it work tool-by-tool, review its plans, and approve or reject each action, even from your lock screen.
 
 **Keywords (≤100):**
-> grok,grok build,remote,terminal,coding agent,developer,cli,ssh,ai,pair,tailscale,agent
+> grok,grok build,remote,terminal,coding agent,developer,cli,ssh,ai,pair,agent,code
+> (tailscale removed — a third-party trademark used purely for reach is 2.3.7 bait;
+> "grok build" stays: nominative compatibility, the app is unusable without it)
 
 **Description:**
 > TethrX is a native, private remote for **Grok Build**, xAI's terminal coding agent. Your phone is only a control plane — Grok, its tools, and your code stay on your own machine. TethrX connects to a small open-source bridge you run on your computer.
@@ -32,7 +34,7 @@
 **"What to test" (TestFlight notes to testers):**
 > You'll need Grok Build installed on your Mac/Linux box and the TethrX bridge running (`node bridge/src/server.mjs`). Enter the address + pairing token it prints, then start a session. Try plan mode and approving/rejecting a shell command.
 
-**URLs (fill in before submitting):**
-- Support URL: _your site or a GitHub repo_
-- Marketing URL (optional): _your site_
-- Privacy Policy URL: _required — a simple page stating "no data collected"_
+**URLs (repo is public — these resolve):**
+- Support URL: https://github.com/Myrhex-x/TethrX
+- Marketing URL (optional): https://github.com/Myrhex-x/TethrX
+- Privacy Policy URL: https://github.com/Myrhex-x/TethrX/blob/main/PRIVACY.md

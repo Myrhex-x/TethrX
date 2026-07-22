@@ -111,23 +111,21 @@ setup wizard. Standard practice for companion apps:
 - Marketing version bumped 0.9.1 → 1.0.0, build counter to 39: the public
   listing should not launch as a sub-1.0.
 
-## Open decisions the listing is blocked on (only you can make these)
+## Resolved (2026-07-22)
 
-1. **Public URLs** — Support URL + Privacy Policy URL are REQUIRED fields, and
-   the drafted review notes link github.com/Myrhex-x/TethrX — which is PRIVATE
-   today, so every URL 404s for Apple. Either flip the repo public before
-   submitting (it was built for that: secret-guard .gitignore, token lives
-   outside the tree, bridge is already public on npm), or host PRIVACY.md +
-   a support page on a domain you own and rewrite the notes' repo link to the
-   npm package page. Don't submit with dead links — that alone is a metadata
-   rejection.
-2. **Keywords** — the draft includes `tailscale` (someone else's trademark used
-   purely for reach → 2.3.7 risk; drop it). `grok,grok build` is nominative
-   compatibility and defensible; keep, but know a strict reviewer may push back.
-   Subtitle "Remote for Grok Build" is compatibility-format, generally accepted.
-3. **Seller name** — individual account shows your personal name publicly;
-   organization conversion (D-U-N-S) takes days-to-weeks, so decide BEFORE
-   submitting, not after.
-4. **Screenshots + demo video** — iPhone 6.9" + iPad 13" sets, captured against
-   a demo project folder (never the home directory or real session names), plus
-   the 2.1 demo video of bridge start → QR pair → task → approval → git review.
+1. ~~Public URLs~~ — the repo IS public; LISTING.md now carries the working
+   GitHub URLs for support + privacy policy.
+2. ~~Keywords~~ — `tailscale` dropped (2.3.7); `grok,grok build` kept as
+   nominative compatibility. Subtitle stays "Remote for Grok Build"
+   (compatibility-format, generally accepted).
+3. ~~Seller name~~ — staying on the individual account by choice; personal
+   name will show as the seller.
+
+## The only work left before submitting
+
+**Screenshots + demo video** — iPhone 6.9" + iPad 13" sets, captured against
+a demo project folder (never the home directory or real session names), plus
+the 2.1 demo video of bridge start → QR pair → task → approval → git review.
+Then it's just App Store Connect form-filling: privacy questionnaire ("data
+not collected" everywhere), age rating (all None), EU trader declaration
+(non-trader), category Developer Tools, and paste the review notes above.

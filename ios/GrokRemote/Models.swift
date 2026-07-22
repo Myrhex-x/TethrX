@@ -369,6 +369,25 @@ struct GrokUpdateStatus: Codable {
     var autoUpdate: Bool?
 }
 
+/// One installed grok plugin (`GET /api/grok/plugins`). Its skills show up in
+/// the "/" palette on their own; this exists for management.
+struct GrokPlugin: Codable, Identifiable, Hashable {
+    var name: String
+    var version: String?
+    var source: String?
+    var marketplace: String?
+    var disabled: Bool?
+    var description: String?
+    var id: String { name }
+    var isDisabled: Bool { disabled ?? false }
+    /// "github.com/foo/bar" reads better than a full clone URL on one line.
+    var sourceLabel: String {
+        guard let source, !source.isEmpty else { return "" }
+        if let host = URL(string: source)?.host { return host + (URL(string: source)?.path ?? "") }
+        return (source as NSString).lastPathComponent
+    }
+}
+
 /// A before/after edit Grok made to a file (from an edit tool's diff).
 struct FileDiff: Equatable {
     var path: String

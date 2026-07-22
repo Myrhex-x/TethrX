@@ -448,6 +448,56 @@ function startGrokUpdateLoop() {
   setInterval(tick, 6 * 3600_000).unref?.();
 }
 
+// ---- grok plugins ----------------------------------------------------------
+// Plugins bundle skills/commands/agents/hooks/MCP servers; once installed their
+// skills are advertised over ACP and land in the phone's "/" palette on their
+// own. This block is only MANAGEMENT: list, install, enable/disable, remove.
+
+/** Names in config.toml's `[plugins] disabled = [...]` — the one piece of state
+ *  `plugin list --json` doesn't expose. Best-effort: absent file/section = none. */
+function readDisabledPlugins() {
+  try {
+    const toml = readFileSync(join(homedir(), ".grok", "config.toml"), "utf8");
+    const section = toml.match(/\[plugins\]([^]*?)(?:\n\[|$)/);
+    const arr = section?.[1].match(/^\s*disabled\s*=\s*\[([^\]]*)\]/m);
+    if (!arr) return new Set();
+    return new Set([...arr[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]));
+  } catch { return new Set(); }
+}
+
+async function listGrokPlugins() {
+  const r = await runGrok(["plugin", "list", "--json"], 20_000);
+  if (!r.ok) return null;
+  let arr;
+  try { arr = JSON.parse(r.out.trim()); } catch { return null; }
+  if (!Array.isArray(arr)) return null;
+  const disabled = readDisabledPlugins();
+  return arr.map((p) => {
+    // Description lives in the installed plugin's own manifest, not the list.
+    let description = "";
+    try { description = JSON.parse(readFileSync(join(p.path, "plugin.json"), "utf8")).description || ""; }
+    catch { /* manifest optional */ }
+    return {
+      name: p.name,
+      version: p.version || "",
+      source: p.source || "",
+      marketplace: p.marketplace || null,
+      disabled: disabled.has(p.name),
+      description,
+    };
+  });
+}
+
+const PLUGIN_ACTIONS = {
+  // install runs THIRD-PARTY code once grok uses the plugin — the app shows the
+  // consent copy; --trust here is what the CLI would ask for interactively.
+  install:   (b) => ({ args: ["plugin", "install", String(b.source), "--trust"], timeout: 180_000 }),
+  uninstall: (b) => ({ args: ["plugin", "uninstall", String(b.name)], timeout: 30_000 }),
+  enable:    (b) => ({ args: ["plugin", "enable", String(b.name)], timeout: 30_000 }),
+  disable:   (b) => ({ args: ["plugin", "disable", String(b.name)], timeout: 30_000 }),
+  update:    (b) => ({ args: ["plugin", "update", String(b.name)], timeout: 180_000 }),
+};
+
 // ---- saved workflows -------------------------------------------------------
 // Grok workflows are Rhai orchestration scripts saved under .grok/workflows/;
 // each is runnable from a session as the slash command "/<name>". Listing them
@@ -1082,6 +1132,35 @@ async function handle(req, res) {
   if (pathname === "/api/workflows" && req.method === "GET") {
     const forSession = store.get(url.searchParams.get("sessionId") || "");
     return send(res, 200, { workflows: await listWorkflows(forSession?.cwd || config.defaultCwd) });
+  }
+
+  // Grok plugins: list + manage from the phone. Their skills reach the "/"
+  // palette by themselves once installed.
+  if (pathname === "/api/grok/plugins" && req.method === "GET") {
+    const plugins = await listGrokPlugins();
+    if (!plugins) return send(res, 502, { error: "couldn't list plugins — is grok installed and signed in?" });
+    return send(res, 200, { plugins });
+  }
+  if (pathname === "/api/grok/plugins" && req.method === "POST") {
+    const body = await readJson(req).catch(() => ({}));
+    const make = PLUGIN_ACTIONS[body.action];
+    if (!make) return send(res, 400, { error: "unknown action" });
+    if (body.action === "install") {
+      const source = String(body.source || "").trim();
+      // From a phone the sane install source is a URL or a GitHub shorthand;
+      // flag-shaped input must never reach argv.
+      if (!source || source.startsWith("-")) return send(res, 400, { error: "missing source" });
+    } else if (!String(body.name || "").trim() || String(body.name).startsWith("-")) {
+      return send(res, 400, { error: "missing plugin name" });
+    }
+    const { args, timeout } = make(body);
+    const r = await runGrok(args, timeout);
+    const plugins = await listGrokPlugins();
+    return send(res, r.ok ? 200 : 500, {
+      ok: r.ok,
+      output: (r.out + (r.err ? "\n" + r.err : "")).trim().slice(-1500),
+      plugins: plugins || [],
+    });
   }
 
   // Grok binary updates: GET reports, POST installs (409 while a turn runs — the

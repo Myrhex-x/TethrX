@@ -20,9 +20,17 @@ struct SettingsView: View {
     @State private var grokUpdate: GrokUpdateStatus?
     @State private var grokUpdating = false
     @State private var grokUpdateNote: String?
+    @State private var plugins: [GrokPlugin]?
+    @State private var pluginsSupported = true     // false = bridge too old; hide the section
+    @State private var pluginsFailed = false
+    @State private var pluginBusy: String?         // name (or "install") of the in-flight action
+    @State private var pluginError: String?
+    @State private var installSource = ""
+    @State private var removingPlugin: GrokPlugin?
     var body: some View {
         NavigationStack {
             ScrollView {
+                ScrollViewReader { proxy in
                 VStack(alignment: .leading, spacing: 28) {
                     if app.demoMode {
                         // Anything that needs a real computer is left out entirely
@@ -39,6 +47,7 @@ struct SettingsView: View {
                         usage
                         defaults
                         SchedulesSection()
+                        pluginsSection.id("plugins")
                         notifications
                         security
                         snippetsSection
@@ -46,6 +55,17 @@ struct SettingsView: View {
                     }
                 }
                 .padding(20)
+                .task {
+                    #if DEBUG
+                    // Headless screenshots: `-settingsAnchor plugins` opens scrolled there.
+                    let args = ProcessInfo.processInfo.arguments
+                    if let i = args.firstIndex(of: "-settingsAnchor"), i + 1 < args.count {
+                        try? await Task.sleep(nanoseconds: 600_000_000)
+                        proxy.scrollTo(args[i + 1], anchor: .top)
+                    }
+                    #endif
+                }
+                }
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -337,6 +357,157 @@ struct SettingsView: View {
                 }
             }
             for await (id, ok) in group { computerReachability[id] = ok }
+        }
+    }
+
+    /// Manage grok's plugins from the phone. Their skills join the "/" palette on
+    /// their own once installed — this section only lists, toggles, and installs.
+    @ViewBuilder private var pluginsSection: some View {
+        if pluginsSupported {
+            VStack(alignment: .leading, spacing: 12) {
+                Eyebrow("GROK PLUGINS")
+                if let plugins, plugins.isEmpty {
+                    Text("No plugins installed. Their skills appear in the \u{201C}/\u{201D} menu once you add some.")
+                        .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                } else if let plugins {
+                    ForEach(plugins) { plugin in pluginRow(plugin) }
+                } else if pluginsFailed {
+                    Text("Couldn't load plugins — check that grok is installed on the computer.")
+                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                } else {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.mini).tint(.white)
+                        Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                if let pluginError {
+                    Text(pluginError).font(Grok.mono(11)).foregroundStyle(Grok.danger).lineSpacing(2)
+                }
+                HStack(spacing: 8) {
+                    FieldBox {
+                        TextField("", text: $installSource,
+                                  prompt: Text("git URL or owner/repo…").foregroundColor(Grok.textFaint))
+                            .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .keyboardType(.URL)
+                    }
+                    Button { Task { await installPlugin() } } label: {
+                        if pluginBusy == "install" {
+                            ProgressView().controlSize(.small).tint(.white)
+                                .frame(width: 44, height: 44)
+                        } else {
+                            Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                                .frame(width: 44, height: 44).contentShape(Rectangle())
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(installDisabled ? Grok.textFaint : Grok.text)
+                    .disabled(installDisabled || pluginBusy != nil)
+                    .accessibilityLabel(Text("Install plugin"))
+                }
+                Text("Plugins bundle skills, agents, and tools for Grok — and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+            }
+            .task(id: app.activeBridgeId) { await loadPlugins() }
+            .confirmationDialog(
+                Text("Remove \(removingPlugin?.name ?? "")?"),
+                isPresented: Binding(get: { removingPlugin != nil }, set: { if !$0 { removingPlugin = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Remove plugin", role: .destructive) {
+                    if let p = removingPlugin { Task { await pluginAction("uninstall", p.name) } }
+                    removingPlugin = nil
+                }
+                Button("Cancel", role: .cancel) { removingPlugin = nil }
+            } message: {
+                Text("Uninstalls it from the computer. Its skills disappear from new sessions.")
+            }
+        }
+    }
+
+    private var installDisabled: Bool {
+        installSource.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func pluginRow(_ plugin: GrokPlugin) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(plugin.name).font(Grok.mono(12)).foregroundStyle(plugin.isDisabled ? Grok.textDim : Grok.text)
+                        .lineLimit(1)
+                    if let v = plugin.version, !v.isEmpty {
+                        Text("v\(v)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    }
+                }
+                if let d = plugin.description, !d.isEmpty {
+                    Text(d).font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineLimit(2)
+                }
+                if !plugin.sourceLabel.isEmpty {
+                    Text(plugin.sourceLabel).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 8)
+            if pluginBusy == plugin.name {
+                ProgressView().controlSize(.small).tint(.white).padding(.top, 6)
+            } else {
+                Toggle(plugin.name, isOn: Binding(
+                    get: { !plugin.isDisabled },
+                    set: { on in Task { await pluginAction(on ? "enable" : "disable", plugin.name) } }
+                )).labelsHidden().tint(.white)
+                Button { removingPlugin = plugin } label: {
+                    Image(systemName: "trash").font(.system(size: 12))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Grok.textDim)
+                .padding(.top, -6)
+                .accessibilityLabel(Text("Remove \(plugin.name)?"))   // same key as the dialog title
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func loadPlugins() async {
+        guard let client = app.client, app.connected else { return }
+        do {
+            plugins = try await client.grokPlugins()
+            pluginsFailed = false
+            pluginsSupported = true
+        } catch {
+            // A 404 means the bridge predates plugins — hide rather than nag; the
+            // update banner already covers "your bridge is old".
+            if case .badStatus(404) = (error as? BridgeError) ?? .badURL { pluginsSupported = false }
+            else if plugins == nil { pluginsFailed = true }
+        }
+    }
+
+    private func pluginAction(_ action: String, _ name: String) async {
+        guard let client = app.client else { return }
+        pluginBusy = name
+        pluginError = nil
+        defer { pluginBusy = nil }
+        do { plugins = try await client.grokPluginAction(action, name: name) }
+        catch { pluginError = String(localized: "That didn't go through — check the bridge log for details.") }
+    }
+
+    private func installPlugin() async {
+        guard let client = app.client else { return }
+        let source = installSource.trimmingCharacters(in: .whitespaces)
+        guard !source.isEmpty else { return }
+        pluginBusy = "install"
+        pluginError = nil
+        defer { pluginBusy = nil }
+        do {
+            plugins = try await client.grokPluginAction("install", source: source)
+            installSource = ""
+            Haptics.success()
+        } catch {
+            pluginError = String(localized: "Install failed — check the URL and that the computer can reach it.")
         }
     }
 
