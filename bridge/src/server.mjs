@@ -375,6 +375,124 @@ async function cachedGrokVersion() {
   return value;
 }
 
+// ---- grok self-update ------------------------------------------------------
+// The interactive TUI keeps itself current, but `grok agent stdio` — the only way
+// this bridge ever runs grok — never self-updates, so an unattended machine falls
+// weeks behind. Check on a timer; install when idle (config.grokAutoUpdate,
+// default on) or when the phone asks via POST /api/grok/update.
+
+const grokUpdate = { latest: "", available: false, checkedAt: 0, updating: false };
+
+function runGrok(args, timeout) {
+  return new Promise((resolve) => {
+    let out = "", err = "";
+    const child = spawn(config.grokBin, args, { stdio: ["ignore", "pipe", "pipe"], timeout });
+    child.stdout.on("data", (b) => (out += b));
+    child.stderr.on("data", (b) => (err += b));
+    child.on("error", (e) => resolve({ ok: false, out, err: err || String(e.message || e) }));
+    child.on("close", (code) => resolve({ ok: code === 0, out, err }));
+  });
+}
+
+function anySessionRunning() {
+  return store.list().some((s) => s.status === "running");
+}
+
+async function checkGrokUpdate() {
+  const r = await runGrok(["update", "--check", "--json"], 20_000);
+  if (!r.ok) return null;
+  // Today's grok prints exactly one JSON line, but scan from the end so a future
+  // trailing hint line doesn't silently break every check.
+  for (const line of r.out.trim().split("\n").reverse()) {
+    if (!line.trimStart().startsWith("{")) continue;
+    try {
+      const d = JSON.parse(line);
+      grokUpdate.latest = d.latestVersion || "";
+      grokUpdate.available = Boolean(d.updateAvailable);
+      grokUpdate.checkedAt = Date.now();
+      return d;
+    } catch { /* keep scanning */ }
+  }
+  return null;
+}
+
+/** Install the latest grok. Refuses while a turn is running — the update swaps the
+ *  binary out from under nothing that way (live ACP children keep their old image). */
+async function installGrokUpdate() {
+  if (grokUpdate.updating) return { ok: false, error: "already updating" };
+  if (anySessionRunning()) return { ok: false, error: "busy" };
+  grokUpdate.updating = true;
+  try {
+    const r = await runGrok(["update"], 300_000);
+    versionCache = { value: null, at: 0 };            // health reflects the new binary
+    const version = await cachedGrokVersion();
+    if (r.ok) {
+      grokUpdate.available = false;
+      console.log(`grok updated: ${version}`);
+    }
+    return { ok: r.ok, output: (r.out + (r.err ? "\n" + r.err : "")).trim().slice(-2000), version };
+  } finally {
+    grokUpdate.updating = false;
+  }
+}
+
+function startGrokUpdateLoop() {
+  const tick = async () => {
+    await checkGrokUpdate();
+    if (grokUpdate.available && config.grokAutoUpdate && !anySessionRunning()) {
+      const r = await installGrokUpdate();
+      if (!r.ok && r.error !== "busy") console.warn(`grok auto-update failed: ${r.error || r.output || "unknown"}`);
+    }
+  };
+  setTimeout(tick, 60_000).unref?.();                       // first check after boot settles
+  setInterval(tick, 6 * 3600_000).unref?.();
+}
+
+// ---- saved workflows -------------------------------------------------------
+// Grok workflows are Rhai orchestration scripts saved under .grok/workflows/;
+// each is runnable from a session as the slash command "/<name>". Listing them
+// gives the phone a browsable catalog (the TUI's /workflows shows runs, not
+// definitions — scanning the directories is the supported discovery path).
+
+function parseWorkflowMeta(text) {
+  // The header is a pure-literal Rhai map: `let meta = #{ name: "…", … }`.
+  // Three string fields don't justify a Rhai parser.
+  const grab = (key) => {
+    // \b so `name:` can't match inside `filename:`.
+    const m = text.match(new RegExp(String.raw`\b` + key + String.raw`\s*:\s*"((?:[^"\\]|\\.)*)"`));
+    return m ? m[1].replace(/\\(.)/g, "$1") : "";
+  };
+  return { name: grab("name"), description: grab("description"), whenToUse: grab("when_to_use") };
+}
+
+async function listWorkflows(cwd) {
+  // Project scope first — a project workflow shadows a same-named user one. A
+  // session living in ~ makes both paths the same directory; that's user scope.
+  const userDir = join(homedir(), ".grok", "workflows");
+  const dirs = [];
+  const projDir = cwd ? join(cwd, ".grok", "workflows") : null;
+  if (projDir && projDir !== userDir) dirs.push({ dir: projDir, scope: "project" });
+  dirs.push({ dir: userDir, scope: "user" });
+  const out = [];
+  const seen = new Set();
+  for (const { dir, scope } of dirs) {
+    let entries = [];
+    try { entries = await readdir(dir); } catch { continue; }   // scope absent — normal
+    for (const f of entries.sort()) {
+      if (!f.endsWith(".rhai")) continue;
+      const fallback = f.slice(0, -".rhai".length);
+      let meta = {};
+      try { meta = parseWorkflowMeta((await readFile(join(dir, f), "utf8")).slice(0, 65536)); }
+      catch { /* unreadable — still list the file name */ }
+      const name = meta.name || fallback;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      out.push({ name, scope, description: meta.description || "", whenToUse: meta.whenToUse || "" });
+    }
+  }
+  return out;
+}
+
 // Grok's ACP surfaces a raw JSON-RPC blob when its CLI isn't signed in (which can
 // happen silently after grok auto-updates). Turn that into something actionable.
 function friendlyTurnError(err) {
@@ -467,6 +585,11 @@ function imageNote(paths) {
 /** Start the next queued follow-up. Called when a turn ends, and when something is
  *  queued into an idle session (a notification reply, a share, a scheduled gap). */
 function drainQueue(session) {
+  // Never spawn grok while its binary is being swapped; the queue holds the work.
+  if (grokUpdate.updating) {
+    if (session.queue.length) setTimeout(() => drainQueue(session), 15_000).unref?.();
+    return false;
+  }
   if (session.status === "running" || !session.queue.length) return false;
   const next = session.dequeue();
   store.save();
@@ -483,6 +606,10 @@ function drainQueue(session) {
 /** Everything a turn's `finally` has to decide: continue an approved plan first,
  *  otherwise pull the next follow-up off the queue. */
 function continueAfterTurn(session) {
+  if (grokUpdate.updating) {                       // resume intact once the swap is done
+    setTimeout(() => continueAfterTurn(session), 15_000).unref?.();
+    return;
+  }
   if (session._executeOnComplete) {
     session._executeOnComplete = false;
     startTurn(session, { text: "Proceed with the approved plan and implement it now." });
@@ -625,7 +752,17 @@ async function ensureAcp(session) {
         pushNotify(session, { title: `${displayTitle(session)} — plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
         laWaiting(session, "Plan ready to review");
       }
+      if (event.kind === "commands" && event.commands?.length) {
+        // Keep the snapshot so the "/" palette works before the next ACP spawn too.
+        session.commands = event.commands;
+        store.save();
+      }
       session.emit(event);
+      if (event.kind === "tool_update" && event.diff?.path) {
+        // emit() just noted the edited path; persist now — a bridge restart mid-turn
+        // must not forget where grok worked (that's what the Changes screen keys on).
+        store.save();
+      }
     },
   });
   session.acp = acp;
@@ -715,6 +852,14 @@ startScheduler({
   schedules,
   sessions: store,
   fire: (session, s) => {
+    if (grokUpdate.updating) {
+      // Queue instead of spawning against a half-swapped binary; drains right after.
+      session.enqueue(s.prompt, "schedule");
+      store.save();
+      emitQueue(session);
+      setTimeout(() => drainQueue(session), 15_000).unref?.();
+      return;
+    }
     pushNotify(session, { title: displayTitle(session), message: `Scheduled task started: ${s.prompt.slice(0, 90)}`, tags: "alarm_clock" });
     startTurn(session, { text: s.prompt });
   },
@@ -737,6 +882,21 @@ if (config.transport === "acp") {
   timer.unref?.();
 }
 
+// Which repo a git review request operates on. A requested dir is honored only if
+// it's one of the session's own candidates — commit and DISCARD are destructive, so
+// they stay confined to repos this session demonstrably worked in. Default: the
+// session's own folder when it's a repo (candidateRepos flags it `own`, resolved by
+// git itself so symlinked cwds match), else the most recently edited repo — which
+// is what un-breaks sessions that live in ~.
+function pickGitDir(candidates, requested) {
+  const roots = candidates.map((c) => c.root);
+  if (requested) {
+    const wanted = String(requested).replace(/\/+$/, "");   // tolerate a trailing slash
+    return roots.includes(wanted) ? wanted : null;
+  }
+  return candidates.find((c) => c.own)?.root || roots[0] || null;
+}
+
 // ---- router ----------------------------------------------------------------
 
 async function handle(req, res) {
@@ -752,8 +912,14 @@ async function handle(req, res) {
       ok: true,
       name: config.name,
       host: hostname(),          // lets the phone name this computer in its bridge list
+      // Stable identity for this bridge install. Tailscale/DHCP addresses change;
+      // matching on serverId lets the app update its saved computer in place
+      // instead of accreting one dead entry per old IP.
+      serverId: config.serverId,
       grok: version,
       grokAvailable: Boolean(version),
+      grokLatest: grokUpdate.latest || null,
+      grokUpdateAvailable: grokUpdate.available,
       version: OWN_VERSION,
       latestVersion: latestNpmVersion(),
       // Advertising this lets an app paired over plain HTTP upgrade itself to
@@ -911,6 +1077,31 @@ async function handle(req, res) {
     return send(res, 200, { results: results.slice(0, 20) });
   }
 
+  // Saved grok workflows (multi-agent Rhai scripts) — run one by sending
+  // "/<name> …" as a normal message. ?sessionId adds that session's project scope.
+  if (pathname === "/api/workflows" && req.method === "GET") {
+    const forSession = store.get(url.searchParams.get("sessionId") || "");
+    return send(res, 200, { workflows: await listWorkflows(forSession?.cwd || config.defaultCwd) });
+  }
+
+  // Grok binary updates: GET reports, POST installs (409 while a turn runs — the
+  // phone shows why instead of a silent failure).
+  if (pathname === "/api/grok/update" && req.method === "GET") {
+    if (!grokUpdate.checkedAt) await checkGrokUpdate();
+    return send(res, 200, { current: await cachedGrokVersion(), latest: grokUpdate.latest || null,
+                            updateAvailable: grokUpdate.available, updating: grokUpdate.updating,
+                            autoUpdate: Boolean(config.grokAutoUpdate) });
+  }
+  if (pathname === "/api/grok/update" && req.method === "POST") {
+    const fresh = await checkGrokUpdate();         // don't install stale knowledge
+    if (!fresh) return send(res, 502, { error: "couldn't check for a grok update — is grok signed in and online?" });
+    if (!grokUpdate.available) return send(res, 200, { ok: true, upToDate: true, version: await cachedGrokVersion() });
+    const r = await installGrokUpdate();
+    if (!r.ok && r.error === "busy") return send(res, 409, { error: "a session is running — try again when it's idle" });
+    if (!r.ok && r.error === "already updating") return send(res, 409, { error: "an update is already in progress" });
+    return send(res, r.ok ? 200 : 500, r);
+  }
+
   // Scheduled tasks.
   if (pathname === "/api/schedules" && req.method === "GET") {
     return send(res, 200, { schedules: schedules.list() });
@@ -1034,6 +1225,9 @@ async function handle(req, res) {
       if (session.status === "running") {
         return send(res, 409, { error: "a turn is already running in this session" });
       }
+      if (grokUpdate.updating) {
+        return send(res, 409, { error: "grok is updating on this computer — try again in a minute" });
+      }
 
       if (images.length) {
         if (session.transport !== "acp") return send(res, 400, { error: "images need the acp transport" });
@@ -1105,6 +1299,12 @@ async function handle(req, res) {
     // Follow-ups to run when the current turn finishes. Held by the BRIDGE, so they
     // survive the app being closed — and so a notification reply or a share can add
     // one without the app ever opening.
+    // Grok's slash commands (built-ins + skills + saved workflows) for the "/" palette.
+    if (sub === "commands" && req.method === "GET") {
+      const live = session.acp?.availableCommands;
+      return send(res, 200, { commands: (live?.length ? live : session.commands) || [] });
+    }
+
     if (sub === "queue" && req.method === "GET") {
       return send(res, 200, { queue: session.queue });
     }
@@ -1207,21 +1407,43 @@ async function handle(req, res) {
       }
     }
 
-    // Review what Grok changed: /api/sessions/:id/git  (?file=… for one file's diff)
+    // Review what Grok changed: /api/sessions/:id/git  (?file=… for one file's diff,
+    // ?dir=… to pick among the repos this session touched). Sessions mostly start in
+    // ~ — not a repo — while grok edits files somewhere deeper, so the review offers
+    // the repos derived from the session's actual edits and defaults to the newest.
     if (sub === "git" && req.method === "GET") {
+      const candidates = await git.candidateRepos(session.editedPaths, session.cwd);
+      const requested = url.searchParams.get("dir");
+      const dir = pickGitDir(candidates, requested);
+      if (requested && !dir) {
+        // A stale dir must not masquerade as "not a repository".
+        return send(res, 400, { error: "dir is not one of this session's repos", candidates });
+      }
       const file = url.searchParams.get("file");
-      if (file) return send(res, 200, { diff: await git.diff(session.cwd, file) });
-      return send(res, 200, await git.status(session.cwd));
+      if (file) return send(res, 200, { diff: dir ? await git.diff(dir, file) : "" });
+      if (!dir) return send(res, 200, { repo: false, files: [], candidates });
+      return send(res, 200, { ...(await git.status(dir)), dir, candidates });
     }
-    // { action: "commit", message } | { action: "discard" }
+    // { action: "commit", message } | { action: "discard" }  (+ optional dir)
     if (sub === "git" && req.method === "POST") {
       const body = await readJson(req).catch(() => ({}));
+      const candidates = await git.candidateRepos(session.editedPaths, session.cwd);
+      // Commit and DISCARD are destructive. With several candidate repos, a dir-less
+      // request would target whichever repo happens to be newest-edited AT POST TIME
+      // — which can drift from what the user just reviewed (a queued follow-up edits
+      // another repo in between). Make ambiguity an explicit error instead.
+      if (!body.dir && candidates.length > 1) {
+        return send(res, 409, { error: "several repos changed — pass dir", candidates });
+      }
+      const dir = pickGitDir(candidates, body.dir);
+      if (body.dir && !dir) return send(res, 400, { error: "dir is not one of this session's repos", candidates });
+      if (!dir) return send(res, 400, { error: "not a git repository" });
       if (body.action === "commit") {
         const message = String(body.message || "").trim();
         if (!message) return send(res, 400, { error: "missing commit message" });
-        return send(res, 200, await git.commit(session.cwd, message));
+        return send(res, 200, await git.commit(dir, message));
       }
-      if (body.action === "discard") return send(res, 200, await git.discard(session.cwd));
+      if (body.action === "discard") return send(res, 200, await git.discard(dir));
       return send(res, 400, { error: "unknown action" });
     }
 
@@ -1334,6 +1556,7 @@ server.listen(config.port, listenHost, async () => {
   advertiseBonjour();
   pinnedServer?.listen(tlsPort, listenHost, () => { pinnedListening = true; });
   setTimeout(resumeQueuedWork, 2500).unref?.();
+  startGrokUpdateLoop();
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);

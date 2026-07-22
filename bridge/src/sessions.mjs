@@ -25,8 +25,10 @@ function normalizeUsage(u) {
   return { ...emptyUsage(), ...(u && typeof u === "object" ? u : {}) };
 }
 
+const EDITED_PATHS_LIMIT = 200;
+
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext, queue }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext, queue, editedPaths, commands }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -46,6 +48,15 @@ class Session {
     // not the phone: queueing three instructions and then locking your phone is the
     // whole point, and a queue held in the app's memory dies with the app.
     this.queue = Array.isArray(queue) ? queue.filter((q) => q && typeof q.text === "string") : [];
+    // Absolute paths of files grok actually edited (from tool diff events). Sessions
+    // usually START in the home directory but WORK somewhere deeper — this is how the
+    // git review finds the repo grok really changed instead of shrugging at ~.
+    this.editedPaths = Array.isArray(editedPaths)
+      ? editedPaths.filter((p) => typeof p === "string").slice(-EDITED_PATHS_LIMIT)
+      : [];
+    // Snapshot of grok's advertised slash commands, kept across ACP restarts so the
+    // phone's "/" palette works even before the next turn spins the process back up.
+    this.commands = Array.isArray(commands) ? commands : [];
 
     this.historyPath = null;             // set by the store; where events are persisted
     this.acp = null;                     // AcpSession (lazy, set by the server for ACP sessions)
@@ -97,6 +108,15 @@ class Session {
     return this.queue.length !== before;
   }
 
+  /** Remember a file grok edited (deduped, newest kept, capped). */
+  noteEdit(path) {
+    if (typeof path !== "string" || !path.startsWith("/")) return;
+    const i = this.editedPaths.indexOf(path);
+    if (i !== -1) this.editedPaths.splice(i, 1);
+    this.editedPaths.push(path);
+    if (this.editedPaths.length > EDITED_PATHS_LIMIT) this.editedPaths.shift();
+  }
+
   /** Fold one turn's grok-reported usage into the session totals. */
   addUsage({ usage, contextTokens, contextWindow, modelId } = {}) {
     const u = this.usage;
@@ -124,6 +144,7 @@ class Session {
       autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
       createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
       seedContext: this.seedContext, queue: this.queue,
+      editedPaths: this.editedPaths, commands: this.commands,
     };
   }
 
@@ -147,6 +168,9 @@ class Session {
   // --- event fan-out ------------------------------------------------------
 
   emit(event) {
+    // Every edit flows through here as a tool_update with a diff — the one reliable
+    // signal of where grok actually worked, whatever the session's nominal cwd is.
+    if (event?.kind === "tool_update" && event.diff?.path) this.noteEdit(event.diff.path);
     const id = ++this._nextEventId;
     const record = { id, event };
     this._events.push(record);

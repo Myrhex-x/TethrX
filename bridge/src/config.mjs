@@ -7,7 +7,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 
 const STATE_DIR = join(homedir(), ".grok-remote");
 const CONFIG_PATH = join(STATE_DIR, "config.json");
@@ -57,6 +57,11 @@ const DEFAULTS = {
   // beyond loopback). See scripts/gen-cert.sh.
   tlsCert: process.env.GROK_REMOTE_TLS_CERT || "",
   tlsKey: process.env.GROK_REMOTE_TLS_KEY || "",
+
+  // Keep the local `grok` binary current: the bridge checks `grok update --check`
+  // periodically and installs when nothing is running. Set GROK_REMOTE_GROK_AUTO_UPDATE=0
+  // (or "grokAutoUpdate": false in config.json) to only check and let the phone decide.
+  grokAutoUpdate: (process.env.GROK_REMOTE_GROK_AUTO_UPDATE ?? "1") !== "0",
 };
 
 function load() {
@@ -72,16 +77,25 @@ function load() {
     }
   }
 
-  // Mint a pairing token on first run and persist it (0600).
-  if (!stored.token) {
-    stored.token = randomBytes(24).toString("base64url");
-    writeFileSync(CONFIG_PATH, JSON.stringify(stored, null, 2), { mode: 0o600 });
+  // Mint a pairing token on first run and persist it (0600). The serverId is a
+  // stable identity for THIS bridge install: the app uses it to recognize "same
+  // computer, new IP" (Tailscale addresses change) and update its saved entry
+  // instead of accreting a dead duplicate per address.
+  if (!stored.token || !stored.serverId) {
+    stored.token = stored.token || randomBytes(24).toString("base64url");
+    stored.serverId = stored.serverId || randomBytes(9).toString("base64url");
+    // Atomically: a crash mid-write would corrupt the file, and a corrupt config
+    // re-mints the token — silently unpairing every phone.
+    const tmp = CONFIG_PATH + ".tmp";
+    writeFileSync(tmp, JSON.stringify(stored, null, 2), { mode: 0o600 });
+    renameSync(tmp, CONFIG_PATH);
   }
 
   return {
     stateDir: STATE_DIR,
     configPath: CONFIG_PATH,
     token: stored.token,
+    serverId: stored.serverId,
     grokBin: resolveGrokBin(),
     name: "TethrX",
     // Optional APNs push. Set via config.json { "apns": { "keyPath", "keyId", "teamId" } }
@@ -95,7 +109,7 @@ function load() {
 
 function pickOverrides(stored) {
   const out = {};
-  for (const k of ["host", "port", "defaultCwd", "defaultModel", "defaultPermissionMode", "transport"]) {
+  for (const k of ["host", "port", "defaultCwd", "defaultModel", "defaultPermissionMode", "transport", "grokAutoUpdate"]) {
     if (stored[k] !== undefined) out[k] = stored[k];
   }
   return out;
