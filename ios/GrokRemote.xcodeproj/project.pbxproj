@@ -10,6 +10,8 @@
 		01157F16C4621AAF133D1ACC /* TethrXWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6589C5324A6E475E382F477D /* TethrXWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		02A622E230CFE8C5AADFCFA7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 852618810ACCDC91D9A97489 /* Assets.xcassets */; };
 		ABCDEF0123456789ABCD0001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCD0002 /* Localizable.xcstrings */; };
+		ABCDEF0123456789ABCD0003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCD0004 /* PrivacyInfo.xcprivacy */; };
+		ABCDEF0123456789ABCE0082 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCE0083 /* PrivacyInfo.xcprivacy */; };
 		14BB01978075A3752C580A80 /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
 		4F9776BF65B0B102CF1FC7BF /* TethrXLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */; };
 		8303E04D875CC1FAECD4B00E /* TethrXActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */; };
@@ -62,6 +64,8 @@
 		6589C5324A6E475E382F477D /* TethrXWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TethrXWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		852618810ACCDC91D9A97489 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ABCDEF0123456789ABCD0002 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		ABCDEF0123456789ABCD0004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		ABCDEF0123456789ABCE0083 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8B1FFF5E6864506E0A46A810 /* TethrXLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXLiveActivity.swift; sourceTree = "<group>"; };
 		A7612BF79AD63463E3B5D6FC /* TethrXActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TethrXActivityAttributes.swift; sourceTree = "<group>"; };
 		DEADBEEF0000000000000006 /* GrokRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -130,6 +134,7 @@
 				583894DD06DF65740766468F /* TethrXWidgetBundle.swift */,
 				852618810ACCDC91D9A97489 /* Assets.xcassets */,
 				ABCDEF0123456789ABCD0002 /* Localizable.xcstrings */,
+				ABCDEF0123456789ABCD0004 /* PrivacyInfo.xcprivacy */,
 			);
 			path = TethrXWidget;
 			sourceTree = "<group>";
@@ -169,6 +174,7 @@
 			children = (
 				ABCDEF0123456789ABCE0001 /* ShareViewController.swift */,
 				ABCDEF0123456789ABCE0081 /* Localizable.xcstrings */,
+				ABCDEF0123456789ABCE0083 /* PrivacyInfo.xcprivacy */,
 			);
 			path = TethrXShare;
 			sourceTree = "<group>";
@@ -288,6 +294,7 @@
 			files = (
 				02A622E230CFE8C5AADFCFA7 /* Assets.xcassets in Resources */,
 				ABCDEF0123456789ABCD0001 /* Localizable.xcstrings in Resources */,
+				ABCDEF0123456789ABCD0003 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 		};
 		DEADBEEF0000000000000009 /* Resources */ = {
@@ -299,6 +306,7 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				ABCDEF0123456789ABCE0080 /* Localizable.xcstrings in Resources */,
+				ABCDEF0123456789ABCE0082 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -354,7 +362,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXWidget/TethrXWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -365,7 +373,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -383,7 +391,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXWidget/TethrXWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -394,7 +402,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -516,7 +524,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GrokRemote/GrokRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -527,7 +535,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -543,7 +551,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GrokRemote/GrokRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -554,7 +562,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -569,7 +577,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXShare/TethrXShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TethrXShare/Info.plist;
@@ -579,7 +587,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -596,7 +604,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXShare/TethrXShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 38;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = KKRU446268;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TethrXShare/Info.plist;
@@ -606,7 +614,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.TethrXShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

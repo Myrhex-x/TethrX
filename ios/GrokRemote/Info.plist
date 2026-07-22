@@ -42,7 +42,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Grok Remote connects to the bridge daemon running on your computer over your local network.</string>
+	<string>TethrX connects to the bridge daemon running on your computer over your local network.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_tethrx._tcp</string>

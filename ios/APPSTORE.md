@@ -93,10 +93,41 @@ setup wizard. Standard practice for companion apps:
 
 - ~~Demo mode~~ — built (build 32).
 - ~~Accessibility~~ — Dynamic Type now scales all fonts (capped at the first
-  accessibility size) and icon-only buttons carry VoiceOver labels (build 32).
-- ~~Localization~~ — French ships in build 32; the per-app language picker
-  appears automatically in iOS Settings → TethrX. A handful of dynamically
-  composed strings remain English.
-- Widget-target `PrivacyInfo.xcprivacy` (the widget reads UserDefaults via the
-  App Group): the app-level manifest covers review today, a per-target copy is
-  belt and braces.
+  accessibility size) and icon-only buttons carry VoiceOver labels (build 32);
+  full pass (44pt targets, toggle labels, contrast) in build 38.
+- ~~Localization~~ — 7 languages since build 34.
+- ~~Widget/share-target `PrivacyInfo.xcprivacy`~~ — added to BOTH extension
+  targets (build 39 tree); each bundle that touches app-group UserDefaults now
+  declares CA92.1 itself, so no ITMS-91053 warnings.
+
+## Fixed in the 1.0.0 (39) tree — resubmit nothing, just archive from here
+
+- English local-network permission string said "Grok Remote" (stale pre-rename
+  branding, and the worst possible place for it) — now "TethrX", matching the
+  other 7 languages.
+- Share-sheet action was titled "Send to Grok" (brand position on a SYSTEM
+  surface — 5.2 bait). The extension's display name is now "TethrX"; the sheet
+  inside keeps its factual wording.
+- Marketing version bumped 0.9.1 → 1.0.0, build counter to 39: the public
+  listing should not launch as a sub-1.0.
+
+## Open decisions the listing is blocked on (only you can make these)
+
+1. **Public URLs** — Support URL + Privacy Policy URL are REQUIRED fields, and
+   the drafted review notes link github.com/Myrhex-x/TethrX — which is PRIVATE
+   today, so every URL 404s for Apple. Either flip the repo public before
+   submitting (it was built for that: secret-guard .gitignore, token lives
+   outside the tree, bridge is already public on npm), or host PRIVACY.md +
+   a support page on a domain you own and rewrite the notes' repo link to the
+   npm package page. Don't submit with dead links — that alone is a metadata
+   rejection.
+2. **Keywords** — the draft includes `tailscale` (someone else's trademark used
+   purely for reach → 2.3.7 risk; drop it). `grok,grok build` is nominative
+   compatibility and defensible; keep, but know a strict reviewer may push back.
+   Subtitle "Remote for Grok Build" is compatibility-format, generally accepted.
+3. **Seller name** — individual account shows your personal name publicly;
+   organization conversion (D-U-N-S) takes days-to-weeks, so decide BEFORE
+   submitting, not after.
+4. **Screenshots + demo video** — iPhone 6.9" + iPad 13" sets, captured against
+   a demo project folder (never the home directory or real session names), plus
+   the 2.1 demo video of bridge start → QR pair → task → approval → git review.
