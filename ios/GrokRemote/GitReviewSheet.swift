@@ -5,6 +5,9 @@ import SwiftUI
 struct GitReviewSheet: View {
     let client: BridgeClient
     let session: SessionInfo
+    /// Demo sessions have an inert client — show a canned clean tree instead of
+    /// a connection error inside the demo.
+    var demo: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     @State private var status: GitStatus?
@@ -14,8 +17,13 @@ struct GitReviewSheet: View {
     @State private var working = false
     @State private var confirmDiscard = false
     @State private var note: String?
+    /// Which of the session's repos is under review (nil until the bridge answers —
+    /// it defaults to the session folder's repo, else the most recently edited one).
+    @State private var dir: String?
 
     private var files: [GitFile] { status?.files ?? [] }
+    private var candidates: [GitRepoCandidate] { status?.candidates ?? [] }
+    private var repoName: String { dir.map { ($0 as NSString).lastPathComponent } ?? "" }
 
     var body: some View {
         NavigationStack {
@@ -26,16 +34,23 @@ struct GitReviewSheet: View {
                             ProgressView().controlSize(.small).tint(.white)
                             Text("reading git…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                         }
+                        .accessibilityElement(children: .combine)
                     } else if status?.repo == false {
-                        Text("// this session's folder isn't a git repository")
-                            .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("// no repository to review yet")
+                                .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                            Text("Changes show up here once Grok edits files inside a git repository — this session hasn't yet.")
+                                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                        }
                     } else if files.isEmpty {
+                        repoPicker
                         VStack(alignment: .leading, spacing: 8) {
                             Text("No changes").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
                             Text("The working tree is clean\(status?.branch.map { " on \($0)" } ?? "").")
                                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
                         }
                     } else {
+                        repoPicker
                         header
                         fileList
                         commitBox
@@ -64,7 +79,7 @@ struct GitReviewSheet: View {
                 }
             }
             .navigationDestination(for: GitFile.self) { file in
-                GitDiffScreen(client: client, sessionId: session.id, file: file)
+                GitDiffScreen(client: client, sessionId: session.id, file: file, dir: dir)
             }
         }
         .preferredColorScheme(.dark)
@@ -73,18 +88,57 @@ struct GitReviewSheet: View {
             Button("Discard", role: .destructive) { Task { await discard() } }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Reverts every modified file and deletes untracked ones in \(session.cwd ?? "this folder"). This cannot be undone.")
+            Text("Reverts every modified file and deletes untracked ones in \(dir ?? session.cwd ?? "this folder"). This cannot be undone.")
+        }
+    }
+
+    /// Which repo is under review, switchable when the session touched several.
+    /// Sessions mostly live in ~ while grok edits a repo somewhere deeper — this
+    /// is what used to dead-end at "not a git repository".
+    @ViewBuilder private var repoPicker: some View {
+        if candidates.count > 1 {
+            Menu {
+                ForEach(candidates) { c in
+                    Button {
+                        guard c.root != dir else { return }
+                        dir = c.root
+                        Task { await load() }
+                    } label: {
+                        if c.root == dir { Label(c.name, systemImage: "checkmark") } else { Text(c.name) }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder").font(.system(size: 11))
+                    Text(repoName.isEmpty ? "repository" : repoName).font(Grok.mono(12, .semibold))
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundStyle(Grok.text)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
+            }
+            .accessibilityLabel(Text("Repository: \(repoName). \(candidates.count) available"))
+            .accessibilityHint(Text("Switches which repository's changes are shown"))
+        } else if !repoName.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "folder").font(.system(size: 11)).foregroundStyle(Grok.textDim)
+                Text(repoName).font(Grok.mono(12, .semibold)).foregroundStyle(Grok.textDim)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.triangle.branch").font(.system(size: 12)).foregroundStyle(Grok.textDim)
+                .accessibilityHidden(true)
             Text(status?.branch ?? "—").font(Grok.mono(12, .semibold)).foregroundStyle(Grok.text)
             Spacer()
             Text("\(files.count) file\(files.count == 1 ? "" : "s")")
                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Branch \(status?.branch ?? "unknown"), \(files.count) changed files"))
     }
 
     private var fileList: some View {
@@ -150,10 +204,20 @@ struct GitReviewSheet: View {
     }
 
     private func load() async {
+        if demo {
+            status = GitStatus(repo: true, branch: "main", files: [], dir: session.cwd, candidates: [])
+            dir = session.cwd
+            loading = false
+            return
+        }
         loading = true
         errorText = nil
         defer { loading = false }
-        do { status = try await client.gitStatus(sessionId: session.id) }
+        do {
+            let s = try await client.gitStatus(sessionId: session.id, dir: dir)
+            status = s
+            dir = s.dir ?? dir      // adopt the bridge's default repo on first load
+        }
         catch { errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription }
     }
 
@@ -161,7 +225,7 @@ struct GitReviewSheet: View {
         working = true; errorText = nil; note = nil
         defer { working = false }
         do {
-            let out = try await client.gitCommit(sessionId: session.id, message: commitMessage)
+            let out = try await client.gitCommit(sessionId: session.id, message: commitMessage, dir: dir)
             Haptics.success()
             commitMessage = ""
             note = out.isEmpty ? "Committed." : out
@@ -175,7 +239,7 @@ struct GitReviewSheet: View {
         working = true; errorText = nil; note = nil
         defer { working = false }
         do {
-            _ = try await client.gitDiscard(sessionId: session.id)
+            _ = try await client.gitDiscard(sessionId: session.id, dir: dir)
             Haptics.tap(.medium)
             note = "Changes discarded."
             await load()
@@ -190,17 +254,23 @@ struct GitDiffScreen: View {
     let client: BridgeClient
     let sessionId: String
     let file: GitFile
+    var dir: String? = nil
 
     @State private var text = ""
     @State private var loading = true
+    @State private var failed = false
 
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
             if loading {
                 ProgressView().controlSize(.small).tint(.white).padding(20)
+                    .accessibilityLabel(Text("Loading diff"))
+            } else if failed {
+                Text("// couldn't load the diff — check the connection and try again")
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).padding(16)
             } else if text.isEmpty {
                 Text("// no textual diff (binary file, or nothing to show)")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).padding(16)
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).padding(16)
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(text.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
@@ -222,7 +292,8 @@ struct GitDiffScreen: View {
         .grokBar()
         .task {
             defer { loading = false }
-            text = (try? await client.gitDiff(sessionId: sessionId, file: file.path)) ?? ""
+            do { text = try await client.gitDiff(sessionId: sessionId, file: file.path, dir: dir) }
+            catch { failed = true }   // a network error is not "no textual diff"
         }
     }
 

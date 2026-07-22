@@ -126,6 +126,9 @@ struct CircleIconButton: View {
     var filled = false
     var danger = false
     var enabled = true
+    /// Replaces the icon with a spinner (and disables) while an action runs, so a
+    /// tapped button visibly works instead of just going quiet.
+    var busy = false
     /// VoiceOver name — icon-only buttons are otherwise read as their symbol name.
     var a11y: String? = nil
     let action: () -> Void
@@ -136,14 +139,19 @@ struct CircleIconButton: View {
                 Circle()
                     .fill(filled ? AnyShapeStyle(Grok.accent) : AnyShapeStyle(Color.clear))
                     .overlay(Circle().stroke(enabled ? Grok.hairlineStrong : Grok.hairline, lineWidth: 1))
-                Image(systemName: system)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(filled ? .black : (danger ? Grok.danger : (enabled ? Grok.text : Grok.textFaint)))
+                if busy {
+                    ProgressView().controlSize(.small).tint(filled ? .black : .white)
+                } else {
+                    Image(systemName: system)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(filled ? .black : (danger ? Grok.danger : (enabled ? Grok.text : Grok.textFaint)))
+                }
             }
             .frame(width: 40, height: 40)
         }
-        .disabled(!enabled)
+        .disabled(!enabled || busy)
         .accessibilityLabel(Text(a11y ?? system))
+        .accessibilityValue(busy ? Text("busy") : Text(""))
     }
 }
 

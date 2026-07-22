@@ -57,9 +57,14 @@ struct ChatView: View {
             }
         }
         .onAppear { vm.start() }
-        .onDisappear { vm.stop() }
+        .onDisappear {
+            // Swiping back mid-dictation used to leave the mic hot (privacy dot on,
+            // other apps' audio ducked) until the object happened to deallocate.
+            if dictation.isRecording { dictation.stop() }
+            vm.stop()
+        }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
-        .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session) }
+        .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session, demo: vm.isDemo) }
         .sheet(isPresented: $showFiles) { FileBrowserSheet(client: vm.client, session: vm.session) }
         .onChange(of: pickedItems) { _, items in
             guard !items.isEmpty else { return }
@@ -72,6 +77,11 @@ struct ChatView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("To dictate messages, allow Microphone and Speech Recognition for TethrX in Settings.")
+        }
+        .alert("Dictation isn't available", isPresented: $dictation.unavailable) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Speech recognition is off or unsupported for this language. Check Siri & Dictation in Settings.")
         }
     }
 
@@ -95,8 +105,14 @@ struct ChatView: View {
     }
 
     private func stripButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button { Haptics.tap(); action() } label: { Text(title).chip(on: false) }
-            .buttonStyle(.plain)
+        // Transparent padding inside the button grows the tap area toward 44pt
+        // without changing how the chip looks.
+        Button { Haptics.tap(); action() } label: {
+            Text(title).chip(on: false)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var transcript: some View {
@@ -162,10 +178,11 @@ struct ChatView: View {
         } label: {
             Image(systemName: "arrow.down")
                 .font(.system(size: 15, weight: .bold)).foregroundStyle(Grok.text)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(Grok.raisedPressed, in: Circle())
                 .overlay(Circle().stroke(Grok.hairlineStrong, lineWidth: 1))
         }
+        .accessibilityLabel(Text("Scroll to latest"))
         .padding(.trailing, 16).padding(.bottom, 12)
     }
 
@@ -240,8 +257,11 @@ struct ChatView: View {
                 Spacer(minLength: 0)
                 Button { vm.errorMessage = nil } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Grok.textFaint)
+                        .foregroundStyle(Grok.textDim)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(Text("Dismiss error"))
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(Grok.danger.opacity(0.10))
@@ -263,7 +283,7 @@ struct ChatView: View {
                         Task { await vm.enqueue(text) }
                     }
                 }
-                CircleIconButton(system: "stop.fill", danger: true, a11y: "Stop the turn") { Task { await vm.cancel() } }
+                CircleIconButton(system: "stop.fill", danger: true, busy: vm.cancelling, a11y: "Stop the turn") { Task { await vm.cancel() } }
             }
         } else {
             let sendable = !isEmptyDraft || !attachments.isEmpty
@@ -292,8 +312,11 @@ struct ChatView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 16))
                                     .foregroundStyle(.white, .black.opacity(0.7))
+                                    .frame(width: 30, height: 30)
+                                    .contentShape(Rectangle())
                             }
-                            .offset(x: 6, y: -6)
+                            .offset(x: 8, y: -8)
+                            .accessibilityLabel(Text("Remove attachment"))
                         }
                     }
                 }
@@ -346,6 +369,8 @@ struct ChatView: View {
                                 .lineLimit(1)
                             Button { Task { await vm.removeQueued(msg) } } label: {
                                 Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                                    .frame(width: 26, height: 26)
+                                    .contentShape(Rectangle())
                             }
                             .accessibilityLabel("Remove queued follow-up")
                         }
@@ -577,6 +602,8 @@ struct TypingIndicator: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { animating = true }
+        .accessibilityElement()
+        .accessibilityLabel(Text("Grok is thinking"))
     }
 }
 
@@ -751,9 +778,12 @@ struct CodeBlock: View {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(copied ? Grok.accent : Grok.textDim)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(Text(copied ? "Copied" : "Copy code"))
             }
-            .padding(.horizontal, 10).padding(.vertical, 6)
+            .padding(.horizontal, 10).padding(.vertical, 2)
 
             Rectangle().fill(Grok.hairline).frame(height: 1)
 

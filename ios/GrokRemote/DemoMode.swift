@@ -105,6 +105,53 @@ enum DemoData {
         return items
     }
 
+    /// The flaky-test session: listed as RUNNING, so its transcript ends mid-work —
+    /// an empty screen under a "running" badge read as broken.
+    static var flakyTranscript: [ChatItem] {
+        var items: [ChatItem] = []
+        items.append(ChatItem(role: .user, text: "The auth test fails once every ~20 CI runs. Find out why and fix it."))
+        items.append(ChatItem(role: .thought, text: "Intermittent auth failures usually mean a time or ordering dependency. I'll re-run the test in isolation, then look for shared state."))
+
+        var run = ChatItem(role: .tool, text: "swift test --filter AuthTests")
+        run.toolCallId = "demo-f1"
+        run.toolStatus = "completed"
+        run.toolOutput = "Test Suite 'AuthTests' passed.\n17 tests, 0 failures (3.02s)"
+        items.append(run)
+
+        items.append(ChatItem(role: .assistant, text: "Passes in isolation — so it's interference from another test. Checking what else touches the token store…"))
+
+        var grep = ChatItem(role: .tool, text: "grep -r TokenStore Tests/")
+        grep.toolCallId = "demo-f2"
+        grep.toolStatus = "in_progress"
+        items.append(grep)
+        return items
+    }
+
+    /// The plan-mode session: one turn in, waiting on a plan review.
+    static var landingTranscript: [ChatItem] {
+        var items: [ChatItem] = []
+        items.append(ChatItem(role: .user, text: "Rework the landing page hero: bolder headline, one clear call to action."))
+        var plan = ChatItem(role: .plan, text: """
+        1. Replace the two stacked CTAs with a single primary button
+        2. Raise the headline to 56px, tighten line height
+        3. Move the screenshot below the fold on mobile
+        4. Re-run Lighthouse and compare
+        """)
+        plan.requestId = "demo-plan1"
+        items.append(plan)
+        return items
+    }
+
+    /// Transcript for a demo session id (nil = starts empty).
+    static func transcript(for id: String) -> [ChatItem]? {
+        switch id {
+        case "demo-settings-dark": return transcript
+        case "demo-flaky-test":    return flakyTranscript
+        case "demo-landing":       return landingTranscript
+        default:                   return nil
+        }
+    }
+
     /// What "grok" says when you send a message inside the demo.
     static let cannedReply = """
     This is the demo, so no real computer is connected — but this is exactly where Grok would \

@@ -297,6 +297,7 @@ struct FileViewerScreen: View {
                         Image(systemName: "doc.on.doc").font(.system(size: 13, weight: .medium))
                     }
                     .foregroundStyle(Grok.textDim)
+                    .accessibilityLabel(Text("Copy file contents"))
                 }
             }
         }

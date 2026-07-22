@@ -289,6 +289,15 @@ struct BridgeClient {
             for: try request("/api/sessions/\(sessionId)/cancel", method: "POST", json: [:]))
     }
 
+    /// Like `cancel`, but the caller learns whether the bridge actually heard it —
+    /// a Stop that silently failed left the turn running while the UI shrugged.
+    func cancelOrThrow(sessionId: String) async throws {
+        var req = try request("/api/sessions/\(sessionId)/cancel", method: "POST", json: [:])
+        req.timeoutInterval = 10
+        let (_, resp) = try await session.data(for: req)
+        try Self.check(resp)
+    }
+
     /// Answer a pending ACP permission request. Pass nil to cancel. A `reason` is
     /// queued as the next message, so denying can say why in one step.
     func resolvePermission(sessionId: String, requestId: String, optionId: String?,
@@ -323,21 +332,21 @@ struct BridgeClient {
 
     // MARK: Git review
 
-    func gitStatus(sessionId: String) async throws -> GitStatus {
-        let (data, resp) = try await session.data(for: try request("/api/sessions/\(sessionId)/git"))
+    /// `dir` picks among the repos the session touched (nil = the bridge's default:
+    /// the session folder when it's a repo, else the most recently edited repo).
+    func gitStatus(sessionId: String, dir: String? = nil) async throws -> GitStatus {
+        let req = try dir.map { try getQuery("/api/sessions/\(sessionId)/git", query: ["dir": $0]) }
+            ?? request("/api/sessions/\(sessionId)/git")
+        let (data, resp) = try await session.data(for: req)
         try Self.check(resp)
         return try JSONDecoder().decode(GitStatus.self, from: data)
     }
 
-    func gitDiff(sessionId: String, file: String) async throws -> String {
-        guard var comps = URLComponents(url: try url("/api/sessions/\(sessionId)/git"), resolvingAgainstBaseURL: false) else {
-            throw BridgeError.badURL
-        }
-        comps.queryItems = [URLQueryItem(name: "file", value: file)]
-        guard let u = comps.url else { throw BridgeError.badURL }
-        var req = URLRequest(url: u)
+    func gitDiff(sessionId: String, file: String, dir: String? = nil) async throws -> String {
+        var query = ["file": file]
+        if let dir { query["dir"] = dir }
+        var req = try getQuery("/api/sessions/\(sessionId)/git", query: query)
         req.timeoutInterval = 20
-        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
         let (data, resp) = try await session.data(for: req)
         try Self.check(resp)
         struct Wrapper: Codable { let diff: String }
@@ -345,10 +354,11 @@ struct BridgeClient {
     }
 
     @discardableResult
-    func gitCommit(sessionId: String, message: String) async throws -> String {
+    func gitCommit(sessionId: String, message: String, dir: String? = nil) async throws -> String {
+        var body: [String: Any] = ["action": "commit", "message": message]
+        if let dir { body["dir"] = dir }
         let (data, resp) = try await session.data(
-            for: try request("/api/sessions/\(sessionId)/git", method: "POST",
-                             json: ["action": "commit", "message": message]))
+            for: try request("/api/sessions/\(sessionId)/git", method: "POST", json: body))
         try Self.check(resp)
         struct Result: Codable { let ok: Bool; let output: String?; let error: String? }
         let r = try JSONDecoder().decode(Result.self, from: data)
@@ -357,13 +367,54 @@ struct BridgeClient {
     }
 
     @discardableResult
-    func gitDiscard(sessionId: String) async throws -> String {
+    func gitDiscard(sessionId: String, dir: String? = nil) async throws -> String {
+        var body: [String: Any] = ["action": "discard"]
+        if let dir { body["dir"] = dir }
         let (data, resp) = try await session.data(
-            for: try request("/api/sessions/\(sessionId)/git", method: "POST", json: ["action": "discard"]))
+            for: try request("/api/sessions/\(sessionId)/git", method: "POST", json: body))
         try Self.check(resp)
         struct Result: Codable { let ok: Bool; let output: String?; let error: String? }
         let r = try JSONDecoder().decode(Result.self, from: data)
         return r.output ?? ""
+    }
+
+    /// Grok's slash commands for this session — the "/" palette.
+    func commands(sessionId: String) async throws -> [SlashCommand] {
+        let (data, resp) = try await session.data(for: try request("/api/sessions/\(sessionId)/commands"))
+        try Self.check(resp)
+        struct Wrapper: Codable { let commands: [SlashCommand] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).commands
+    }
+
+    /// Saved grok workflows visible to this session (user scope + its project).
+    func workflows(sessionId: String?) async throws -> [WorkflowInfo] {
+        let req = try sessionId.map { try getQuery("/api/workflows", query: ["sessionId": $0]) }
+            ?? request("/api/workflows")
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Wrapper: Codable { let workflows: [WorkflowInfo] }
+        return try JSONDecoder().decode(Wrapper.self, from: data).workflows
+    }
+
+    /// Grok binary version state on the computer (current vs latest).
+    func grokUpdateStatus() async throws -> GrokUpdateStatus {
+        var req = try request("/api/grok/update")
+        req.timeoutInterval = 30       // may run `grok update --check` on the spot
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        return try JSONDecoder().decode(GrokUpdateStatus.self, from: data)
+    }
+
+    /// Ask the bridge to install the latest grok now. Throws .busy (409) while a
+    /// session is running. Slow: downloads + swaps the binary.
+    func grokUpdateInstall() async throws -> String {
+        var req = try request("/api/grok/update", method: "POST")
+        req.timeoutInterval = 320
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        struct Result: Codable { let ok: Bool; let upToDate: Bool?; let version: String?; let output: String? }
+        let r = try JSONDecoder().decode(Result.self, from: data)
+        return r.version ?? ""
     }
 
     /// Live event stream for a session. Each yielded value is one normalized
@@ -380,6 +431,9 @@ struct BridgeClient {
 
                     let (bytes, resp) = try await session.bytes(for: req)
                     try Self.check(resp)
+                    // Tell the fold loop the stream is genuinely open — the UI's
+                    // "connected" state keys off delivery, not off dialing.
+                    continuation.yield(["kind": "_open"])
 
                     // SSE frames are line-delimited: an `id:` line then a `data:` line.
                     // The id has to be surfaced, otherwise a reconnect can't tell the

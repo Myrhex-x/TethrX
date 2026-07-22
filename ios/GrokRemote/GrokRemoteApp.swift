@@ -86,7 +86,9 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Grok.bg.ignoresSafeArea()
-            if app.connected || app.demoMode {
+            // `switching` keeps the normal UI mounted while changing computers —
+            // tearing it down mid-probe flashed the first-run wizard for seconds.
+            if app.connected || app.demoMode || app.switching {
                 // iPad (and big landscape phones) get a real sidebar + chat split;
                 // iPhone keeps the stack.
                 if hSize == .regular {
@@ -158,6 +160,11 @@ struct SplitRootView: View {
 
 /// Shown briefly on launch while we reconnect from saved credentials.
 struct ReconnectSplash: View {
+    @EnvironmentObject var app: AppState
+    /// After a few seconds the wait needs an exit — a fallback probe can take ~20s,
+    /// and a spinner with no way out reads as a hang.
+    @State private var takingLong = false
+
     var body: some View {
         VStack(spacing: 18) {
             TethrXMark(size: 40)
@@ -167,6 +174,25 @@ struct ReconnectSplash: View {
                 ProgressView().controlSize(.small).tint(.white)
                 Text("Reconnecting…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
             }
+            .accessibilityElement(children: .combine)
+            if takingLong {
+                VStack(spacing: 10) {
+                    Text("Still trying to reach your computer.")
+                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                    Button {
+                        app.disconnect()          // stop waiting; land on pairing with saved details intact
+                        app.bootstrapping = false
+                    } label: {
+                        Text("Stop and set up manually").font(Grok.mono(12))
+                    }
+                    .buttonStyle(PillButton(kind: .subtle))
+                }
+                .transition(.opacity)
+            }
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            withAnimation(.easeInOut(duration: 0.25)) { takingLong = true }
         }
     }
 }

@@ -21,6 +21,7 @@ struct SessionListView: View {
     @State private var showSettings = false
     @State private var creatingFolder = false
     @State private var newFolderName = ""
+    @State private var deletingSession: SessionInfo?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -28,6 +29,7 @@ struct SessionListView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     if app.demoMode { demoBanner }
+                    if let err = app.errorMessage, !app.demoMode { errorBanner(err) }
                     if app.bridgeNeedsUpdate { updateBanner }
                     workingDir
                     runningNow
@@ -63,6 +65,21 @@ struct SessionListView: View {
             } message: {
                 Text("Then use the ••• button on any session to move it in.")
             }
+            // One tap in a small menu permanently deletes the conversation on the
+            // computer — that deserves the same confirmation Forget and Discard get.
+            .confirmationDialog(
+                Text("Delete \u{201C}\(deletingSession?.displayName ?? "")\u{201D}?"),
+                isPresented: Binding(get: { deletingSession != nil }, set: { if !$0 { deletingSession = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete session", role: .destructive) {
+                    if let s = deletingSession { Task { await app.deleteSession(s.id) } }
+                    deletingSession = nil
+                }
+                Button("Cancel", role: .cancel) { deletingSession = nil }
+            } message: {
+                Text("Removes its conversation from the computer too. This cannot be undone.")
+            }
             .sheet(isPresented: $showSettings) {
                 SettingsView().environmentObject(app).environmentObject(lock).environmentObject(snippets)
             }
@@ -80,7 +97,13 @@ struct SessionListView: View {
                 }
             }
         }
-        .task { await app.reloadSessions(); openPending() }
+        .task {
+            #if DEBUG
+            // Headless screenshots: `-openSettings` jumps straight to the sheet.
+            if ProcessInfo.processInfo.arguments.contains("-openSettings") { showSettings = true }
+            #endif
+            await app.reloadSessions(); openPending()
+        }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
         // The whole array, not just its count: switching to another computer can
         // land on the same number of sessions, which would swallow the deep-open.
@@ -124,11 +147,36 @@ struct SessionListView: View {
             }
             Spacer()
             CircleIconButton(system: "gearshape", a11y: "Settings") { showSettings = true }
-            CircleIconButton(system: "plus", filled: true, enabled: !creating, a11y: "New session") {
+            CircleIconButton(system: "plus", filled: true, busy: creating, a11y: "New session") {
                 Task { await startNew() }
             }
         }
         .padding(.bottom, 4)
+    }
+
+    // MARK: Error banner
+
+    /// Failures used to be written to `app.errorMessage` and rendered nowhere once
+    /// connected — a failed delete/rename/switch just silently did nothing.
+    private func errorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                .accessibilityHidden(true)
+            Text(message).font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(2)
+            Spacer(minLength: 0)
+            Button { app.errorMessage = nil } label: {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Grok.textDim)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Dismiss error"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.danger.opacity(0.35), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: Demo banner
@@ -208,7 +256,10 @@ struct SessionListView: View {
                     Haptics.tap()
                 } label: {
                     Image(systemName: "doc.on.doc").font(.system(size: 11, weight: .medium)).foregroundStyle(Grok.textDim)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(Text("Copy command"))
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
             .background(Grok.bg)
@@ -239,10 +290,16 @@ struct SessionListView: View {
                         .autocorrectionDisabled()
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // Browse instead of typing a Unix path on a phone keyboard.
-                    Button { Haptics.tap(); pickingCwd = true } label: {
-                        Image(systemName: "folder").font(.system(size: 14, weight: .medium))
+                    // Hidden in demo: it browses the real computer (like Files/Changes).
+                    if !app.demoMode {
+                        Button { Haptics.tap(); pickingCwd = true } label: {
+                            Image(systemName: "folder").font(.system(size: 14, weight: .medium))
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .foregroundStyle(Grok.textDim)
+                        .accessibilityLabel(Text("Browse folders"))
                     }
-                    .foregroundStyle(Grok.textDim)
                 }
             }
             Text("New sessions run Grok in this folder. Plan mode, effort, and approvals are set inside each session.")
@@ -269,11 +326,21 @@ struct SessionListView: View {
             }
             .padding(.bottom, 12)
 
-            if app.sessions.count > 6 { searchField.padding(.bottom, 14) }
+            // `|| !query.isEmpty`: the field must not vanish (at ≤6 sessions) while
+            // its query still filters the list — that stranded an unclearable filter.
+            if app.sessions.count > 6 || !query.isEmpty { searchField.padding(.bottom, 14) }
 
-            if app.sessions.isEmpty {
+            if app.switching || (app.connecting && app.sessions.isEmpty) {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small).tint(.white)
+                    Text("loading sessions…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 24)
+                .accessibilityElement(children: .combine)
+            } else if app.sessions.isEmpty {
                 Text("// no sessions yet — tap + to start")
-                    .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
             } else if filteredSessions.isEmpty {
@@ -379,8 +446,11 @@ struct SessionListView: View {
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             if !query.isEmpty {
                 Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textDim)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(Text("Clear search"))
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -408,6 +478,8 @@ struct SessionListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("\(name), \(count) sessions"))
+            .accessibilityHint(Text(collapsed.contains(key) ? "Expands the folder" : "Collapses the folder"))
 
             // Visible, like the row menus — reordering shouldn't be a hidden gesture.
             if !key.isEmpty {
@@ -421,9 +493,10 @@ struct SessionListView: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Grok.textFaint)
-                        .frame(width: 32, height: 34)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
+                .accessibilityLabel(Text("Folder options for \(name)"))
             }
         }
         .padding(.vertical, 10)
@@ -445,9 +518,10 @@ struct SessionListView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Grok.textDim)
-                    .frame(width: 36, height: 48)
+                    .frame(width: 44, height: 48)
                     .contentShape(Rectangle())
             }
+            .accessibilityLabel(Text("Session options for \(session.displayName)"))
         }
         .contextMenu { menuItems(session) }
     }
@@ -462,7 +536,7 @@ struct SessionListView: View {
                 Label("Branch", systemImage: "arrow.triangle.branch")
             }
         }
-        Button(role: .destructive) { Task { await app.deleteSession(session.id) } } label: { Label("Delete", systemImage: "trash") }
+        Button(role: .destructive) { deletingSession = session } label: { Label("Delete", systemImage: "trash") }
     }
 
     private func branch(_ session: SessionInfo) async {

@@ -14,6 +14,12 @@ struct SettingsView: View {
     @State private var loadingUsage = false
     @State private var showingUsageHistory = false
     @State private var newSnippet = ""
+    @State private var computerReachability: [String: Bool] = [:]
+    @State private var probingComputers = false
+    @State private var forgetting: SavedBridge?
+    @State private var grokUpdate: GrokUpdateStatus?
+    @State private var grokUpdating = false
+    @State private var grokUpdateNote: String?
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -74,7 +80,7 @@ struct SettingsView: View {
             row("Computer", DemoData.health.host ?? "demo")
             row("Mode", String(localized: "Demo — nothing is connected"))
             Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Button { dismiss(); app.exitDemo() } label: {
                 Text("Exit demo").frame(maxWidth: .infinity)
             }
@@ -108,7 +114,10 @@ struct SettingsView: View {
                     .font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
                 Button { revealToken.toggle() } label: {
                     Image(systemName: revealToken ? "eye.slash" : "eye").font(.caption)
-                }.foregroundStyle(Grok.textDim)
+                        .frame(width: 40, height: 40).contentShape(Rectangle())
+                }
+                .foregroundStyle(Grok.textDim)
+                .accessibilityLabel(Text(revealToken ? "Hide token" : "Reveal token"))
             }
             if app.client != nil {
                 Button { showingLog = true } label: {
@@ -133,7 +142,10 @@ struct SettingsView: View {
                 Spacer()
                 Button { Task { await loadUsage() } } label: {
                     Image(systemName: "arrow.clockwise").font(.caption)
-                }.foregroundStyle(Grok.textDim)
+                        .frame(width: 40, height: 40).contentShape(Rectangle())
+                }
+                .foregroundStyle(Grok.textDim)
+                .accessibilityLabel(Text("Refresh usage"))
             }
 
             if let r = report {
@@ -147,9 +159,18 @@ struct SettingsView: View {
                 row("Sessions", "\(r.sessionCount)")
                 row("Est. cost", Fmt.cost(r.costUSD))
             } else if loadingUsage {
-                Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.mini).tint(.white)
+                    Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                }
+                .accessibilityElement(children: .combine)
+            } else if app.connected {
+                // Connected but the call failed — saying "connect to the bridge"
+                // here sent people debugging a connection that was fine.
+                Text("Couldn't load usage — tap refresh to retry.")
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
             } else {
-                Text("Connect to the bridge to see usage.").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                Text("Connect to the bridge to see usage.").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
             }
 
             if app.client != nil {
@@ -197,43 +218,125 @@ struct SettingsView: View {
 
     private var computers: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("COMPUTERS")
+            HStack(spacing: 8) {
+                Eyebrow("COMPUTERS")
+                if probingComputers {
+                    ProgressView().controlSize(.mini).tint(Grok.textFaint)
+                        .accessibilityLabel(Text("Checking which computers answer"))
+                }
+                Spacer()
+            }
             if app.savedBridges.isEmpty {
                 Text("Computers you pair show up here.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textDim)
             } else {
                 ForEach(app.savedBridges) { bridge in
-                    Button {
-                        Haptics.tap()
-                        Task { await app.switchTo(bridge) }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: bridge.id == app.activeBridgeId ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 14))
-                                .foregroundStyle(bridge.id == app.activeBridgeId ? Grok.accent : Grok.textFaint)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
-                                Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-                                    .lineLimit(1).truncationMode(.middle)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        Button(role: .destructive) { app.forget(bridge) } label: {
-                            Label("Forget", systemImage: "trash")
-                        }
-                    }
+                    computerRow(bridge)
                 }
-                Text("Tap to switch computers. Long-press to forget one.")
+                Text("Tap to switch computers.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
             }
             Button { Haptics.tap(); addingComputer = true } label: {
                 Label("Add another computer", systemImage: "plus.circle")
             }
             .buttonStyle(PillButton(kind: .subtle))
+        }
+        .task(id: app.savedBridges.map(\.id)) { await probeComputers() }
+        .confirmationDialog(
+            Text("Forget \(forgetting?.name ?? "")?"),
+            isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Forget this computer", role: .destructive) {
+                if let b = forgetting { app.forget(b) }
+                forgetting = nil
+            }
+            Button("Cancel", role: .cancel) { forgetting = nil }
+        } message: {
+            Text("Removes it from this phone and drops its pairing token. Pair again anytime from the computer's QR code.")
+        }
+    }
+
+    private func computerRow(_ bridge: SavedBridge) -> some View {
+        let isActive = bridge.id == app.activeBridgeId
+        let reachable = computerReachability[bridge.id]
+        return HStack(spacing: 10) {
+            Button {
+                Haptics.tap()
+                Task { await app.switchTo(bridge) }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isActive ? Grok.accent : Grok.textFaint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                        HStack(spacing: 5) {
+                            if let reachable {
+                                Circle().fill(reachable ? Color.green.opacity(0.85) : Grok.textFaint)
+                                    .frame(width: 5, height: 5)
+                                    .accessibilityHidden(true)
+                            }
+                            Text(statusLine(bridge, reachable: reachable))
+                                .font(Grok.mono(10))
+                                .foregroundStyle(reachable == false ? Grok.textDim : Grok.textFaint)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(rowA11y(bridge, isActive: isActive, reachable: reachable)))
+            .accessibilityHint(Text("Switches to this computer"))
+
+            Button { forgetting = bridge } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Grok.textDim)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Forget \(bridge.name)?"))   // same key as the dialog title
+        }
+        .contextMenu {
+            Button(role: .destructive) { forgetting = bridge } label: {
+                Label("Forget", systemImage: "trash")
+            }
+        }
+    }
+
+    private func statusLine(_ bridge: SavedBridge, reachable: Bool?) -> String {
+        guard let reachable else { return bridge.address }
+        return reachable ? bridge.address : String(localized: "not answering · \(bridge.address)")
+    }
+
+    /// VoiceOver name for a computer row, from localized pieces.
+    private func rowA11y(_ bridge: SavedBridge, isActive: Bool, reachable: Bool?) -> String {
+        var parts = [bridge.name]
+        if isActive { parts.append(String(localized: "active")) }
+        if reachable == true { parts.append(String(localized: "online")) }
+        if reachable == false { parts.append(String(localized: "not answering")) }
+        return parts.joined(separator: ", ")
+    }
+
+    /// Ping every saved computer (4s cap each, in parallel) so dead entries are
+    /// visibly dead instead of failing only after you tap them.
+    private func probeComputers() async {
+        guard !app.savedBridges.isEmpty, !app.demoMode else { return }
+        probingComputers = true
+        defer { probingComputers = false }
+        await withTaskGroup(of: (String, Bool).self) { group in
+            for bridge in app.savedBridges {
+                group.addTask { @MainActor in
+                    guard let client = app.client(for: bridge) else { return (bridge.id, false) }
+                    let ok = (try? await client.health(timeout: 4)) != nil
+                    return (bridge.id, ok)
+                }
+            }
+            for await (id, ok) in group { computerReachability[id] = ok }
         }
     }
 
@@ -259,7 +362,10 @@ struct SettingsView: View {
                     Spacer(minLength: 8)
                     Button { snippets.remove(at: IndexSet(integer: i)) } label: {
                         Image(systemName: "minus.circle").font(.caption)
-                    }.foregroundStyle(Grok.textDim)
+                            .frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .foregroundStyle(Grok.textDim)
+                    .accessibilityLabel(Text("Remove snippet"))
                 }
                 .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(Grok.raised)
@@ -273,9 +379,11 @@ struct SettingsView: View {
                 }
                 Button { snippets.add(newSnippet); newSnippet = "" } label: {
                     Image(systemName: "plus").font(.system(size: 14, weight: .bold))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty ? Grok.textFaint : Grok.text)
                 .disabled(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityLabel(Text("Add snippet"))
             }
         }
     }
@@ -285,6 +393,7 @@ struct SettingsView: View {
             Eyebrow("ABOUT")
             row("App", "TethrX \(appVersion)")
             row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "—")
+            grokUpdateRows
             if let v = app.health?.version, !v.isEmpty {
                 row("Bridge", "v\(v)" + (bridgeOutdated ? " · update available" : ""))
             }
@@ -294,6 +403,62 @@ struct SettingsView: View {
             }
             Text("A client for Grok Build · independent, not affiliated with xAI.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+        }
+        .task(id: app.connected) { await loadGrokUpdate() }
+    }
+
+    /// Grok's own updates, managed from the phone. The bridge keeps grok current on
+    /// its own (unless disabled on the computer); this shows state + a manual path.
+    @ViewBuilder private var grokUpdateRows: some View {
+        if let u = grokUpdate, u.updateAvailable, let latest = u.latest {
+            HStack(spacing: 10) {
+                Text("Grok \(latest) is out").font(Grok.mono(11)).foregroundStyle(Grok.text)
+                Spacer()
+                Button {
+                    Task { await installGrokUpdate() }
+                } label: {
+                    HStack(spacing: 6) {
+                        if grokUpdating { ProgressView().controlSize(.mini).tint(.black) }
+                        Text(grokUpdating ? "Updating…" : "Update now").font(Grok.mono(11, .semibold))
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.white))
+                    .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+                .disabled(grokUpdating)
+                .accessibilityLabel(Text("Update Grok to \(latest)"))
+            }
+            if u.autoUpdate == true {
+                Text("The bridge also installs this on its own once no session is running.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            }
+        }
+        if let note = grokUpdateNote {
+            Text(note).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+        }
+    }
+
+    private func loadGrokUpdate() async {
+        guard let client = app.client, app.connected else { grokUpdate = nil; return }
+        grokUpdate = try? await client.grokUpdateStatus()
+    }
+
+    private func installGrokUpdate() async {
+        guard let client = app.client else { return }
+        grokUpdating = true
+        grokUpdateNote = nil
+        defer { grokUpdating = false }
+        do {
+            let version = try await client.grokUpdateInstall()
+            Haptics.success()
+            grokUpdateNote = version.isEmpty
+                ? String(localized: "Updated.")
+                : String(localized: "Updated — now \(version).")
+            grokUpdate = try? await client.grokUpdateStatus()
+        } catch {
+            grokUpdateNote = (error as? BridgeError)?.errorDescription
+                ?? String(localized: "Update didn't finish — try again when no session is running.")
         }
     }
 
@@ -323,8 +488,11 @@ struct SettingsView: View {
                 Text(subtitle).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
             }
             Spacer()
-            Toggle("", isOn: binding).labelsHidden().tint(.white)
+            // The title inside the Toggle (visually hidden) is what names the switch
+            // for VoiceOver — a bare `Toggle("")` announces just "switch".
+            Toggle(title, isOn: binding).labelsHidden().tint(.white)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func loadUsage() async {

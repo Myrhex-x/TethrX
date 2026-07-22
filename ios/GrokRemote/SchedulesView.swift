@@ -8,6 +8,7 @@ struct SchedulesSection: View {
     @State private var schedules: [BridgeSchedule]?
     @State private var adding = false
     @State private var errorText: String?
+    @State private var loadFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -17,7 +18,17 @@ struct SchedulesSection: View {
                 ForEach(schedules) { s in row(s) }
             } else if schedules != nil {
                 Text("Run a prompt automatically — every morning, weekdays, whenever.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+            } else if loadFailed {
+                // "nil forever" looked like schedules had been deleted; say what happened.
+                Text("Couldn't load schedules — the bridge may need an update.")
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+            } else if app.client != nil {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.mini).tint(.white)
+                    Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                }
+                .accessibilityElement(children: .combine)
             }
             if let errorText {
                 Text(errorText).font(Grok.mono(11)).foregroundStyle(Grok.danger)
@@ -50,7 +61,7 @@ struct SchedulesSection: View {
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: Binding(
+            Toggle(s.prompt, isOn: Binding(
                 get: { s.enabled },
                 set: { on in Task { await setEnabled(s, on) } }
             )).labelsHidden().tint(.white)
@@ -58,7 +69,10 @@ struct SchedulesSection: View {
                 Task { await remove(s) }
             } label: {
                 Image(systemName: "minus.circle").font(.caption)
-            }.foregroundStyle(Grok.textDim).padding(.top, 7)
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .foregroundStyle(Grok.textDim)
+            .accessibilityLabel(Text("Remove schedule"))
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .background(Grok.raised)
@@ -68,7 +82,12 @@ struct SchedulesSection: View {
 
     private func load() async {
         guard let client = app.client else { return }
-        schedules = (try? await client.listSchedules()) ?? schedules
+        do {
+            schedules = try await client.listSchedules()
+            loadFailed = false
+        } catch {
+            loadFailed = schedules == nil    // keep showing a stale list over an error
+        }
     }
 
     private func setEnabled(_ s: BridgeSchedule, _ on: Bool) async {

@@ -361,12 +361,15 @@ struct PairingView: View {
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
         let tlsPort = c.queryItems?.first(where: { $0.name == "tls" })?.value ?? ""
-        if !fp.isEmpty, !tlsPort.isEmpty, let host = addr.split(separator: ":").first {
+        // URLComponents, not split(":") — an addr carrying a scheme would yield
+        // host "http" and build "https://http:8443".
+        let plainURL = addr.contains("://") ? addr : "http://\(addr)"
+        if !fp.isEmpty, !tlsPort.isEmpty, let host = URLComponents(string: plainURL)?.host {
             app.baseURLString = "https://\(host):\(tlsPort)"
             app.pin = fp
             // The QR's plain address is the way back if that TLS port ever stops
             // answering — without it a dead pin means re-running this whole wizard.
-            app.plainBase = addr.contains("://") ? addr : "http://\(addr)"
+            app.plainBase = plainURL
         } else {
             app.baseURLString = addr
             app.pin = ""
@@ -398,7 +401,10 @@ private struct CopyableCode: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(copied ? Grok.accent : Grok.textDim)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel(Text(copied ? "Copied" : "Copy"))
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .background(Grok.bg)

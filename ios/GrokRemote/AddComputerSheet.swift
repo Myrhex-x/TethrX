@@ -141,7 +141,10 @@ struct AddComputerSheet: View {
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
         let tlsPort = c.queryItems?.first(where: { $0.name == "tls" })?.value ?? ""
-        if !fp.isEmpty, !tlsPort.isEmpty, let host = addr.split(separator: ":").first {
+        // URLComponents, not split(":") — an addr carrying a scheme would yield
+        // host "http" and build "https://http:8443".
+        let plainURL = addr.contains("://") ? addr : "http://\(addr)"
+        if !fp.isEmpty, !tlsPort.isEmpty, let host = URLComponents(string: plainURL)?.host {
             address = "https://\(host):\(tlsPort)"
             scannedPin = fp
         } else {

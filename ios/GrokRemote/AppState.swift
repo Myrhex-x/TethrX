@@ -8,7 +8,7 @@ final class AppState: ObservableObject {
     /// The bridge version this app's features are built against. A connected
     /// bridge older than this gets a visible "update your bridge" banner —
     /// otherwise the new buttons would just 404 with no explanation.
-    static let wantedBridgeVersion = "0.1.16"
+    static let wantedBridgeVersion = "0.1.17"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
@@ -44,6 +44,10 @@ final class AppState: ObservableObject {
     @Published var connected = false
     @Published var connecting = false
     @Published var bootstrapping = false   // first-launch auto-reconnect in progress
+    /// True while switching between paired computers. RootView keeps the normal UI
+    /// mounted during it — without this, `connected = false` mid-switch unmounted
+    /// everything and flashed the first-run pairing wizard for seconds.
+    @Published var switching = false
     @Published var errorMessage: String?
 
     /// Set by a debug launch argument to auto-open a session (UI testing only).
@@ -74,6 +78,10 @@ final class AppState: ObservableObject {
            let list = try? JSONDecoder().decode([SavedBridge].self, from: data) {
             savedBridges = list
         }
+        // When a launch auto-reconnect is coming, say so from the very first frame.
+        // Defaulting to false flashed the pairing wizard for a beat before
+        // bootstrap() flipped it — which read as "the app forgot my computer".
+        bootstrapping = !baseURLString.isEmpty && !token.isEmpty && !userDisconnected
         // Existing pairings predate the share extension, so republish on every launch
         // rather than only when the list changes.
         publishToSharedGroup()
@@ -109,43 +117,103 @@ final class AppState: ObservableObject {
 
     /// After a successful connect, remember this computer (and its token) so it can
     /// be switched back to later. Named from the bridge's reported hostname.
+    ///
+    /// Matching is by the bridge's own stable serverId first: Tailscale and DHCP
+    /// addresses CHANGE, and matching by address alone accreted one dead "computer"
+    /// per old IP — same machine, listed twice, one of them unable to connect.
     private func rememberCurrentBridge() {
         let addr = normalizedBase
         guard !addr.isEmpty, !token.isEmpty else { return }
+        let serverId = health?.serverId
         let name = (health?.host?.isEmpty == false) ? health!.host! : (URL(string: addr)?.host ?? addr)
-        // The same computer may be known by its old http:// address — match on host
-        // so the pinned-https upgrade REPLACES the entry instead of duplicating it.
         let host = URL(string: addr)?.host
-        if let i = savedBridges.firstIndex(where: { $0.address == addr || (host != nil && URL(string: $0.address)?.host == host) }) {
+        let index = savedBridges.firstIndex { b in
+            if let serverId, b.serverId == serverId { return true }               // same install, any address
+            if b.address == addr { return true }
+            if let host, URL(string: b.address)?.host == host { return true }     // http→https upgrade
+            return false
+        }
+        if let i = index {
             savedBridges[i].name = name
             savedBridges[i].address = addr
             savedBridges[i].pin = pin.isEmpty ? nil : pin
+            savedBridges[i].plainBase = plainBase.isEmpty ? nil : plainBase
+            if let serverId { savedBridges[i].serverId = serverId }
             activeBridgeId = savedBridges[i].id
             Keychain.save(token, account: savedBridges[i].tokenAccount)
         } else {
-            let bridge = SavedBridge(id: UUID().uuidString, name: name, address: addr, pin: pin.isEmpty ? nil : pin)
+            let bridge = SavedBridge(id: UUID().uuidString, name: name, address: addr,
+                                     pin: pin.isEmpty ? nil : pin, serverId: serverId,
+                                     plainBase: plainBase.isEmpty ? nil : plainBase)
             savedBridges.append(bridge)
             activeBridgeId = bridge.id
             Keychain.save(token, account: bridge.tokenAccount)
         }
+        sweepDuplicateBridges()
         persistBridges()
     }
 
-    /// Switch the app to a different paired computer and connect to it.
+    /// Collapse older entries that are really the just-connected computer: same
+    /// serverId, or (for entries saved before serverIds existed) the same reported
+    /// hostname AND address host. Their dead addresses are exactly the "previous
+    /// computers that can't connect" the list kept showing after an IP change.
+    /// Hostname alone is NOT enough — Apple's default names collide ("MacBook-Pro"),
+    /// and sweeping on a name match could delete a different physical machine's
+    /// pairing.
+    private func sweepDuplicateBridges() {
+        guard let activeId = activeBridgeId,
+              let current = savedBridges.first(where: { $0.id == activeId }) else { return }
+        let currentHost = URL(string: current.address)?.host
+        let goners = savedBridges.filter { b in
+            guard b.id != current.id else { return false }
+            if let sid = current.serverId, b.serverId == sid { return true }
+            return b.serverId == nil && b.name == current.name
+                && currentHost != nil && URL(string: b.address)?.host == currentHost
+        }
+        for b in goners { Keychain.delete(account: b.tokenAccount) }
+        if !goners.isEmpty {
+            let ids = Set(goners.map(\.id))
+            savedBridges.removeAll { ids.contains($0.id) }
+        }
+    }
+
+    /// Switch the app to a different paired computer and connect to it. If that
+    /// computer doesn't answer, the previous connection is put back — tapping a
+    /// dead entry must not cost you the live one you were on.
     func switchTo(_ bridge: SavedBridge) async {
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
             errorMessage = String(localized: "No saved token for \(bridge.name) — pair that computer again.")
             return
         }
+        let prev = (base: baseURLString, pin: pin, plain: plainBase, token: token,
+                    activeId: activeBridgeId, wasConnected: connected)
+        switching = true
+        defer { switching = false }
         connected = false
         health = nil
         sessions = []
         baseURLString = bridge.address
         pin = bridge.pin ?? ""
+        plainBase = bridge.plainBase ?? ""   // each computer keeps its own fallback address
         token = saved                  // didSet also refreshes the active Keychain slot
         activeBridgeId = bridge.id
         persistBridges()
         await connect()
+        if !connected && prev.wasConnected && prev.activeId != bridge.id {
+            let failure = errorMessage
+            baseURLString = prev.base
+            pin = prev.pin
+            plainBase = prev.plain
+            token = prev.token
+            activeBridgeId = prev.activeId
+            persistBridges()
+            await connect()
+            // Say "staying on the current computer" only when that's true — if the
+            // rollback also failed, its own error is the honest one to keep.
+            if connected {
+                errorMessage = failure.map { String(localized: "\(bridge.name) didn't answer — staying on the current computer. (\($0))") }
+            }
+        }
     }
 
     /// Forget a paired computer and drop its stored token.
@@ -226,15 +294,21 @@ final class AppState: ObservableObject {
         // Short probe: a live bridge replies instantly, and failing fast is what lets
         // the pinned-HTTPS fallback below happen while the user is still watching.
         let h = try await c.health(timeout: 8)
+        // The user can flip into the demo (or Forget the computer) while this was
+        // awaiting — `client` is nil then, and finishing the connect would fight it.
+        guard !demoMode else { throw CancellationError() }
         health = h
         await upgradeToPinnedTLS(from: h)                                   // http → pinned https when offered
-        sessions = try await self.client!.listSessions()
+        // Re-resolve after the possible upgrade; never force-unwrap a computed
+        // property that goes nil the moment credentials are cleared mid-flight.
+        guard let live = client else { throw CancellationError() }
+        sessions = try await live.listSessions()
         connected = true
         rememberCurrentBridge()                                             // keep the paired-computer list current
-        lastUsage = try? await self.client?.usage()
+        lastUsage = try? await live.usage()
         publishWidgetSnapshot()
-        if let t = pushToken { try? await self.client?.registerDevice(t) }  // (re)register for push
-        if let t = laStartToken { try? await self.client?.registerLiveActivity(kind: "start-token", token: t) }
+        if let t = pushToken { try? await live.registerDevice(t) }          // (re)register for push
+        if let t = laStartToken { try? await live.registerLiveActivity(kind: "start-token", token: t) }
         if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
     }
 
@@ -299,8 +373,8 @@ final class AppState: ObservableObject {
     func bootstrap() async {
         // Never yank someone out of the demo: the launch reconnect would replace the
         // sample sessions with the real computer's, mid-look.
-        guard !demoMode else { return }
-        guard !connected, client != nil, !userDisconnected else { return }
+        guard !demoMode else { bootstrapping = false; return }
+        guard !connected, client != nil, !userDisconnected else { bootstrapping = false; return }
         bootstrapping = true
         await connect()
         bootstrapping = false
@@ -390,10 +464,15 @@ final class AppState: ObservableObject {
     }
 
     /// A client for any paired computer (not just the active one), using its own
-    /// Keychain token slot and pin.
+    /// Keychain token slot and pin. Normalizes the stored address the same way the
+    /// active one is — legacy entries hold bare "host:port", which URL(string:)
+    /// misparses (scheme "host", no host) and would silently skip that computer.
     func client(for bridge: SavedBridge) -> BridgeClient? {
-        guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty,
-              let url = URL(string: bridge.address) else { return nil }
+        guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else { return nil }
+        var addr = bridge.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !addr.contains("://") { addr = "http://" + addr }
+        while addr.hasSuffix("/") { addr.removeLast() }
+        guard let url = URL(string: addr), url.host != nil else { return nil }
         return BridgeClient(config: .init(baseURL: url, token: saved, pin: bridge.pin))
     }
 
@@ -527,19 +606,25 @@ final class AppState: ObservableObject {
     /// Pair an additional computer without losing the current one: if the new
     /// credentials don't connect, the previous connection is restored.
     func addComputer(address: String, pairingToken: String, pin newPin: String = "") async -> Bool {
-        let prevAddress = baseURLString
-        let prevToken = token
-        let prevPin = pin
+        let prev = (base: baseURLString, pin: pin, plain: plainBase, token: token)
+        switching = true               // keep the UI mounted while we probe
+        defer { switching = false }
         baseURLString = address
         token = pairingToken
         pin = newPin
+        plainBase = ""                 // a fresh computer has no fallback address yet
         await connect()
         if connected { return true }
-        // Failed — put the old computer back and reconnect to it.
-        baseURLString = prevAddress
-        token = prevToken
-        pin = prevPin
+        // Failed — put the old computer back and reconnect to it. The reconnect
+        // clears errorMessage, so hold on to the REAL reason (wrong token reads
+        // very differently from unreachable) and put it back for the sheet.
+        let failure = errorMessage
+        baseURLString = prev.base
+        token = prev.token
+        pin = prev.pin
+        plainBase = prev.plain
         await connect()
+        errorMessage = failure
         return false
     }
 

@@ -11,8 +11,14 @@ struct HealthInfo: Codable {
     let ok: Bool
     let name: String?
     let host: String?          // the computer's hostname — used to name a paired bridge
+    /// Stable identity of the bridge install. Tailscale/DHCP addresses drift; this
+    /// is what lets the app recognize "same computer, new IP" and update its saved
+    /// entry instead of keeping one dead entry per old address.
+    var serverId: String? = nil
     let grok: String?
     let grokAvailable: Bool
+    var grokLatest: String? = nil   // newest grok build (from `grok update --check`)
+    var grokUpdateAvailable: Bool? = nil
     var version: String?       // the bridge's own version
     var latestVersion: String? // newest on npm (checked at most daily; nil offline)
     var tls: TlsInfo?
@@ -26,6 +32,12 @@ struct SavedBridge: Codable, Identifiable, Hashable {
     var address: String
     /// Cert fingerprint when this computer is reached over pinned HTTPS.
     var pin: String? = nil
+    /// The bridge's own stable identity (from /api/health). Entries saved by older
+    /// app versions don't have one until their computer is reached again.
+    var serverId: String? = nil
+    /// This computer's plain-HTTP address from before its pinned-HTTPS upgrade —
+    /// the per-computer fallback when its pinned port stops answering.
+    var plainBase: String? = nil
     var tokenAccount: String { "bridge.token." + id }
 }
 
@@ -319,12 +331,42 @@ struct GitFile: Codable, Identifiable, Hashable {
     }
 }
 
-/// `GET /api/sessions/:id/git` — what changed in the session's folder.
+/// A repository this session actually edited files in — sessions usually start in
+/// ~ (not a repo) while grok works somewhere deeper, so the review offers these.
+struct GitRepoCandidate: Codable, Identifiable, Hashable {
+    var root: String
+    var name: String
+    var id: String { root }
+}
+
+/// `GET /api/sessions/:id/git` — what changed in the reviewed repository.
 struct GitStatus: Codable {
     var repo: Bool
     var branch: String?
     var files: [GitFile]?
+    /// The repo the listed files belong to (nil from pre-0.1.17 bridges).
+    var dir: String?
+    /// Every repo this session touched, for the folder switcher.
+    var candidates: [GitRepoCandidate]?
     var changedCount: Int { files?.count ?? 0 }
+}
+
+/// A saved grok workflow (a multi-agent Rhai script under .grok/workflows/).
+struct WorkflowInfo: Codable, Identifiable, Hashable {
+    var name: String
+    var scope: String?          // "project" | "user"
+    var description: String?
+    var whenToUse: String?
+    var id: String { name }
+}
+
+/// `GET /api/grok/update` — grok binary version state on the computer.
+struct GrokUpdateStatus: Codable {
+    var current: String?
+    var latest: String?
+    var updateAvailable: Bool
+    var updating: Bool?
+    var autoUpdate: Bool?
 }
 
 /// A before/after edit Grok made to a file (from an edit tool's diff).

@@ -34,6 +34,10 @@ final class ChatViewModel: ObservableObject {
     /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from
     /// there instead of replaying the whole session and duplicating the transcript.
     private var lastEventId = 0
+    /// Events at or below this id are HISTORY replay. The transcript folds them
+    /// normally, but side effects must not re-fire — opening an old session used to
+    /// flash one lock-screen Live Activity per past turn.
+    private let replayWatermark: Int
     private var assistantIndex: Int?   // current assistant bubble being appended to
     private var thoughtIndex: Int?     // current thought bubble being appended to
     /// Thumbnails of images just sent from THIS device; attached to the next
@@ -44,6 +48,7 @@ final class ChatViewModel: ObservableObject {
         self.client = client
         self.session = session
         self.isDemo = false
+        self.replayWatermark = session.lastEventId ?? 0
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
         self.autoApprove = session.autoApprove ?? false
@@ -61,6 +66,7 @@ final class ChatViewModel: ObservableObject {
         self.client = BridgeClient(config: .init(baseURL: URL(string: "http://127.0.0.1:9")!, token: "demo"))
         self.session = demoSession
         self.isDemo = true
+        self.replayWatermark = 0
         self.planMode = demoSession.planMode ?? false
         self.effort = demoSession.effort ?? ""
         self.autoApprove = demoSession.autoApprove ?? false
@@ -86,14 +92,26 @@ final class ChatViewModel: ObservableObject {
     /// Open (and auto-reconnect) the event stream for this session.
     func start() {
         if isDemo {
-            if items.isEmpty, session.id == "demo-settings-dark" { items = DemoData.transcript }
+            if items.isEmpty, let canned = DemoData.transcript(for: session.id) { items = canned }
+            // The list says this one is running — the transcript should agree.
+            busy = session.isRunning
             live = true
             return
         }
         guard streamTask == nil else { return }
+        // Seed the "/" palette from the bridge's stored snapshot so it works the
+        // moment the composer opens — the live list (an SSE "commands" event once
+        // grok's process is up) replaces it.
+        Task { @MainActor in
+            if commands.isEmpty, let seed = try? await client.commands(sessionId: session.id), !seed.isEmpty {
+                if commands.isEmpty { commands = seed }
+            }
+        }
         streamTask = Task { @MainActor in
             while !Task.isCancelled {
-                live = true
+                // `live` turns on when the stream actually delivers (the synthetic
+                // "_open" marker counts) — setting it before dialing showed a green
+                // "Connected" dot against a bridge that wasn't answering.
                 do {
                     for try await event in client.events(sessionId: session.id, lastEventId: lastEventId) {
                         if let id = event["_eventId"] as? Int { lastEventId = max(lastEventId, id) }
@@ -114,6 +132,11 @@ final class ChatViewModel: ObservableObject {
         streamTask = nil
     }
 
+    /// The demo's canned-reply task, so Stop can actually stop it.
+    private var demoReply: Task<Void, Never>?
+    /// Set when the last turn_start folded in — the send watchdog keys off it.
+    private var lastTurnStartAt = Date.distantPast
+
     func send(_ text: String, images: [Data] = [], thumbnails: [UIImage] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
@@ -123,16 +146,21 @@ final class ChatViewModel: ObservableObject {
             user.imageCount = thumbnails.count
             items.append(user)
             busy = true
-            try? await Task.sleep(nanoseconds: 1_300_000_000)
-            items.append(ChatItem(role: .assistant, text: DemoData.cannedReply))
-            busy = false
+            demoReply = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_300_000_000)
+                guard !Task.isCancelled else { return }
+                items.append(ChatItem(role: .assistant, text: DemoData.cannedReply))
+                busy = false
+            }
             return
         }
         busy = true
         errorMessage = nil
         if !thumbnails.isEmpty { pendingEcho = thumbnails }
+        let sentAt = Date()
         do {
             try await client.send(sessionId: session.id, text: trimmed, images: images)
+            watchdogAfterSend(sentAt)
         } catch {
             busy = false
             pendingEcho = []
@@ -140,15 +168,49 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// A Wi-Fi→cellular hop can leave the SSE stream half-dead: the POST lands (the
+    /// turn runs on the computer) while the old stream never delivers another byte —
+    /// no user bubble, typing dots forever. If the accepted send's turn_start hasn't
+    /// folded in shortly, force a fresh stream; replay-from-lastEventId fills the gap.
+    private func watchdogAfterSend(_ sentAt: Date) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            if self.lastTurnStartAt < sentAt {
+                self.restartStream()
+            }
+        }
+    }
+
+    private func restartStream() {
+        streamTask?.cancel()
+        streamTask = nil
+        start()
+    }
+
+    /// True while the Stop request is in flight, so the button can show it.
+    @Published var cancelling = false
+
     func cancel() async {
-        let dropped = queued
-        queued.removeAll()                       // stopping drops any queued follow-ups
-        if isDemo { busy = false; return }
-        await client.cancel(sessionId: session.id)
-        // The bridge holds the real queue now, so stopping has to clear it there too —
-        // otherwise it would helpfully start the next follow-up the moment the turn
-        // it was just told to abandon finished unwinding.
-        if !dropped.isEmpty { try? await client.clearQueue(sessionId: session.id) }
+        if isDemo {
+            demoReply?.cancel()
+            demoReply = nil
+            busy = false
+            return
+        }
+        cancelling = true
+        defer { cancelling = false }
+        do {
+            try await client.cancelOrThrow(sessionId: session.id)
+            // Only clear follow-ups the bridge confirmed dropping — wiping them
+            // locally on a failed call left them running while the UI said gone.
+            if !queued.isEmpty {
+                try await client.clearQueue(sessionId: session.id)
+                queued.removeAll()
+            }
+        } catch {
+            errorMessage = String(localized: "Couldn't reach the computer to stop the turn — it may still be running.")
+        }
     }
 
     /// Queue a follow-up. The bridge runs it when the turn ends (or immediately, if
@@ -173,11 +235,16 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Drop one queued follow-up.
+    /// Drop one queued follow-up. Optimistic, but restored if the bridge didn't
+    /// hear — a chip that vanishes while the follow-up still runs is a lie.
     func removeQueued(_ item: QueuedMessage) async {
         queued.removeAll { $0.id == item.id }
         if isDemo { return }
-        try? await client.dequeue(sessionId: session.id, itemId: item.id)
+        do { try await client.dequeue(sessionId: session.id, itemId: item.id) }
+        catch {
+            if !queued.contains(where: { $0.id == item.id }) { queued.append(item) }
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     private static func isConflict(_ error: Error) -> Bool {
@@ -220,6 +287,8 @@ final class ChatViewModel: ObservableObject {
         guard let requestId = item.requestId else { return }
         let idx = items.firstIndex(where: { $0.id == item.id })
         if let idx { items[idx].decided = approved ? "approved" : "rejected" }
+        // The demo's plan card is decidable for show; nothing to send anywhere.
+        if isDemo { return }
         do {
             try await client.resolvePlan(sessionId: session.id, requestId: requestId, approved: approved)
         } catch {
@@ -237,13 +306,20 @@ final class ChatViewModel: ObservableObject {
 
     private func apply(_ event: [String: Any]) {
         live = true
+        // History replay folds into the transcript like anything else, but must not
+        // re-fire side effects: without this, opening a finished 6-turn session
+        // flashed six Live Activities across the lock screen.
+        let isReplay = (event["_eventId"] as? Int ?? Int.max) <= replayWatermark
         switch event["kind"] as? String {
         case "turn_start":
             assistantIndex = nil
             thoughtIndex = nil
             busy = true
-            liveActivity.start(sessionName: sessionName, sessionId: session.id,
-                               phase: "working", detail: "Grok is working…")
+            if !isReplay {
+                lastTurnStartAt = Date()
+                liveActivity.start(sessionName: sessionName, sessionId: session.id,
+                                   phase: "working", detail: "Grok is working…")
+            }
             var item = ChatItem(role: .user, text: event["text"] as? String ?? "")
             item.imageCount = event["imageCount"] as? Int ?? 0
             if item.imageCount > 0, !pendingEcho.isEmpty {
@@ -274,7 +350,7 @@ final class ChatViewModel: ObservableObject {
             assistantIndex = nil
             thoughtIndex = nil
             let tool = event["tool"] as? String ?? "tool"
-            liveActivity.update(phase: "working", detail: tool)
+            if !isReplay { liveActivity.update(phase: "working", detail: tool) }
             let label = (event["command"] as? String) ?? (event["title"] as? String) ?? tool
             var item = ChatItem(role: .tool, text: label)
             item.toolCallId = event["id"] as? String
@@ -296,6 +372,7 @@ final class ChatViewModel: ObservableObject {
 
         case "plan":
             assistantIndex = nil
+            thoughtIndex = nil   // else the next thought chunk appends ABOVE the plan line
             let entries = event["entries"] as? [[String: Any]] ?? []
             let lines = entries.compactMap { $0["content"] as? String }
             if !lines.isEmpty { append(.tool, "plan\n" + lines.map { "• \($0)" }.joined(separator: "\n")) }
@@ -303,7 +380,7 @@ final class ChatViewModel: ObservableObject {
         case "permission_request":
             assistantIndex = nil
             thoughtIndex = nil
-            liveActivity.update(phase: "waiting", detail: "Waiting for your approval")
+            if !isReplay { liveActivity.update(phase: "waiting", detail: "Waiting for your approval") }
             var item = ChatItem(role: .permission,
                                 text: (event["command"] as? String) ?? (event["title"] as? String)
                                       ?? (event["tool"] as? String) ?? "Grok wants to run a tool")
@@ -317,12 +394,6 @@ final class ChatViewModel: ObservableObject {
             }
             items.append(item)
 
-        case "end":
-            let reason = event["stopReason"] as? String ?? "done"
-            append(.status, "· \(reason) ·")
-            assistantIndex = nil
-            thoughtIndex = nil
-
         case "permission_resolved":
             if let rid = event["requestId"] as? String,
                let idx = items.firstIndex(where: { $0.role == .permission && $0.requestId == rid && $0.decided == nil }) {
@@ -332,7 +403,7 @@ final class ChatViewModel: ObservableObject {
         case "plan_review":
             assistantIndex = nil
             thoughtIndex = nil
-            liveActivity.update(phase: "waiting", detail: "Plan ready to review")
+            if !isReplay { liveActivity.update(phase: "waiting", detail: "Plan ready to review") }
             var item = ChatItem(role: .plan, text: event["planContent"] as? String ?? "Grok drafted a plan.")
             item.requestId = event["requestId"] as? String
             items.append(item)
@@ -372,12 +443,19 @@ final class ChatViewModel: ObservableObject {
             busy = false
             assistantIndex = nil
             thoughtIndex = nil
-            liveActivity.end(phase: "done", detail: "Finished")
+            // The visible "turn ended" separator lives here — the bridge emits
+            // turn_complete, not the "end" kind an older revision listened for.
+            let reason = event["stopReason"] as? String ?? "done"
+            append(.status, "· \(reason) ·")
+            if !isReplay { liveActivity.end(phase: "done", detail: "Finished") }
 
         case "error":
             busy = false
-            liveActivity.end(phase: "error", detail: "Something went wrong")
+            if !isReplay { liveActivity.end(phase: "error", detail: "Something went wrong") }
             append(.error, event["message"] as? String ?? "Something went wrong.")
+
+        case "_open":
+            break   // synthetic stream-connected marker; `live` was set above
 
         default:
             break   // "log", "raw", heartbeats — ignored in the UI

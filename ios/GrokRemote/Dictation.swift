@@ -11,12 +11,19 @@ final class Dictation: ObservableObject {
     /// Speech or microphone permission was refused. Without surfacing this, a denied
     /// permission made the mic button do nothing at all, forever, with no explanation.
     @Published var denied = false
+    /// Recognition granted but unusable right now (Siri & Dictation off, locale
+    /// unsupported, no network for this locale) — the other silent-no-op case.
+    @Published var unavailable = false
 
     private let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private let engine = AVAudioEngine()
     private var base = ""   // draft text already present when recording started
+    /// Whether the bus-0 tap is installed. Tracked explicitly: installing twice
+    /// raises an uncatchable NSException, and `finish()`'s old isRecording guard
+    /// skipped the removal exactly when `engine.start()` had just thrown.
+    private var tapInstalled = false
 
     /// Whether speech recognition is usable at all (device + locale support).
     var supported: Bool { recognizer != nil }
@@ -42,7 +49,12 @@ final class Dictation: ObservableObject {
     func stop() { finish() }
 
     private func begin() {
-        guard !isRecording, let recognizer, recognizer.isAvailable else { return }
+        guard !isRecording else { return }
+        guard let recognizer, recognizer.isAvailable else {
+            unavailable = true       // the user just granted permissions; say why nothing happened
+            return
+        }
+        unavailable = false
         do {
             let audio = AVAudioSession.sharedInstance()
             try audio.setCategory(.record, mode: .measurement, options: .duckOthers)
@@ -60,6 +72,7 @@ final class Dictation: ObservableObject {
             input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
                 req.append(buffer)
             }
+            tapInstalled = true
             engine.prepare()
             try engine.start()
 
@@ -82,9 +95,15 @@ final class Dictation: ObservableObject {
         }
     }
 
+    /// Tear everything down unconditionally. This must be safe to call from any
+    /// half-started state: `begin()`'s catch runs it when `engine.start()` throws
+    /// (audio hardware busy), where the tap IS installed but nothing else is —
+    /// leaving it would crash the next recording with a double-install NSException.
     private func finish() {
-        guard isRecording || engine.isRunning else { return }
-        engine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         if engine.isRunning { engine.stop() }
         request?.endAudio()
         task?.cancel()
