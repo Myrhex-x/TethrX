@@ -11,7 +11,7 @@
   <key>uploadSymbols</key>
   <true/>
   <key>destination</key>
-  <string>export</string>
+  <string>upload</string>
   <key>manageAppVersionAndBuildNumber</key>
   <false/>
 </dict>
