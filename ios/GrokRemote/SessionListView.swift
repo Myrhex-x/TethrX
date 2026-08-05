@@ -183,7 +183,7 @@ struct SessionListView: View {
 
     private var demoBanner: some View {
         HStack(spacing: 10) {
-            Text("DEMO").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
+            Text("TOUR").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Grok.accent).clipShape(Capsule())
             Text("Sample data — nothing is connected.")

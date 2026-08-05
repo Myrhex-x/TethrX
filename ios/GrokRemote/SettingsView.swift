@@ -13,7 +13,7 @@ struct SettingsView: View {
     @State private var report: UsageReport?
     @State private var loadingUsage = false
     @State private var showingUsageHistory = false
-    @State private var newSnippet = ""
+    @State private var showingLibrary = false
     @State private var computerReachability: [String: Bool] = [:]
     @State private var probingComputers = false
     @State private var forgetting: SavedBridge?
@@ -79,6 +79,9 @@ struct SettingsView: View {
             .sheet(isPresented: $addingComputer) {
                 AddComputerSheet().environmentObject(app)
             }
+            .sheet(isPresented: $showingLibrary) {
+                PromptLibraryView().environmentObject(snippets)
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .grokBar()
@@ -98,11 +101,11 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("CONNECTION")
             row("Computer", DemoData.health.host ?? "demo")
-            row("Mode", String(localized: "Demo — nothing is connected"))
+            row("Mode", String(localized: "Tour — nothing is connected"))
             Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Button { dismiss(); app.exitDemo() } label: {
-                Text("Exit demo").frame(maxWidth: .infinity)
+                Text("Exit the tour").frame(maxWidth: .infinity)
             }
             .buttonStyle(PillButton(kind: .subtle))
             .padding(.top, 4)
@@ -528,38 +531,24 @@ struct SettingsView: View {
 
     private var snippetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("PROMPT SNIPPETS")
-            Text("Reusable prompts you can tap to send from a session.")
+            Eyebrow("PROMPTS")
+            Text("Reusable prompts you write on this phone. They need no computer, and appear above the composer in every session.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-            ForEach(Array(snippets.items.enumerated()), id: \.offset) { i, s in
+            Button { showingLibrary = true } label: {
                 HStack(spacing: 10) {
-                    Text(s).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(2)
+                    Image(systemName: "text.alignleft").font(.system(size: 12)).foregroundStyle(Grok.textDim)
+                    Text("Prompt library").font(Grok.mono(12)).foregroundStyle(Grok.text)
                     Spacer(minLength: 8)
-                    Button { snippets.remove(at: IndexSet(integer: i)) } label: {
-                        Image(systemName: "minus.circle").font(.caption)
-                            .frame(width: 44, height: 44).contentShape(Rectangle())
-                    }
-                    .foregroundStyle(Grok.textDim)
-                    .accessibilityLabel(Text("Remove snippet"))
+                    Text("\(snippets.items.count)").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 10)
+                .padding(.horizontal, 12).padding(.vertical, 13)
                 .background(Grok.raised)
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .contentShape(RoundedRectangle(cornerRadius: 10))
             }
-            HStack(spacing: 8) {
-                FieldBox {
-                    TextField("", text: $newSnippet, prompt: Text("add a snippet…").foregroundColor(Grok.textFaint), axis: .vertical)
-                        .font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1...3)
-                }
-                Button { snippets.add(newSnippet); newSnippet = "" } label: {
-                    Image(systemName: "plus").font(.system(size: 14, weight: .bold))
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).foregroundStyle(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty ? Grok.textFaint : Grok.text)
-                .disabled(newSnippet.trimmingCharacters(in: .whitespaces).isEmpty)
-                .accessibilityLabel(Text("Add snippet"))
-            }
+            .buttonStyle(.plain)
         }
     }
 

@@ -99,7 +99,9 @@ struct RootView: View {
             } else if app.bootstrapping {
                 ReconnectSplash()
             } else {
-                PairingView()
+                // Not a setup checklist: the welcome screen is usable on its own,
+                // and pairing a computer is one route out of it among several.
+                WelcomeView()
             }
         }
         .task {

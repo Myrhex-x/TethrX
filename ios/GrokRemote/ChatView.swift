@@ -446,14 +446,15 @@ struct ChatView: View {
         if isEmptyDraft && !snippets.items.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(snippets.items.enumerated()), id: \.offset) { _, s in
+                    ForEach(snippets.items) { prompt in
                         Button {
-                            draft = s
+                            draft = prompt.text
                             composerFocused = true
                         } label: {
+                            let label = prompt.title
                             HStack(spacing: 5) {
                                 Image(systemName: "text.badge.plus").font(.system(size: 9, weight: .semibold))
-                                Text(s.count > 26 ? String(s.prefix(26)) + "…" : s)
+                                Text(label.count > 26 ? String(label.prefix(26)) + "…" : label)
                             }.chip(on: false)
                         }
                         .buttonStyle(.plain)

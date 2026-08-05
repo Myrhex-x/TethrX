@@ -152,10 +152,10 @@ enum DemoData {
         }
     }
 
-    /// What "grok" says when you send a message inside the demo.
+    /// What "grok" says when you send a message inside the tour.
     static let cannedReply = """
-    This is the demo, so no real computer is connected — but this is exactly where Grok would \
+    You're in the tour, so no real computer is connected — but this is exactly where Grok would \
     work: streaming its thinking, running tools you approve, and editing files on your machine. \
-    Pair your own computer from the setup screen to run real tasks.
+    Connect your own computer to run real tasks.
     """
 }

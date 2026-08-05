@@ -1,758 +1,899 @@
 {
-  "sourceLanguage": "en",
-  "version": "1.0",
-  "strings": {
-    "Send to Grok": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Envoyer à Grok"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+      "shouldTranslate" : false
+    },
+    "busy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beschäftigt"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar a Grok"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ocupado"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An Grok senden"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "occupé"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invia a Grok"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "occupato"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar para o Grok"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行中"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grokに送信"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ocupado"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送给 Grok"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁忙"
           }
         }
       }
     },
-    "Send": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Envoyer"
+    "Cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Senden"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invia"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annulla"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "送信"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送"
-          }
-        }
-      }
-    },
-    "Cancel": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annuler"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancelar"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abbrechen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annulla"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancelar"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "キャンセル"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
           }
         }
       }
     },
-    "SHARING": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "PARTAGE"
+    "Looking for your sessions…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sitzungen werden gesucht…"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "COMPARTIR"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscando sus sesiones…"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TEILEN"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche de vos sessions…"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CONDIVISIONE"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricerca delle sue sessioni…"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "COMPARTILHAMENTO"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッションを探しています…"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "共有"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Procurando suas sessões…"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分享"
-          }
-        }
-      }
-    },
-    "WHAT SHOULD GROK DO?": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QUE DOIT FAIRE GROK ?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿QUÉ DEBE HACER GROK?"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WAS SOLL GROK TUN?"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "COSA DEVE FARE GROK?"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O QUE O GROK DEVE FAZER?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grokへの指示"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "希望 Grok 做什么？"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查找你的会话…"
           }
         }
       }
     },
-    "optional — e.g. summarize this, or fix this error": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "facultatif — ex. : résumer ceci, ou corriger cette erreur"
+    "New session" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Sitzung"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "opcional — p. ej. resumir esto o corregir este error"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva sesión"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "optional — z. B. das zusammenfassen oder diesen Fehler beheben"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle session"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "facoltativo, es. riassumi questo o correggi questo errore"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuova sessione"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "opcional — ex.: resuma isto ou corrija este erro"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいセッション"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任意（例: これを要約、このエラーを修正）"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nova sessão"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可选，例如：总结一下，或修复这个错误"
-          }
-        }
-      }
-    },
-    "SESSION": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SESSION"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SESIÓN"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SITZUNG"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SESSIONE"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SESSÃO"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セッション"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建会话"
           }
         }
       }
     },
-    "Looking for your sessions…": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recherche de vos sessions…"
+    "Not paired yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht gekoppelt"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buscando sus sesiones…"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún sin emparejar"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sitzungen werden gesucht…"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore appairé"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ricerca delle sue sessioni…"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ancora abbinato"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Procurando suas sessões…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未ペアリング"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セッションを探しています…"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não pareado"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在查找你的会话…"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未配对"
           }
         }
       }
     },
-    "busy": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "occupé"
+    "Open TethrX and pair with your computer, then share again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen Sie TethrX, koppeln Sie mit Ihrem Computer und teilen Sie erneut."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ocupado"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra TethrX y empareje con su ordenador; después, comparta de nuevo."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "beschäftigt"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez TethrX et appairez votre ordinateur, puis partagez à nouveau."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "occupato"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apra TethrX e abbini il suo computer, poi condivida di nuovo."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ocupado"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TethrXを開いてパソコンとペアリングし、もう一度共有してください。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra o TethrX e pareie com seu computador, depois compartilhe novamente."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "繁忙"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 TethrX 与你的电脑配对，然后重新分享。"
           }
         }
       }
     },
-    "Queued for when Grok finishes": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sera envoyé quand Grok aura terminé"
+    "optional — e.g. summarize this, or fix this error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "optional — z. B. das zusammenfassen oder diesen Fehler beheben"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En cola para cuando Grok termine"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "opcional — p. ej. resumir esto o corregir este error"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wartet, bis Grok fertig ist"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "facultatif — ex. : résumer ceci, ou corriger cette erreur"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In attesa che Grok finisca"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "facoltativo, es. riassumi questo o correggi questo errore"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Na fila para quando o Grok terminar"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意（例: これを要約、このエラーを修正）"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grokの完了後に送信"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "opcional — ex.: resuma isto ou corrija este erro"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已排队，待 Grok 完成后发送"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选，例如：总结一下，或修复这个错误"
           }
         }
       }
     },
-    "Sent to Grok": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Envoyé à Grok"
+    "Queued for when Grok finishes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet, bis Grok fertig ist"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviado a Grok"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En cola para cuando Grok termine"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An Grok gesendet"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sera envoyé quand Grok aura terminé"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inviato a Grok"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In attesa che Grok finisca"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviado para o Grok"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grokの完了後に送信"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grokに送信しました"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na fila para quando o Grok terminar"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已发送给 Grok"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已排队，待 Grok 完成后发送"
           }
         }
       }
     },
-    "Not paired yet": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas encore appairé"
+    "See the attached image." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siehe angehängtes Bild."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aún sin emparejar"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vea la imagen adjunta."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Noch nicht gekoppelt"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voir l'image jointe."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non ancora abbinato"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ecco l'immagine allegata."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ainda não pareado"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付の画像をご覧ください。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未ペアリング"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veja a imagem anexada."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未配对"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请查看附带的图片。"
           }
         }
       }
     },
-    "Open TethrX and pair with your computer, then share again.": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ouvrez TethrX et appairez votre ordinateur, puis partagez à nouveau."
+    "Send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abra TethrX y empareje con su ordenador; después, comparta de nuevo."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Öffnen Sie TethrX, koppeln Sie mit Ihrem Computer und teilen Sie erneut."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apra TethrX e abbini il suo computer, poi condivida di nuovo."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abra o TethrX e pareie com seu computador, depois compartilhe novamente."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TethrXを開いてパソコンとペアリングし、もう一度共有してください。"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开 TethrX 与你的电脑配对，然后重新分享。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
           }
         }
       }
     },
-    "See the attached image.": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voir l'image jointe."
+    "Send to Grok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An Grok senden"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vea la imagen adjunta."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar a Grok"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Siehe angehängtes Bild."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer à Grok"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ecco l'immagine allegata."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia a Grok"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Veja a imagem anexada."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grokに送信"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添付の画像をご覧ください。"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar para o Grok"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请查看附带的图片。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送给 Grok"
           }
         }
       }
     },
-    "New session": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nouvelle session"
+    "Sent to Grok" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An Grok gesendet"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nueva sesión"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviado a Grok"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neue Sitzung"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyé à Grok"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nuova sessione"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviato a Grok"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nova sessão"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grokに送信しました"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいセッション"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviado para o Grok"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新建会话"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送给 Grok"
           }
         }
       }
     },
-    "Starting…": {
-      "extractionState": "manual",
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Démarrage…"
+    "SESSION" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SITZUNG"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iniciando…"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SESIÓN"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wird gestartet…"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SESSION"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Avvio…"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SESSIONE"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iniciando…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開始しています…"
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SESSÃO"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在启动…"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话"
+          }
+        }
+      }
+    },
+    "SHARING" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TEILEN"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "COMPARTIR"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PARTAGE"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONDIVISIONE"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "COMPARTILHAMENTO"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享"
+          }
+        }
+      }
+    },
+    "Starting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird gestartet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrage…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvio…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始しています…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciando…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在启动…"
+          }
+        }
+      }
+    },
+    "That computer's address looks wrong." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Adresse dieses Computers sieht falsch aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dirección de ese ordenador parece incorrecta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'adresse de cet ordinateur semble incorrecte."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'indirizzo di quel computer sembra sbagliato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのコンピュータのアドレスが正しくないようです。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O endereço desse computador parece errado."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台电脑的地址似乎不正确。"
+          }
+        }
+      }
+    },
+    "WHAT SHOULD GROK DO?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WAS SOLL GROK TUN?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿QUÉ DEBE HACER GROK?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QUE DOIT FAIRE GROK ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "COSA DEVE FARE GROK?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grokへの指示"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O QUE O GROK DEVE FAZER?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "希望 Grok 做什么？"
+          }
+        }
+      }
+    },
+    "Your computer answered with an error (%lld)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Computer hat mit einem Fehler geantwortet (%lld)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su ordenador respondió con un error (%lld)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre ordinateur a répondu par une erreur (%lld)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il computer ha risposto con un errore (%lld)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンピュータがエラーを返しました (%lld)。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seu computador respondeu com um erro (%lld)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的电脑返回了错误 (%lld)。"
+          }
+        }
+      }
+    },
+    "Your computer rejected the pairing token. Re-pair in TethrX." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Computer hat den Kopplungs-Token abgelehnt. Koppeln Sie in TethrX erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su ordenador rechazó el token de enlace. Vuelva a enlazar en TethrX."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre ordinateur a refusé le jeton d'appairage. Refaites l'appairage dans TethrX."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il computer ha rifiutato il token di associazione. Ripetere l'associazione in TethrX."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンピュータがペアリングトークンを拒否しました。TethrX で再度ペアリングしてください。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seu computador rejeitou o token de pareamento. Refaça o pareamento no TethrX."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的电脑拒绝了配对令牌。请在 TethrX 中重新配对。"
           }
         }
       }
     }
-  }
+  },
+  "version" : "1.0"
 }

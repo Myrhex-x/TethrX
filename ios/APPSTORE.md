@@ -48,6 +48,42 @@ Verified items were checked against the project on 2026-07-21.
    Automatic signing provisioned this for build 35; if you ever move to manual
    profiles, the capability has to be enabled on both App IDs.
 
+## Guideline 4.2.3(i) — REJECTED 2026-08-05, fixed in the build below
+
+Submission `f6888598-bcb8-4cb1-869d-a23c19fcb695`, v1.0 (2), reviewed on an
+iPhone 17 Pro Max:
+
+> We were required to install Grok before we could use the app. Apps should be
+> able to run on launch, without requiring additional apps to be installed.
+
+**What the reviewer actually hit.** The app launched straight into the pairing
+wizard, whose step 1 was titled *"Install Grok Build"* with a `curl … | bash`
+command. Demo mode existed since build 32, but it was a 12pt dimmed text link in
+the footer *below* the step card — walking the wizard top-down, you never see it
+as a way to use the app.
+
+**Fix (this build).** First run is no longer a setup checklist:
+
+- **`WelcomeView` is the launch screen.** It fits on one screen with no
+  scrolling, and nothing on it asks the user to install anything.
+- **Prompt library — real standalone functionality.** Write, dictate, edit,
+  search, copy, share and organise reusable task prompts, entirely on the phone,
+  with no computer and no network. Persisted in `prompt.library` (UserDefaults
+  JSON, migrating the old flat `prompt.snippets` list). The same prompts are the
+  tappable chips above the chat composer once a computer *is* connected, so this
+  is part of the product loop, not a stub bolted on for review.
+- **"Take the tour" is the primary action** (filled pill, top of the screen),
+  not a footer link. Same canned data as the old demo mode, renamed throughout
+  (badge, Settings row, canned reply) so the vocabulary is consistent.
+- **"Connect a computer" is a secondary action** that *pushes* the wizard, with
+  the framing line "These steps all happen on the computer you want to control.
+  Nothing extra is needed on this phone." Step 1 is retitled "Set up Grok Build
+  on your computer".
+
+**Point to make in the reply:** Grok Build is xAI's *terminal CLI for a desktop
+computer* — there is no iOS app to install, and nothing from the App Store is
+required. Same shape as an SSH client needing a server (Termius, Blink, Prompt).
+
 ## Guideline 2.1 (App Completeness) — the main rejection risk
 
 The reviewer has no Mac running the bridge, so the app they open stops at the
@@ -67,10 +103,11 @@ setup wizard. Standard practice for companion apps:
 > bridge can be started on any Mac with `npx tethrx-bridge` (Node 20+), and the
 > app pairs by scanning the QR code it prints.
 
-- **Demo mode is BUILT (build 32)** — "Try the demo" on the pairing screen loads
-  canned sessions and a scripted conversation, so a reviewer can experience the
-  full app with zero hardware. Mention it explicitly in the review notes:
-  "A demo mode is available from the Try the demo button on the first screen."
+- **The tour is BUILT** — "Take the tour", the primary button on the launch
+  screen since the 4.2.3 fix above (it was "Try the demo" in the footer from
+  build 32). Loads canned sessions and a scripted conversation, so a reviewer
+  experiences the full app with zero hardware. Mention it explicitly in the
+  review notes, along with the prompt library below it.
 
 ## Known risks to keep an eye on
 

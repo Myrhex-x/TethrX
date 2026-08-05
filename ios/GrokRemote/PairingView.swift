@@ -1,9 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// First-run setup as a precise, branching wizard. Prerequisites (Grok Build,
-/// Node, the bridge) → start the bridge → choose Wi-Fi or Tailscale (which adds
-/// its own steps) → open the pairing page → scan the matching QR (or type it).
+/// Connecting a computer, as a precise branching wizard. Prerequisites (Grok
+/// Build, Node, the bridge) → start the bridge → choose Wi-Fi or Tailscale
+/// (which adds its own steps) → open the pairing page → scan the matching QR
+/// (or type it).
+///
+/// Pushed from the welcome screen rather than shown at launch: every step here
+/// is about software on the user's *computer*, so it must never be the first
+/// thing the app asks of someone who just opened it.
 struct PairingView: View {
     @EnvironmentObject var app: AppState
     @StateObject private var discovery = BridgeDiscovery()
@@ -29,17 +34,19 @@ struct PairingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 header
-                if idx == 0, !app.token.isEmpty, !app.normalizedBase.isEmpty { reconnectShortcut }
                 card
                 if let err = app.errorMessage { errorRow(err) }
                 footer
             }
             .padding(24)
-            .padding(.top, 24)
+            .padding(.top, 8)
             .animation(.easeInOut(duration: 0.22), value: idx)
             .animation(.easeInOut(duration: 0.22), value: path)
         }
         .background(Grok.bg)
+        .navigationTitle("Connect a computer")
+        .navigationBarTitleDisplayMode(.inline)
+        .grokBar()
         .scrollDismissesKeyboard(.interactively)
         .sheet(isPresented: $showScanner) {
             ScanSheet { code in showScanner = false; handleScanned(code) }
@@ -65,15 +72,9 @@ struct PairingView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 13) {
-                TethrXMark(size: 30)
-                    .frame(width: 52, height: 52)
-                    .overlay(RoundedRectangle(cornerRadius: 13).stroke(Grok.hairlineStrong, lineWidth: 1))
-                VStack(alignment: .leading, spacing: 4) {
-                    Eyebrow("TETHRX")
-                    Text("Set up your phone").font(Grok.sans(20, .semibold)).foregroundStyle(Grok.text)
-                }
-            }
+            Text("These steps all happen on the computer you want to control. Nothing extra is needed on this phone.")
+                .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 5) {
                 ForEach(0..<steps.count, id: \.self) { i in
                     Capsule().fill(i <= idx ? Grok.accent : Grok.hairlineStrong)
@@ -88,8 +89,8 @@ struct PairingView: View {
     @ViewBuilder private var card: some View {
         switch current {
         case .grok:
-            cardShell("Install Grok Build") {
-                para("TethrX drives Grok Build — xAI's terminal coding agent. Install it on your computer with one command:")
+            cardShell("Set up Grok Build on your computer") {
+                para("TethrX drives Grok Build, xAI's terminal coding agent, on a computer you own. Install it there with one command:")
                 codeLine("curl -fsSL https://x.ai/cli/install.sh | bash")
                 note("Already installed? Check with  grok --version  and skip ahead.")
                 nav("Grok Build is installed")
@@ -278,56 +279,9 @@ struct PairingView: View {
         }
     }
     private var footer: some View {
-        VStack(spacing: 14) {
-            // A look around with zero hardware — for the curious, and for App Review.
-            Button { app.enterDemo() } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "play.circle").font(.system(size: 13, weight: .medium))
-                    Text("Try the demo").font(Grok.mono(12, .medium))
-                }
-                .foregroundStyle(Grok.textDim)
-            }
-            .buttonStyle(.plain)
-            Text("A client for Grok Build · independent, not affiliated with xAI")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-    }
-
-    /// Shown on step 1 when credentials are already saved — a tidy "welcome back"
-    /// card so returning users reconnect in one tap instead of walking the wizard.
-    private var reconnectShortcut: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 14)).foregroundStyle(Grok.textDim)
-                Text("Welcome back").font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
-            }
-            Text("This phone is already paired. Reconnect to the same computer — or set it up again below.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-            Button {
-                focus = nil
-                Haptics.tap()
-                Task { await app.connect() }
-            } label: {
-                HStack(spacing: 9) {
-                    if app.connecting {
-                        ProgressView().controlSize(.small).tint(.white)
-                    } else {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
-                    }
-                    (app.connecting ? Text("Reconnecting…") : Text("Reconnect")).tracking(0.3)
-                }
-            }
-            .buttonStyle(PillButton(kind: .prominent))
-            .disabled(app.connecting)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        Text("A client for Grok Build · independent, not affiliated with xAI")
+            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func field(label: LocalizedStringResource, placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool) -> some View {
