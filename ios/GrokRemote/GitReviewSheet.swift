@@ -134,7 +134,10 @@ struct GitReviewSheet: View {
                 .accessibilityHidden(true)
             Text(status?.branch ?? "·").font(Grok.mono(12, .semibold)).foregroundStyle(Grok.text)
             Spacer()
-            Text("\(files.count) file\(files.count == 1 ? "" : "s")")
+            // Whole phrases per case. Interpolating an English "s" made the catalog key
+            // "%lld file%@", passing the letter s as a format argument, which most of the
+            // seven shipped languages cannot express at all.
+            (files.count == 1 ? Text("1 file") : Text("\(files.count) files"))
                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
         }
         .accessibilityElement(children: .combine)
@@ -257,6 +260,9 @@ struct GitDiffScreen: View {
     var dir: String? = nil
 
     @State private var text = ""
+    /// Split once when the diff arrives, never in `body`.
+    @State private var lines: [String] = []
+    @State private var showAllLines = false
     @State private var loading = true
     @State private var failed = false
 
@@ -272,14 +278,26 @@ struct GitDiffScreen: View {
                 Text("// no textual diff (binary file, or nothing to show)")
                     .font(Grok.mono(11)).foregroundStyle(Grok.textDim).padding(16)
             } else {
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(Array(text.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
+                // Split ONCE (in the task below), rendered lazily, and capped. This used
+                // to re-split the whole diff on every body evaluation and then build one
+                // Text per line in a plain VStack, so a large rewrite materialised
+                // thousands of views synchronously before anything appeared.
+                LazyVStack(alignment: .leading, spacing: 1) {
+                    ForEach(Array(shownLines.enumerated()), id: \.offset) { _, line in
                         Text(line.isEmpty ? " " : line)
                             .font(Grok.mono(11))
                             .foregroundStyle(color(for: line))
                             .padding(.horizontal, 12).padding(.vertical, 1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(background(for: line))
+                    }
+                    if lines.count > shownLines.count {
+                        Button { showAllLines = true } label: {
+                            Text("Show \(lines.count - shownLines.count) more lines")
+                                .font(Grok.mono(11, .medium)).foregroundStyle(Grok.textDim)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 10)
@@ -292,9 +310,17 @@ struct GitDiffScreen: View {
         .grokBar()
         .task {
             defer { loading = false }
-            do { text = try await client.gitDiff(sessionId: sessionId, file: file.path, dir: dir) }
+            do {
+                text = try await client.gitDiff(sessionId: sessionId, file: file.path, dir: dir)
+                lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
+            }
             catch { failed = true }   // a network error is not "no textual diff"
         }
+    }
+
+    private static let previewLines = 400
+    private var shownLines: ArraySlice<String> {
+        showAllLines ? lines[...] : lines.prefix(Self.previewLines)
     }
 
     private func color(for line: String) -> Color {

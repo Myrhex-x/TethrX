@@ -116,10 +116,10 @@
     },
     "· cancelled ·": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "· annulé ·"
+            "value": "· abgebrochen ·"
           }
         },
         "es": {
@@ -128,10 +128,10 @@
             "value": "· cancelado ·"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "· abgebrochen ·"
+            "value": "· annulé ·"
           }
         },
         "it": {
@@ -140,16 +140,16 @@
             "value": "· annullato ·"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· cancelado ·"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "· 中止 ·"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· cancelado ·"
           }
         },
         "zh-Hans": {
@@ -162,10 +162,10 @@
     },
     "· compacted ·": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "· compressé ·"
+            "value": "· komprimiert ·"
           }
         },
         "es": {
@@ -174,10 +174,10 @@
             "value": "· compactado ·"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "· komprimiert ·"
+            "value": "· compressé ·"
           }
         },
         "it": {
@@ -186,16 +186,16 @@
             "value": "· compattato ·"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· compactado ·"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "· 履歴を圧縮 ·"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· compactado ·"
           }
         },
         "zh-Hans": {
@@ -208,10 +208,10 @@
     },
     "· compacted to %@ tokens ·": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "· compressé à %@ tokens ·"
+            "value": "· auf %@ Tokens komprimiert ·"
           }
         },
         "es": {
@@ -220,10 +220,10 @@
             "value": "· compactado a %@ tokens ·"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "· auf %@ Tokens komprimiert ·"
+            "value": "· compressé à %@ tokens ·"
           }
         },
         "it": {
@@ -232,16 +232,16 @@
             "value": "· compattato a %@ token ·"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· compactado para %@ tokens ·"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "· 履歴を%@トークンに圧縮 ·"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· compactado para %@ tokens ·"
           }
         },
         "zh-Hans": {
@@ -1103,6 +1103,7 @@
       }
     },
     "%lld file%@": {
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1144,6 +1145,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld arquivo%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个文件"
+          }
+        }
+      }
+    },
+    "%lld files": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld fichiers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld archivos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Dateien"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld file"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld arquivos"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ファイル"
           }
         },
         "zh-Hans": {
@@ -1416,6 +1463,52 @@
         }
       }
     },
+    "1 file": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 fichier"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 archivo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Datei"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 file"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 arquivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 ファイル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 个文件"
+          }
+        }
+      }
+    },
     "100.x.y.z:4180": {
       "shouldTranslate": false
     },
@@ -1562,10 +1655,10 @@
     },
     "a session": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "une session"
+            "value": "einer Sitzung"
           }
         },
         "es": {
@@ -1574,10 +1667,10 @@
             "value": "una sesión"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "einer Sitzung"
+            "value": "une session"
           }
         },
         "it": {
@@ -1586,16 +1679,16 @@
             "value": "una sessione"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "uma sessão"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "セッション"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "uma sessão"
           }
         },
         "zh-Hans": {
@@ -2353,10 +2446,10 @@
     },
     "Ask each time": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Demander à chaque fois"
+            "value": "Jedes Mal fragen"
           }
         },
         "es": {
@@ -2365,10 +2458,10 @@
             "value": "Preguntar cada vez"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jedes Mal fragen"
+            "value": "Demander à chaque fois"
           }
         },
         "it": {
@@ -2377,16 +2470,16 @@
             "value": "Chiedi ogni volta"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Perguntar sempre"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "毎回確認"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perguntar sempre"
           }
         },
         "zh-Hans": {
@@ -2584,10 +2677,10 @@
     },
     "Auto-approve everything": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout approuver automatiquement"
+            "value": "Alles automatisch freigeben"
           }
         },
         "es": {
@@ -2596,10 +2689,10 @@
             "value": "Aprobar todo automáticamente"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alles automatisch freigeben"
+            "value": "Tout approuver automatiquement"
           }
         },
         "it": {
@@ -2608,16 +2701,16 @@
             "value": "Approva tutto in automatico"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aprovar tudo automaticamente"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "すべて自動承認"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aprovar tudo automaticamente"
           }
         },
         "zh-Hans": {
@@ -2630,10 +2723,10 @@
     },
     "Auto-approve reads only": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approuver automatiquement les lectures"
+            "value": "Nur Lesezugriffe automatisch freigeben"
           }
         },
         "es": {
@@ -2642,10 +2735,10 @@
             "value": "Aprobar automáticamente solo las lecturas"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nur Lesezugriffe automatisch freigeben"
+            "value": "Approuver automatiquement les lectures"
           }
         },
         "it": {
@@ -2654,16 +2747,16 @@
             "value": "Approva in automatico solo le letture"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aprovar automaticamente apenas leituras"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "読み取りのみ自動承認"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aprovar automaticamente apenas leituras"
           }
         },
         "zh-Hans": {
@@ -8591,10 +8684,10 @@
     },
     "Grok does not run /%@ from here.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok n'exécute pas /%@ depuis ici."
+            "value": "Grok führt /%@ hier nicht aus."
           }
         },
         "es": {
@@ -8603,10 +8696,10 @@
             "value": "Grok no ejecuta /%@ desde aquí."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok führt /%@ hier nicht aus."
+            "value": "Grok n'exécute pas /%@ depuis ici."
           }
         },
         "it": {
@@ -8615,16 +8708,16 @@
             "value": "Grok non esegue /%@ da qui."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Grok não executa /%@ por aqui."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokはここからは/%@を実行できません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Grok não executa /%@ por aqui."
           }
         },
         "zh-Hans": {
@@ -8830,10 +8923,10 @@
     },
     "Grok is idle. You have %lld sessions.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok est inactif. Vous avez %lld sessions."
+            "value": "Grok arbeitet gerade nicht. Du hast %lld Sitzungen."
           }
         },
         "es": {
@@ -8842,10 +8935,10 @@
             "value": "Grok está inactivo. Tienes %lld sesiones."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok arbeitet gerade nicht. Du hast %lld Sitzungen."
+            "value": "Grok est inactif. Vous avez %lld sessions."
           }
         },
         "it": {
@@ -8854,16 +8947,16 @@
             "value": "Grok è inattivo. Hai %lld sessioni."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Grok está ocioso. Você tem %lld sessões."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokは待機中です。セッションが%lld件あります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Grok está ocioso. Você tem %lld sessões."
           }
         },
         "zh-Hans": {
@@ -8876,10 +8969,10 @@
     },
     "Grok is idle. You have 1 session.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok est inactif. Vous avez 1 session."
+            "value": "Grok arbeitet gerade nicht. Du hast 1 Sitzung."
           }
         },
         "es": {
@@ -8888,10 +8981,10 @@
             "value": "Grok está inactivo. Tienes 1 sesión."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok arbeitet gerade nicht. Du hast 1 Sitzung."
+            "value": "Grok est inactif. Vous avez 1 session."
           }
         },
         "it": {
@@ -8900,16 +8993,16 @@
             "value": "Grok è inattivo. Hai 1 sessione."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Grok está ocioso. Você tem 1 sessão."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokは待機中です。セッションが1件あります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Grok está ocioso. Você tem 1 sessão."
           }
         },
         "zh-Hans": {
@@ -8969,16 +9062,16 @@
     },
     "Grok is working on %@ and %lld more.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grok arbeitet an %@ und %lld weiteren."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "new",
             "value": "Grok is working on %1$@ and %2$lld more."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grok travaille sur %@ et %lld autres."
           }
         },
         "es": {
@@ -8987,10 +9080,10 @@
             "value": "Grok está trabajando en %@ y %lld más."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok arbeitet an %@ und %lld weiteren."
+            "value": "Grok travaille sur %@ et %lld autres."
           }
         },
         "it": {
@@ -8999,16 +9092,16 @@
             "value": "Grok sta lavorando su %@ e altre %lld."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Grok está trabalhando em %@ e em mais %lld."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokは%@ほか%lld件を処理しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Grok está trabalhando em %@ e em mais %lld."
           }
         },
         "zh-Hans": {
@@ -9021,10 +9114,10 @@
     },
     "Grok is working on %@.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok travaille sur %@."
+            "value": "Grok arbeitet an %@."
           }
         },
         "es": {
@@ -9033,10 +9126,10 @@
             "value": "Grok está trabajando en %@."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grok arbeitet an %@."
+            "value": "Grok travaille sur %@."
           }
         },
         "it": {
@@ -9045,16 +9138,16 @@
             "value": "Grok sta lavorando su %@."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Grok está trabalhando em %@."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokは%@を処理しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Grok está trabalhando em %@."
           }
         },
         "zh-Hans": {
@@ -10211,10 +10304,10 @@
     },
     "Invalid server address.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adresse du serveur non valide."
+            "value": "Ungültige Serveradresse."
           }
         },
         "es": {
@@ -10223,10 +10316,10 @@
             "value": "La dirección del servidor no es válida."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ungültige Serveradresse."
+            "value": "Adresse du serveur non valide."
           }
         },
         "it": {
@@ -10235,16 +10328,16 @@
             "value": "Indirizzo del server non valido."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Endereço do servidor inválido."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "サーバーアドレスが正しくありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endereço do servidor inválido."
           }
         },
         "zh-Hans": {
@@ -11941,10 +12034,10 @@
     },
     "Not authorized. Check your pairing token.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Non autorisé. Vérifiez votre jeton d'appairage."
+            "value": "Nicht autorisiert. Prüfe deinen Kopplungs-Token."
           }
         },
         "es": {
@@ -11953,10 +12046,10 @@
             "value": "Sin autorización. Revisa tu token de vinculación."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nicht autorisiert. Prüfe deinen Kopplungs-Token."
+            "value": "Non autorisé. Vérifiez votre jeton d'appairage."
           }
         },
         "it": {
@@ -11965,16 +12058,16 @@
             "value": "Non autorizzato. Controlla il token di abbinamento."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sem autorização. Verifique seu token de pareamento."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "認証されていません。ペアリングトークンを確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem autorização. Verifique seu token de pareamento."
           }
         },
         "zh-Hans": {
@@ -14225,10 +14318,10 @@
     },
     "Reads only": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lectures seules"
+            "value": "Nur Lesen"
           }
         },
         "es": {
@@ -14237,10 +14330,10 @@
             "value": "Solo lecturas"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nur Lesen"
+            "value": "Lectures seules"
           }
         },
         "it": {
@@ -14249,16 +14342,16 @@
             "value": "Solo letture"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Só leituras"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "読み取りのみ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só leituras"
           }
         },
         "zh-Hans": {
@@ -15524,10 +15617,10 @@
     },
     "Restart": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrer"
+            "value": "Neu starten"
           }
         },
         "es": {
@@ -15536,10 +15629,10 @@
             "value": "Reiniciar"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neu starten"
+            "value": "Redémarrer"
           }
         },
         "it": {
@@ -15548,16 +15641,16 @@
             "value": "Riavvia"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reiniciar"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "再起動"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar"
           }
         },
         "zh-Hans": {
@@ -15570,10 +15663,10 @@
     },
     "Restart this session": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrer cette session"
+            "value": "Diese Sitzung neu starten"
           }
         },
         "es": {
@@ -15582,10 +15675,10 @@
             "value": "Reiniciar esta sesión"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diese Sitzung neu starten"
+            "value": "Redémarrer cette session"
           }
         },
         "it": {
@@ -15594,16 +15687,16 @@
             "value": "Riavvia questa sessione"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reiniciar esta sessão"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "このセッションを再起動"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar esta sessão"
           }
         },
         "zh-Hans": {
@@ -15848,10 +15941,10 @@
     },
     "Run": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Exécuter"
+            "value": "Ausführen"
           }
         },
         "es": {
@@ -15860,10 +15953,10 @@
             "value": "Ejecutar"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ausführen"
+            "value": "Exécuter"
           }
         },
         "it": {
@@ -15872,16 +15965,16 @@
             "value": "Esegui"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Executar"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "実行"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Executar"
           }
         },
         "zh-Hans": {
@@ -16137,10 +16230,10 @@
     },
     "Run this command?": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Exécuter cette commande ?"
+            "value": "Diesen Befehl ausführen?"
           }
         },
         "es": {
@@ -16149,10 +16242,10 @@
             "value": "¿Ejecutar este comando?"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diesen Befehl ausführen?"
+            "value": "Exécuter cette commande ?"
           }
         },
         "it": {
@@ -16161,16 +16254,16 @@
             "value": "Eseguire questo comando?"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Executar este comando?"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "このコマンドを実行しますか？"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Executar este comando?"
           }
         },
         "zh-Hans": {
@@ -17942,10 +18035,10 @@
     },
     "Show %lld more lines": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afficher %lld lignes de plus"
+            "value": "%lld weitere Zeilen anzeigen"
           }
         },
         "es": {
@@ -17954,10 +18047,10 @@
             "value": "Mostrar %lld líneas más"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld weitere Zeilen anzeigen"
+            "value": "Afficher %lld lignes de plus"
           }
         },
         "it": {
@@ -17966,16 +18059,16 @@
             "value": "Mostra altre %lld righe"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar mais %lld linhas"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "さらに%lld行を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar mais %lld linhas"
           }
         },
         "zh-Hans": {
@@ -18550,10 +18643,10 @@
     },
     "Stop the stuck turn?": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arrêter la tâche bloquée ?"
+            "value": "Die festhängende Aufgabe beenden?"
           }
         },
         "es": {
@@ -18562,10 +18655,10 @@
             "value": "¿Detener la tarea bloqueada?"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die festhängende Aufgabe beenden?"
+            "value": "Arrêter la tâche bloquée ?"
           }
         },
         "it": {
@@ -18574,16 +18667,16 @@
             "value": "Interrompere l'attività bloccata?"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interromper a tarefa travada?"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "止まっているタスクを停止しますか？"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interromper a tarefa travada?"
           }
         },
         "zh-Hans": {
@@ -19359,10 +19452,10 @@
     },
     "That decision did not reach your computer. Open the session and answer it there.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette décision n'est pas parvenue à votre ordinateur. Ouvrez la session et répondez depuis celle-ci."
+            "value": "Diese Entscheidung hat deinen Computer nicht erreicht. Öffne die Sitzung und antworte dort."
           }
         },
         "es": {
@@ -19371,10 +19464,10 @@
             "value": "Esa decisión no llegó a tu ordenador. Abre la sesión y respóndela ahí."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diese Entscheidung hat deinen Computer nicht erreicht. Öffne die Sitzung und antworte dort."
+            "value": "Cette décision n'est pas parvenue à votre ordinateur. Ouvrez la session et répondez depuis celle-ci."
           }
         },
         "it": {
@@ -19383,16 +19476,16 @@
             "value": "Questa decisione non è arrivata al tuo computer. Apri la sessione e rispondi da lì."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Essa decisão não chegou ao seu computador. Abra a sessão e responda por lá."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "この操作はお使いのコンピュータに届きませんでした。セッションを開いて、そちらで応答してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essa decisão não chegou ao seu computador. Abra a sessão e responda por lá."
           }
         },
         "zh-Hans": {
@@ -19550,10 +19643,10 @@
     },
     "That session no longer exists on your computer.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette session n'existe plus sur votre ordinateur."
+            "value": "Diese Sitzung existiert auf deinem Computer nicht mehr."
           }
         },
         "es": {
@@ -19562,10 +19655,10 @@
             "value": "Esa sesión ya no existe en tu ordenador."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diese Sitzung existiert auf deinem Computer nicht mehr."
+            "value": "Cette session n'existe plus sur votre ordinateur."
           }
         },
         "it": {
@@ -19574,16 +19667,16 @@
             "value": "Questa sessione non esiste più sul tuo computer."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Essa sessão não existe mais no seu computador."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "そのセッションはお使いのコンピュータにすでに存在しません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essa sessão não existe mais no seu computador."
           }
         },
         "zh-Hans": {
@@ -19840,10 +19933,10 @@
     },
     "The turn that is running now will end. The conversation is kept, and your next message carries on from it.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "La tâche en cours va s'arrêter. La conversation est conservée et votre prochain message reprendra à partir de là."
+            "value": "Die laufende Aufgabe wird beendet. Die Unterhaltung bleibt erhalten, und deine nächste Nachricht knüpft daran an."
           }
         },
         "es": {
@@ -19852,10 +19945,10 @@
             "value": "La tarea en curso terminará. La conversación se conserva y tu siguiente mensaje continúa a partir de ella."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die laufende Aufgabe wird beendet. Die Unterhaltung bleibt erhalten, und deine nächste Nachricht knüpft daran an."
+            "value": "La tâche en cours va s'arrêter. La conversation est conservée et votre prochain message reprendra à partir de là."
           }
         },
         "it": {
@@ -19864,16 +19957,16 @@
             "value": "L'attività attualmente in corso verrà interrotta. La conversazione viene mantenuta e il prossimo messaggio riprenderà da lì."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A tarefa em andamento será encerrada. A conversa é mantida, e sua próxima mensagem continua de onde ela parou."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "実行中のタスクは終了します。会話は保持され、次のメッセージはその続きから始まります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A tarefa em andamento será encerrada. A conversa é mantida, e sua próxima mensagem continua de onde ela parou."
           }
         },
         "zh-Hans": {
@@ -20260,10 +20353,10 @@
     },
     "This one runs a long, expensive task that keeps going after you close the app.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Celle-ci lance une tâche longue et coûteuse qui continue après la fermeture de l'application."
+            "value": "Dieser Befehl startet eine lange, teure Aufgabe, die auch nach dem Schließen der App weiterläuft."
           }
         },
         "es": {
@@ -20272,10 +20365,10 @@
             "value": "Esto ejecuta una tarea larga y costosa que continúa aunque cierres la app."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieser Befehl startet eine lange, teure Aufgabe, die auch nach dem Schließen der App weiterläuft."
+            "value": "Celle-ci lance une tâche longue et coûteuse qui continue après la fermeture de l'application."
           }
         },
         "it": {
@@ -20284,16 +20377,16 @@
             "value": "Questo avvia un'operazione lunga e costosa che prosegue anche dopo la chiusura dell'app."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este executa uma tarefa longa e cara, que continua rodando depois que você fecha o app."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "このコマンドは、アプリを閉じた後も実行が続く、時間とコストのかかる処理を開始します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este executa uma tarefa longa e cara, que continua rodando depois que você fecha o app."
           }
         },
         "zh-Hans": {
@@ -21352,10 +21445,10 @@
     },
     "Unlock TethrX. It can run commands on your computer.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Déverrouillez TethrX. Cette app peut exécuter des commandes sur votre ordinateur."
+            "value": "TethrX entsperren. Die App kann Befehle auf deinem Computer ausführen."
           }
         },
         "es": {
@@ -21364,10 +21457,10 @@
             "value": "Desbloquea TethrX. Puede ejecutar comandos en tu ordenador."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TethrX entsperren. Die App kann Befehle auf deinem Computer ausführen."
+            "value": "Déverrouillez TethrX. Cette app peut exécuter des commandes sur votre ordinateur."
           }
         },
         "it": {
@@ -21376,16 +21469,16 @@
             "value": "Sblocca TethrX. Può eseguire comandi sul tuo computer."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desbloqueie o TethrX. Ele pode executar comandos no seu computador."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "TethrXのロックを解除します。このアプリはお使いのコンピュータでコマンドを実行できます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desbloqueie o TethrX. Ele pode executar comandos no seu computador."
           }
         },
         "zh-Hans": {
@@ -21928,10 +22021,10 @@
     },
     "Use this if Grok has stopped responding. It ends the stuck turn and keeps the conversation.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "À utiliser si Grok ne répond plus. Cela met fin à la tâche bloquée et conserve la conversation."
+            "value": "Verwende dies, wenn Grok nicht mehr reagiert. Die festhängende Aufgabe wird beendet, die Unterhaltung bleibt erhalten."
           }
         },
         "es": {
@@ -21940,10 +22033,10 @@
             "value": "Úsalo si Grok ha dejado de responder. Termina la tarea bloqueada y conserva la conversación."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verwende dies, wenn Grok nicht mehr reagiert. Die festhängende Aufgabe wird beendet, die Unterhaltung bleibt erhalten."
+            "value": "À utiliser si Grok ne répond plus. Cela met fin à la tâche bloquée et conserve la conversation."
           }
         },
         "it": {
@@ -21952,16 +22045,16 @@
             "value": "Usa questa opzione se Grok non risponde più. Interrompe l'attività bloccata e mantiene la conversazione."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use isto se o Grok parou de responder. Encerra a tarefa travada e mantém a conversa."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Grokが応答しなくなった場合に使用します。止まっているタスクを終了し、会話はそのまま残します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use isto se o Grok parou de responder. Encerra a tarefa travada e mantém a conversa."
           }
         },
         "zh-Hans": {
@@ -22112,10 +22205,10 @@
     },
     "WAITING FOR YOU": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "EN ATTENTE DE VOUS"
+            "value": "WARTET AUF DICH"
           }
         },
         "es": {
@@ -22124,10 +22217,10 @@
             "value": "TE ESPERA"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "WARTET AUF DICH"
+            "value": "EN ATTENTE DE VOUS"
           }
         },
         "it": {
@@ -22136,16 +22229,16 @@
             "value": "IN ATTESA DI TE"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AGUARDANDO VOCÊ"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "要対応"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AGUARDANDO VOCÊ"
           }
         },
         "zh-Hans": {
@@ -22158,10 +22251,10 @@
     },
     "Waiting for your approval": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "En attente de votre approbation"
+            "value": "Wartet auf deine Freigabe"
           }
         },
         "es": {
@@ -22170,10 +22263,10 @@
             "value": "Esperando tu aprobación"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wartet auf deine Freigabe"
+            "value": "En attente de votre approbation"
           }
         },
         "it": {
@@ -22182,16 +22275,16 @@
             "value": "In attesa della tua approvazione"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aguardando sua aprovação"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "承認を待っています"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguardando sua aprovação"
           }
         },
         "zh-Hans": {
@@ -23310,10 +23403,10 @@
     },
     "Your computer returned an error (status %lld).": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Votre ordinateur a renvoyé une erreur (statut %lld)."
+            "value": "Dein Computer hat einen Fehler gemeldet (Status %lld)."
           }
         },
         "es": {
@@ -23322,10 +23415,10 @@
             "value": "Tu ordenador devolvió un error (estado %lld)."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dein Computer hat einen Fehler gemeldet (Status %lld)."
+            "value": "Votre ordinateur a renvoyé une erreur (statut %lld)."
           }
         },
         "it": {
@@ -23334,16 +23427,16 @@
             "value": "Il tuo computer ha restituito un errore (stato %lld)."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seu computador retornou um erro (status %lld)."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "お使いのコンピュータがエラーを返しました（ステータス%lld）。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seu computador retornou um erro (status %lld)."
           }
         },
         "zh-Hans": {
@@ -23356,10 +23449,10 @@
     },
     "Your computer stopped offering a secure connection. Pair again from its pairing page to continue.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Votre ordinateur ne propose plus de connexion sécurisée. Relancez l'appairage depuis sa page dédiée pour continuer."
+            "value": "Dein Computer bietet keine sichere Verbindung mehr an. Koppele erneut über seine Kopplungsseite, um fortzufahren."
           }
         },
         "es": {
@@ -23368,10 +23461,10 @@
             "value": "Tu ordenador dejó de ofrecer una conexión segura. Vuelve a vincularlo desde su página de vinculación para continuar."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dein Computer bietet keine sichere Verbindung mehr an. Koppele erneut über seine Kopplungsseite, um fortzufahren."
+            "value": "Votre ordinateur ne propose plus de connexion sécurisée. Relancez l'appairage depuis sa page dédiée pour continuer."
           }
         },
         "it": {
@@ -23380,16 +23473,16 @@
             "value": "Il tuo computer non offre più una connessione sicura. Ripeti l'abbinamento dalla sua pagina di abbinamento per continuare."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seu computador deixou de oferecer uma conexão segura. Refaça o pareamento na página de pareamento dele para continuar."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "お使いのコンピュータが安全な接続を提供しなくなりました。続けるには、コンピュータのペアリングページからもう一度ペアリングしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seu computador deixou de oferecer uma conexão segura. Refaça o pareamento na página de pareamento dele para continuar."
           }
         },
         "zh-Hans": {
@@ -23402,10 +23495,10 @@
     },
     "Your computer's security certificate changed. Pair again from its pairing page to continue.": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le certificat de sécurité de votre ordinateur a changé. Relancez l'appairage depuis sa page dédiée pour continuer."
+            "value": "Das Sicherheitszertifikat deines Computers hat sich geändert. Koppele erneut über seine Kopplungsseite, um fortzufahren."
           }
         },
         "es": {
@@ -23414,10 +23507,10 @@
             "value": "El certificado de seguridad de tu ordenador ha cambiado. Vuelve a vincularlo desde su página de vinculación para continuar."
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Sicherheitszertifikat deines Computers hat sich geändert. Koppele erneut über seine Kopplungsseite, um fortzufahren."
+            "value": "Le certificat de sécurité de votre ordinateur a changé. Relancez l'appairage depuis sa page dédiée pour continuer."
           }
         },
         "it": {
@@ -23426,16 +23519,16 @@
             "value": "Il certificato di sicurezza del tuo computer è cambiato. Ripeti l'abbinamento dalla sua pagina di abbinamento per continuare."
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O certificado de segurança do seu computador mudou. Refaça o pareamento na página de pareamento dele para continuar."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "お使いのコンピュータのセキュリティ証明書が変更されました。続けるには、コンピュータのペアリングページからもう一度ペアリングしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O certificado de segurança do seu computador mudou. Refaça o pareamento na página de pareamento dele para continuar."
           }
         },
         "zh-Hans": {
@@ -23494,10 +23587,10 @@
     },
     "your session": {
       "localizations": {
-        "fr": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "votre session"
+            "value": "deiner Sitzung"
           }
         },
         "es": {
@@ -23506,10 +23599,10 @@
             "value": "tu sesión"
           }
         },
-        "de": {
+        "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "deiner Sitzung"
+            "value": "votre session"
           }
         },
         "it": {
@@ -23518,16 +23611,16 @@
             "value": "la tua sessione"
           }
         },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "sua sessão"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "あなたのセッション"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sua sessão"
           }
         },
         "zh-Hans": {

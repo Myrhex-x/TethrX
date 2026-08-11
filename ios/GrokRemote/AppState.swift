@@ -16,7 +16,9 @@ final class AppState: ObservableObject {
     /// The bridge version this app's features are built against. A connected
     /// bridge older than this gets a visible "update your bridge" banner —
     /// otherwise the new buttons would just 404 with no explanation.
-    static let wantedBridgeVersion = "0.1.20"
+    /// nonisolated: it is an immutable constant, and DemoMode reads it from outside the
+    /// main actor. Left isolated it is only a warning today, and a hard error in Swift 6.
+    nonisolated static let wantedBridgeVersion = "0.1.20"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
