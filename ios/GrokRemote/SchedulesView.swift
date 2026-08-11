@@ -95,7 +95,7 @@ struct SchedulesSection: View {
         do {
             try await client.setScheduleEnabled(s.id, enabled: on)
             if let i = schedules?.firstIndex(where: { $0.id == s.id }) { schedules?[i].enabled = on }
-        } catch { errorText = "Couldn't update that schedule." }
+        } catch { errorText = String(localized: "Couldn't update that schedule.") }
     }
 
     private func remove(_ s: BridgeSchedule) async {
@@ -103,7 +103,7 @@ struct SchedulesSection: View {
         do {
             try await client.deleteSchedule(s.id)
             schedules?.removeAll { $0.id == s.id }
-        } catch { errorText = "Couldn't delete that schedule." }
+        } catch { errorText = String(localized: "Couldn't delete that schedule.") }
     }
 }
 
@@ -123,6 +123,7 @@ struct ScheduleEditorSheet: View {
         app.sessions.first(where: { $0.id == sessionId }) ?? app.sessions.first
     }
     private var daySymbols: [String] { Calendar.current.veryShortWeekdaySymbols }   // Sun-first
+    private var dayNames: [String] { Calendar.current.weekdaySymbols }              // Sun-first, for VoiceOver
 
     var body: some View {
         NavigationStack {
@@ -167,7 +168,11 @@ struct ScheduleEditorSheet: View {
                             .labelsHidden().datePickerStyle(.wheel)
                             .colorScheme(.dark)
                             .frame(maxWidth: .infinity)
-                        HStack(spacing: 8) {
+                        // The circles stay 34pt and the gap between them becomes the
+                        // slack in a 44pt target, so a mis-tap no longer picks the
+                        // wrong day. VoiceOver read the initials, which is two "S"
+                        // and two "T" with no way to tell what is already on.
+                        HStack(spacing: 0) {
                             ForEach(0..<7, id: \.self) { d in
                                 Button {
                                     if weekdays.contains(d) { weekdays.remove(d) } else { weekdays.insert(d) }
@@ -179,11 +184,17 @@ struct ScheduleEditorSheet: View {
                                         .foregroundStyle(weekdays.contains(d) ? .black : Grok.textDim)
                                         .overlay(Circle().stroke(weekdays.contains(d) ? Color.clear : Grok.hairline, lineWidth: 1))
                                         .clipShape(Circle())
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(Text(dayNames.indices.contains(d) ? dayNames[d] : ""))
+                                .accessibilityAddTraits(weekdays.contains(d) ? [.isSelected] : [])
                             }
                         }
-                        Text(weekdays.isEmpty ? "Every day" : "Uses your computer's clock and time zone.")
+                        (weekdays.isEmpty
+                            ? Text("Every day")
+                            : Text("Uses your computer's clock and time zone."))
                             .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
                     }
 
@@ -231,7 +242,7 @@ struct ScheduleEditorSheet: View {
             Haptics.success()
             dismiss()
         } catch {
-            errorText = "Couldn't save — check the connection."
+            errorText = String(localized: "Couldn't save — check the connection.")
         }
     }
 }

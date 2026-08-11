@@ -292,19 +292,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "optional — z. B. das zusammenfassen oder diesen Fehler beheben"
+            "value" : "optional, z. B. das zusammenfassen oder diesen Fehler beheben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "optional, e.g. summarize this, or fix this error"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "opcional — p. ej. resumir esto o corregir este error"
+            "value" : "opcional, p. ej. resumir esto o corregir este error"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "facultatif — ex. : résumer ceci, ou corriger cette erreur"
+            "value" : "facultatif, ex. : résumer ceci, ou corriger cette erreur"
           }
         },
         "it" : {
@@ -322,7 +328,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "opcional — ex.: resuma isto ou corrija este erro"
+            "value" : "opcional, ex.: resuma isto ou corrija este erro"
           }
         },
         "zh-Hans" : {

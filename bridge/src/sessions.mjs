@@ -5,10 +5,32 @@
 // missed via Last-Event-ID), and the set of live SSE subscribers.
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 const HISTORY_LIMIT = 5000;
+
+// Events that are state, not conversation. They are streamed to whoever is listening
+// but never stored: the command roster alone was 6.8KB a copy and had taken 70KB of a
+// 97KB transcript, burning history slots and re-sending on every replay.
+const EPHEMERAL_KINDS = new Set(["commands", "log", "waiting"]);
+
+// A subscriber that has stopped reading (a phone in a tunnel keeps its socket open with
+// no close event) must not buffer without limit. Measured at 160MB before this cap.
+const MAX_SUBSCRIBER_BACKLOG = 4 * 1024 * 1024;
+
+const APPROVAL_POLICIES = new Set(["ask", "reads", "all"]);
+
+/**
+ * Write via a temp file and rename, so a kill mid-write cannot leave a truncated file.
+ * Every loader here swallows a parse error and starts empty, which turned a bad moment
+ * into silently losing every session.
+ */
+function writeAtomic(path, data, mode = 0o600) {
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, data, { mode });
+  renameSync(tmp, path);
+}
 
 /** Zeroed usage counters. `contextTokens`/`contextWindow` describe the latest
  *  turn's footprint vs the model's window; the rest are lifetime totals. */
@@ -28,7 +50,7 @@ function normalizeUsage(u) {
 const EDITED_PATHS_LIMIT = 200;
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, usage, folder, seedContext, queue, editedPaths, commands }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, approvalPolicy, usage, folder, seedContext, queue, editedPaths, commands }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -37,7 +59,13 @@ class Session {
     this.folder = folder || "";          // optional grouping label for the phone's session list
     this.transport = transport || "acp"; // "acp" | "headless"
     this.planMode = planMode || false;
-    this.autoApprove = autoApprove || false;    // "always allow" — auto-approve tool permissions
+    // How tool permissions are answered. "all" used to be the only alternative to
+    // asking, so turning it on so a long build would stop stalling on every `cat` also
+    // signed off on `rm -rf` and `git push --force`, unattended.
+    //   ask   - every tool call waits for you (the default)
+    //   reads - read-only tools go through, writes and shell still ask
+    //   all   - answer everything (what the old boolean meant)
+    this.approvalPolicy = APPROVAL_POLICIES.has(approvalPolicy) ? approvalPolicy : (autoApprove ? "all" : "ask");
     this.grokSessionId = grokSessionId || null; // grok's ACP sessionId, for session/load resume
     this.createdAt = createdAt || new Date().toISOString();
     this.seedContext = seedContext || null;   // handoff summary from a compacted session; consumed by the first turn
@@ -60,10 +88,30 @@ class Session {
 
     this.historyPath = null;             // set by the store; where events are persisted
     this.acp = null;                     // AcpSession (lazy, set by the server for ACP sessions)
+    this.dead = false;                   // deleted; a turn still in flight must stop touching it
+    // What grok is blocked on, if anything. A session waiting on your approval used to
+    // look exactly like one busy working, so the only way to find the stuck one was to
+    // open each session and scroll to the bottom.
+    this.waitingOn = null;               // null | { kind: "permission" | "plan", label, since }
     this._events = [];                   // [{ id, event }]
     this._nextEventId = 0;
     this._subscribers = new Set();       // Set<http.ServerResponse>
     this._abort = null;                  // AbortController for a running headless turn
+  }
+
+  /** Legacy view of the policy. Clients that predate approvalPolicy read this. */
+  get autoApprove() { return this.approvalPolicy === "all"; }
+  set autoApprove(v) { this.approvalPolicy = v ? "all" : "ask"; }
+
+  /**
+   * Should this permission request be answered without asking?
+   * `readOnly` comes straight from grok's own tool metadata.
+   */
+  shouldAutoApprove(event) {
+    if (this.approvalPolicy === "all") return true;
+    // Strictly true: an absent flag on an unknown tool must not read as read-only.
+    if (this.approvalPolicy === "reads") return event?.readOnly === true;
+    return false;
   }
 
   toJSON() {
@@ -76,8 +124,11 @@ class Session {
       transport: this.transport,
       planMode: this.planMode,
       effort: this.effort || "",
-      autoApprove: this.autoApprove,
+      autoApprove: this.autoApprove,     // kept for clients that predate approvalPolicy
+      approvalPolicy: this.approvalPolicy,
       status: this.status,
+      // `status` stays "idle"/"running" for clients that predate this field.
+      waiting: this.waitingOn ? { kind: this.waitingOn.kind, label: this.waitingOn.label || "", since: this.waitingOn.since } : undefined,
       turnCount: this.turnCount,
       createdAt: this.createdAt,
       lastEventId: this._nextEventId,
@@ -89,13 +140,26 @@ class Session {
     };
   }
 
+  /** Note that grok is blocked on the user, and tell every listener. */
+  setWaiting(kind, label) {
+    this.waitingOn = { kind, label: String(label || "").slice(0, 120), since: new Date().toISOString() };
+    this.emit({ kind: "waiting", waiting: this.waitingOn });
+  }
+
+  /** Grok is no longer blocked: answered, abandoned, or the process died. */
+  clearWaiting() {
+    if (!this.waitingOn) return;
+    this.waitingOn = null;
+    this.emit({ kind: "waiting", waiting: null });
+  }
+
   // --- follow-up queue ----------------------------------------------------
 
   /** Add a follow-up. `source` is for the app's own labelling ("phone", "reply",
    *  "share"), never sent to grok. */
   enqueue(text, source = "phone") {
     const t = String(text || "").trim();
-    if (!t) return null;
+    if (!t || this.dead) return null;
     const item = { id: randomUUID(), text: t, source, at: new Date().toISOString() };
     this.queue.push(item);
     return item;
@@ -144,7 +208,7 @@ class Session {
     return {
       id: this.id, cwd: this.cwd, model: this.model, effort: this.effort,
       transport: this.transport, title: this.title, folder: this.folder || "", planMode: this.planMode,
-      autoApprove: this.autoApprove, grokSessionId: this.grokSessionId,
+      autoApprove: this.autoApprove, approvalPolicy: this.approvalPolicy, grokSessionId: this.grokSessionId,
       createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
       seedContext: this.seedContext, queue: this.queue,
       editedPaths: this.editedPaths, commands: this.commands,
@@ -153,8 +217,10 @@ class Session {
 
   /** Persist the event history so a reopened session shows its full conversation. */
   saveHistory() {
-    if (!this.historyPath) return;
-    try { writeFileSync(this.historyPath, JSON.stringify(this._events)); } catch { /* best-effort */ }
+    if (!this.historyPath || this.dead) return;   // a deleted session must not rewrite its own transcript
+    // 0600: a transcript holds every prompt, every shell command and its output, every
+    // diff, and absolute project paths. It was being written world-readable.
+    try { writeAtomic(this.historyPath, JSON.stringify(this._events)); } catch { /* best-effort */ }
   }
 
   loadHistory() {
@@ -165,25 +231,48 @@ class Session {
         this._events = events;
         this._nextEventId = events[events.length - 1].id || 0;
       }
-    } catch { /* ignore corrupt history */ }
+    } catch (e) {
+      // Starting empty silently is how a corrupt file quietly became "no conversation".
+      console.error(`[sessions] unreadable history for ${this.id}: ${e.message}`);
+      try { renameSync(this.historyPath, `${this.historyPath}.corrupt`); } catch { /* best-effort */ }
+    }
   }
 
   // --- event fan-out ------------------------------------------------------
 
   emit(event) {
+    if (this.dead) return 0;   // the session is gone; a turn still unwinding must not resurrect it
     // Every edit flows through here as a tool_update with a diff — the one reliable
     // signal of where grok actually worked, whatever the session's nominal cwd is.
     if (event?.kind === "tool_update" && event.diff?.path) this.noteEdit(event.diff.path);
+
+    // Ephemeral events go out with no `id:` line, so a reconnecting client's
+    // Last-Event-ID position is unaffected by something it will never replay.
+    if (EPHEMERAL_KINDS.has(event?.kind)) {
+      this._broadcast(`data: ${JSON.stringify(event)}\n\n`);
+      return 0;
+    }
+
     const id = ++this._nextEventId;
     const record = { id, event };
     this._events.push(record);
     if (this._events.length > HISTORY_LIMIT) this._events.shift();
 
-    const frame = `id: ${id}\ndata: ${JSON.stringify(event)}\n\n`;
-    for (const res of this._subscribers) {
-      res.write(frame);
-    }
+    this._broadcast(`id: ${id}\ndata: ${JSON.stringify(event)}\n\n`);
     return id;
+  }
+
+  _broadcast(frame) {
+    for (const res of this._subscribers) {
+      // A socket nobody is draining buffers in memory forever. Drop it instead and let
+      // the client's own reconnect replay from Last-Event-ID.
+      if (res.writableLength > MAX_SUBSCRIBER_BACKLOG) {
+        this._subscribers.delete(res);
+        try { res.destroy(); } catch { /* already gone */ }
+        continue;
+      }
+      try { res.write(frame); } catch { this._subscribers.delete(res); }
+    }
   }
 
   subscribe(res, lastEventId = 0) {
@@ -234,7 +323,8 @@ export class SessionStore {
     this._byId = new Map();
     this._persistPath = persistPath || null;
     this._historyDir = persistPath ? join(dirname(persistPath), "history") : null;
-    if (this._historyDir) { try { mkdirSync(this._historyDir, { recursive: true }); } catch { /* ignore */ } }
+    // 0700: transcripts are private. This directory was being created world-readable.
+    if (this._historyDir) { try { mkdirSync(this._historyDir, { recursive: true, mode: 0o700 }); } catch { /* ignore */ } }
     this._load();
   }
 
@@ -263,7 +353,15 @@ export class SessionStore {
   delete(id) {
     const s = this._byId.get(id);
     if (!s) return false;
+    // Mark it dead FIRST. A turn in flight still holds this object: its finally block
+    // called saveHistory (recreating the transcript we just removed, as an orphan file)
+    // and then continueAfterTurn, which drained the queue and spawned a fresh grok for
+    // a session that no longer existed, unobservable and never reaped.
+    s.dead = true;
+    s.queue = [];
+    s.waitingOn = null;
     if (s.acp) { try { s.acp.stop(); } catch { /* ignore */ } }
+    s.acp = null;
     this._byId.delete(id);
     if (s.historyPath) { try { rmSync(s.historyPath, { force: true }); } catch { /* ignore */ } }
     this.save();
@@ -283,19 +381,47 @@ export class SessionStore {
     if (!this._persistPath) return;
     try {
       const data = [...this._byId.values()].map((s) => s.toMetadata());
-      writeFileSync(this._persistPath, JSON.stringify(data, null, 2));
+      writeAtomic(this._persistPath, JSON.stringify(data));
     } catch { /* best-effort */ }
   }
 
   _load() {
     if (!this._persistPath || !existsSync(this._persistPath)) return;
+    let metas;
     try {
-      for (const meta of JSON.parse(readFileSync(this._persistPath, "utf8"))) {
+      metas = JSON.parse(readFileSync(this._persistPath, "utf8"));
+    } catch (e) {
+      // Swallowing this meant a truncated write presented as "you have no sessions",
+      // and the next save() then overwrote the evidence.
+      console.error(`[sessions] unreadable session store: ${e.message}`);
+      try { renameSync(this._persistPath, `${this._persistPath}.corrupt`); } catch { /* best-effort */ }
+      return;
+    }
+    if (!Array.isArray(metas)) return;
+    for (const meta of metas) {
+      try {
         const s = new Session(meta);   // meta.id restores the original id
         s.historyPath = this._historyPathFor(s.id);
         s.loadHistory();               // restore the conversation so it can be followed
         this._byId.set(s.id, s);
+      } catch { /* skip one bad record rather than losing every session */ }
+    }
+  }
+
+  /**
+   * Remove transcripts with no surviving session. Before delete() marked sessions dead,
+   * a mid-turn delete wrote its history back out after the file had been removed.
+   */
+  sweepOrphanHistory(readdir) {
+    if (!this._historyDir) return 0;
+    let removed = 0;
+    try {
+      for (const name of readdir(this._historyDir)) {
+        if (!name.endsWith(".json")) continue;
+        if (this._byId.has(name.slice(0, -5))) continue;
+        try { rmSync(join(this._historyDir, name), { force: true }); removed++; } catch { /* ignore */ }
       }
-    } catch { /* ignore a corrupt store */ }
+    } catch { /* ignore */ }
+    return removed;
   }
 }

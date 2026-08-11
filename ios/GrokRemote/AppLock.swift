@@ -39,7 +39,7 @@ final class AppLock: ObservableObject {
         var err: NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { locked = false; return }
         ctx.evaluatePolicy(.deviceOwnerAuthentication,
-                           localizedReason: "Unlock TethrX — it can run commands on your computer.") { ok, _ in
+                           localizedReason: String(localized: "Unlock TethrX. It can run commands on your computer.")) { ok, _ in
             Task { @MainActor in if ok { self.locked = false } }
         }
     }

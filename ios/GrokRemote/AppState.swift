@@ -5,10 +5,18 @@ import SwiftUI
 /// and default working directory to UserDefaults so pairing survives relaunches.
 @MainActor
 final class AppState: ObservableObject {
+    /// One instance, reachable before any scene exists.
+    ///
+    /// Notification actions (Approve, Reject, Reply) are non-foreground: iOS launches
+    /// the process with NO scene connected, so anything wired inside a WindowGroup's
+    /// `.task` has not run and never will for that launch. The decision was parked in
+    /// memory and lost if the process was then killed, while the notification cleared
+    /// as though it had worked and grok stayed blocked.
+    static let shared = AppState()
     /// The bridge version this app's features are built against. A connected
     /// bridge older than this gets a visible "update your bridge" banner —
     /// otherwise the new buttons would just 404 with no explanation.
-    static let wantedBridgeVersion = "0.1.18"
+    static let wantedBridgeVersion = "0.1.20"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
@@ -315,6 +323,13 @@ final class AppState: ObservableObject {
     /// Pinned HTTPS failed. Drop back to the plain-HTTP address and try again; on
     /// success the upgrade runs afresh, which also re-pins if the bridge minted a new
     /// certificate. Restores the previous address if the fallback is no better.
+    /// The pinned port stopped answering. Climb down to the plaintext address only far
+    /// enough to ASK what is there, and re-pin only if it is provably the same bridge.
+    ///
+    /// This used to clear the pin, dial plaintext, send the pairing token over it, and
+    /// then adopt whatever fingerprint that cleartext response advertised, persisting it.
+    /// Anyone on the same network could trigger the whole sequence by simply resetting
+    /// connections to the TLS port, and the pairing token is a shell on the user's Mac.
     private func recoverFromDeadPin() async -> Bool {
         guard !pin.isEmpty else { return false }
         let fallback = plainFallbackAddress()
@@ -327,11 +342,37 @@ final class AppState: ObservableObject {
             baseURLString = prevBase; pin = prevPin
             return false
         }
+        var recovered = false
+        defer { if !recovered { baseURLString = prevBase; pin = prevPin } }
+
+        // No credential on the wire yet: /api/health is unauthenticated by design.
+        guard let h = try? await plain.health(timeout: 8, authenticated: false) else { return false }
+
+        guard let tls = h.tls, !tls.fingerprint.isEmpty else {
+            // The bridge is answering but is no longer offering TLS at all. Continuing
+            // would mean sending the token in the clear on a channel that just changed
+            // shape, which is indistinguishable from an attacker holding the port down.
+            errorMessage = String(localized: "Your computer stopped offering a secure connection. Pair again from its pairing page to continue.")
+            return false
+        }
+        guard tls.fingerprint.lowercased() == prevPin.lowercased() else {
+            // Same address, different certificate. Either the bridge regenerated its key
+            // (in which case pairing again is genuinely required) or this is not it.
+            errorMessage = String(localized: "Your computer's security certificate changed. Pair again from its pairing page to continue.")
+            return false
+        }
+
+        // Provably the same bridge, and its TLS port is back. Climb straight back up
+        // rather than spending a single request on the plaintext channel.
+        guard let host = URL(string: fallback)?.host else { return false }
+        baseURLString = "https://\(host):\(tls.port)"
+        pin = prevPin
+        guard let pinned = client else { return false }
         do {
-            try await establish(with: plain)
+            try await establish(with: pinned)
+            recovered = true
             return true
         } catch {
-            baseURLString = prevBase; pin = prevPin
             return false
         }
     }
@@ -483,16 +524,21 @@ final class AppState: ObservableObject {
     /// paired to several). Sending the decision only to the active bridge meant a
     /// 404 that was silently swallowed — the button "worked" and grok stayed blocked
     /// forever. Try the active computer first, then every other paired one.
-    func resolvePermission(sessionId: String, requestId: String, optionId: String) async {
+    @discardableResult
+    func resolvePermission(sessionId: String, requestId: String, optionId: String) async -> Bool {
         if let client, (try? await client.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
-            return
+            return true
         }
         for bridge in savedBridges where bridge.id != activeBridgeId {
             guard let other = client(for: bridge) else { continue }
             if (try? await other.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
-                return
+                return true
             }
         }
+        // Nothing accepted it, so grok is still blocked while the notification cleared
+        // as though the tap had worked. Say so rather than failing silently.
+        errorMessage = String(localized: "That decision did not reach your computer. Open the session and answer it there.")
+        return false
     }
 
     /// A reply typed into a notification. Queued on the bridge, which runs it when the
@@ -534,8 +580,15 @@ final class AppState: ObservableObject {
     /// Store the APNs token and push it to the bridge (if we're connected).
     func registerDevice(_ token: String) async {
         pushToken = token
-        guard let client, connected else { return }
-        try? await client.registerDevice(token)
+        // Every paired computer needs the new token, not just the active one. After a
+        // reinstall or a restore the others kept pushing to a token that no longer
+        // exists, so their approvals simply never alerted, with no symptom anywhere.
+        guard connected else { return }
+        if let client { try? await client.registerDevice(token) }
+        for bridge in savedBridges where bridge.id != activeBridgeId {
+            guard let other = client(for: bridge) else { continue }
+            try? await other.registerDevice(token)
+        }
     }
 
     /// Store an ActivityKit push-to-start token and forward it (if connected).

@@ -310,7 +310,7 @@ struct PairingView: View {
               let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
               let tok = c.queryItems?.first(where: { $0.name == "token" })?.value,
               !addr.isEmpty, !tok.isEmpty else {
-            app.errorMessage = "That doesn't look like a TethrX pairing code."
+            app.errorMessage = String(localized: "That doesn't look like a TethrX pairing code.")
             return
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""

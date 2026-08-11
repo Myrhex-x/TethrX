@@ -71,6 +71,12 @@ struct PromptLibraryView: View {
                 if !query.isEmpty {
                     Button { query = "" } label: {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+                            // A 13pt glyph was a 13pt target. The negative padding
+                            // gives back the height the 44pt frame would otherwise
+                            // add to the field, which is already 44pt tall.
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                            .padding(.vertical, -13)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text("Clear search"))
@@ -83,7 +89,7 @@ struct PromptLibraryView: View {
         VStack(spacing: 12) {
             Image(systemName: query.isEmpty ? "square.and.pencil" : "magnifyingglass")
                 .font(.system(size: 22)).foregroundStyle(Grok.textFaint)
-            Text(query.isEmpty ? "No prompts yet." : "Nothing matches that.")
+            (query.isEmpty ? Text("No prompts yet.") : Text("Nothing matches that."))
                 .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
             if query.isEmpty {
                 Button { creating = true } label: { Text("Write your first prompt") }

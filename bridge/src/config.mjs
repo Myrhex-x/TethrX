@@ -7,7 +7,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync } from "node:fs";
 
 const STATE_DIR = join(homedir(), ".grok-remote");
 const CONFIG_PATH = join(STATE_DIR, "config.json");
@@ -65,7 +65,11 @@ const DEFAULTS = {
 };
 
 function load() {
-  mkdirSync(STATE_DIR, { recursive: true });
+  // Everything under here is private to this user: the pairing token, the APNs key,
+  // the pinned TLS key, session transcripts. The default umask made the directory
+  // 0755, so every install to date needs repairing, not just new ones.
+  mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+  try { chmodSync(STATE_DIR, 0o700); } catch { /* someone else owns it; leave it */ }
 
   let stored = {};
   if (existsSync(CONFIG_PATH)) {

@@ -110,7 +110,7 @@ struct GitReviewSheet: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "folder").font(.system(size: 11))
-                    Text(repoName.isEmpty ? "repository" : repoName).font(Grok.mono(12, .semibold))
+                    (repoName.isEmpty ? Text("repository") : Text(repoName)).font(Grok.mono(12, .semibold))
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold))
                 }
                 .foregroundStyle(Grok.text)
@@ -132,7 +132,7 @@ struct GitReviewSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.triangle.branch").font(.system(size: 12)).foregroundStyle(Grok.textDim)
                 .accessibilityHidden(true)
-            Text(status?.branch ?? "—").font(Grok.mono(12, .semibold)).foregroundStyle(Grok.text)
+            Text(status?.branch ?? "·").font(Grok.mono(12, .semibold)).foregroundStyle(Grok.text)
             Spacer()
             Text("\(files.count) file\(files.count == 1 ? "" : "s")")
                 .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
@@ -228,10 +228,10 @@ struct GitReviewSheet: View {
             let out = try await client.gitCommit(sessionId: session.id, message: commitMessage, dir: dir)
             Haptics.success()
             commitMessage = ""
-            note = out.isEmpty ? "Committed." : out
+            note = out.isEmpty ? String(localized: "Committed.") : out
             await load()
         } catch {
-            errorText = "Commit failed. Check that git is configured (user.name / user.email) on that computer."
+            errorText = String(localized: "Commit failed. Check that git is configured (user.name / user.email) on that computer.")
         }
     }
 
@@ -241,7 +241,7 @@ struct GitReviewSheet: View {
         do {
             _ = try await client.gitDiscard(sessionId: session.id, dir: dir)
             Haptics.tap(.medium)
-            note = "Changes discarded."
+            note = String(localized: "Changes discarded.")
             await load()
         } catch {
             errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription

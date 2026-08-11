@@ -4,10 +4,13 @@ The local bridge for **[TethrX](https://github.com/Myrhex-x/TethrX)** — run **
 
 The bridge runs on your computer and exposes your Grok Build install to the TethrX iOS app over HTTP + SSE: streamed thoughts, tool calls, and per-tool **approvals** you tap from your phone.
 
+📱 **Get the app: [TethrX on the App Store](https://apps.apple.com/app/tethrx/id6792520305)** — free.
+
 ## Requirements
 
 - **Node.js 20+**
 - **Grok Build** installed and signed in (`grok --version` should work)
+- An iPhone or iPad on **iOS 17+** with [TethrX](https://apps.apple.com/app/tethrx/id6792520305) installed
 
 ## Run
 
@@ -15,7 +18,7 @@ The bridge runs on your computer and exposes your Grok Build install to the Teth
 npx tethrx-bridge
 ```
 
-It prints a **bridge address** and a **pairing token**. On the same computer, open **http://localhost:4180/pair** to get a scannable QR code, then in the TethrX app tap **Scan to pair**.
+It prints a **bridge address** and a **pairing token**. On the same computer, open **http://localhost:4180/pair** to get a scannable QR code, then in the TethrX app tap **Scan to pair**. That page is loopback-only, so the token never leaves the machine.
 
 Prefer it always-on? Install it globally and run the binary (or wrap it in a launchd/systemd service):
 

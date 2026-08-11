@@ -57,6 +57,8 @@ export class ScheduleStore {
   update(id, patch) {
     const s = this._byId.get(id);
     if (!s) return null;
+    const timing = () => `${s.hour}:${s.minute}:${s.weekdays}`;
+    const was = timing();
     if (typeof patch.enabled === "boolean") s.enabled = patch.enabled;
     if (typeof patch.prompt === "string" && patch.prompt.trim()) s.prompt = patch.prompt.trim().slice(0, 4000);
     if (Number.isInteger(patch.hour) && patch.hour >= 0 && patch.hour <= 23) s.hour = patch.hour;
@@ -64,6 +66,10 @@ export class ScheduleStore {
     if (Array.isArray(patch.weekdays)) {
       s.weekdays = [...new Set(patch.weekdays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
     }
+    // Moving a schedule to a time that already passed today must not read as a
+    // missed run: without this, editing 9am to 8am at noon pushed "skipped" the
+    // instant you saved the edit.
+    if (timing() !== was) s.retimedAt = Date.now();
     this.save();
     return s;
   }
@@ -83,35 +89,98 @@ export class ScheduleStore {
   }
 }
 
+// How late a run may be and still be worth starting. Node timers do not tick while
+// the Mac is asleep, so the tick that should have landed at 9am arrives whenever the
+// lid opens. Inside this window we run it anyway; past it the user is told it was
+// missed rather than ambushed by a task from hours ago.
+const GRACE_MS = 15 * 60 * 1000;
+
+const pad = (n) => String(n).padStart(2, "0");
+
+/** Local "YYYY-MM-DDTHH:mm" stamp: the identity of one occurrence of a schedule. */
+function runKey(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /**
- * Fire due schedules. Checks every 20s; a schedule fires at most once per due
- * minute (the persisted lastRunAt also guards against a restart double-fire).
+ * The latest moment this schedule was due at or before `now`, or null if it has
+ * never come due. Walking back day by day (rather than testing today's weekday)
+ * is what lets a run survive being noticed late.
+ */
+function lastDue(s, now) {
+  const d = new Date(now.getTime());
+  d.setHours(s.hour, s.minute, 0, 0);
+  if (d.getTime() > now.getTime()) d.setDate(d.getDate() - 1);
+  for (let back = 0; back < 8; back++) {                    // 0=Sunday … 6=Saturday
+    if (!s.weekdays.length || s.weekdays.includes(d.getDay())) return d;
+    d.setDate(d.getDate() - 1);
+  }
+  return null;
+}
+
+/** Occurrences before the schedule existed (or before its time was last moved) are not misses. */
+function notBefore(s) {
+  const created = Date.parse(s.createdAt || "");
+  return Math.max(Number.isFinite(created) ? created : 0, s.retimedAt || 0);
+}
+
+/** Has this exact occurrence already been dealt with, by firing or by reporting it missed? */
+function settled(s, key, due) {
+  if (s.lastRunKey) return s.lastRunKey === key;
+  return (s.lastRunAt || 0) >= due.getTime();   // records written before lastRunKey existed
+}
+
+/**
+ * Fire due schedules. Checks every 20s and compares the clock against the most
+ * recent due moment rather than the current minute, because an exact hh:mm match
+ * needs the machine awake for that one minute: close the lid at 23:00 and the 9am
+ * weekday task was silently never run. A run more than GRACE_MS late is reported
+ * through `onSkip` instead. Each occurrence is stamped with its local wall-clock
+ * `lastRunKey`, so the hour that repeats on the autumn DST change cannot fire twice
+ * (the persisted lastRunAt also guards against a restart double-fire).
  * `fire(session, schedule)` starts the turn; `onSkip(session, schedule, why)`
  * lets the server push "skipped" alerts.
+ *
+ * @param now injectable clock, for tests
  */
-export function startScheduler({ schedules, sessions, fire, onSkip }) {
-  const timer = setInterval(() => {
-    const now = new Date();
+export function startScheduler({ schedules, sessions, fire, onSkip, now = () => new Date() }) {
+  const tick = () => {
+    const at = now();
     for (const s of schedules.list()) {
       if (!s.enabled) continue;
-      if (s.weekdays.length && !s.weekdays.includes(now.getDay())) continue;
-      if (now.getHours() !== s.hour || now.getMinutes() !== s.minute) continue;
-      if (Date.now() - (s.lastRunAt || 0) < 90_000) continue;   // already fired this minute
-      s.lastRunAt = Date.now();
-      schedules.save();
+      const due = lastDue(s, at);
+      if (!due) continue;
+      if (due.getTime() < notBefore(s)) continue;
+      const key = runKey(due);
+      if (settled(s, key, due)) continue;
+      if (at.getTime() - (s.lastRunAt || 0) < 90_000) continue;   // already fired this minute
+
       const session = sessions.get(s.sessionId);
       if (!session) {                       // its session was deleted — disable, don't error forever
         s.enabled = false;
         schedules.save();
         continue;
       }
+      // Stamped before we decide what to do with it: a miss left unstamped would be
+      // re-reported on every tick for the rest of the day. Only a real run touches
+      // lastRunAt, or the tick that reports last night's miss at 08:59 would put the
+      // 90 second guard in front of today's 09:00 run.
+      s.lastRunKey = key;
+      schedules.save();
+      if (at.getTime() - due.getTime() > GRACE_MS) {
+        onSkip?.(session, s, `the computer was not awake at ${pad(due.getHours())}:${pad(due.getMinutes())}`);
+        continue;
+      }
       if (session.status === "running") {
         onSkip?.(session, s, "a turn was already running");
         continue;
       }
+      s.lastRunAt = at.getTime();
+      schedules.save();
       try { fire(session, s); } catch { /* the turn's own error path reports */ }
     }
-  }, 20_000);
+  };
+  const timer = setInterval(tick, 20_000);
   timer.unref?.();
   return timer;
 }

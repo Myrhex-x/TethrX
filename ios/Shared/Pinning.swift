@@ -31,24 +31,50 @@ final class PinningDelegate: NSObject, URLSessionDelegate {
     }
 }
 
-/// One URLSession per fingerprint, cached — `BridgeClient` is a lightweight
-/// struct built on every access, and URLSessions must not be created per call.
+/// Cached URLSessions per fingerprint. `BridgeClient` is a lightweight struct built on
+/// every access, and URLSessions must not be created per call.
+///
+/// There are TWO per pin, and the distinction matters more than it looks.
+/// `timeoutIntervalForResource` is a ceiling on a task's ENTIRE lifetime, and unlike
+/// `timeoutIntervalForRequest` a single request cannot raise it. A 30 second ceiling on
+/// the one shared session therefore killed the SSE chat stream every 30 seconds forever
+/// (it asks for 3600), and made compact, branch, plugin actions and grok update, which
+/// ask for 200 to 320 seconds, impossible to complete. Since the bridge mints a
+/// certificate whenever openssl is present and the app upgrades to it on first connect,
+/// that was every user, all the time.
 enum PinnedSessions {
     private static let lock = NSLock()
-    private static var cache: [String: URLSession] = [:]
 
+    /// For everything real: streaming, and any request that may legitimately take minutes.
     static func session(for pin: String) -> URLSession {
+        cached(pin, in: \.longRunning, resourceTimeout: nil)
+    }
+
+    /// For reachability probes only. A pinned port that accepts the connection and then
+    /// stalls (a dead TLS listener, something else squatting the port) would otherwise
+    /// hold on far past the request timeout, which reads as a frozen Reconnect button.
+    static func probeSession(for pin: String) -> URLSession {
+        cached(pin, in: \.probes, resourceTimeout: 30)
+    }
+
+    private static func cached(_ pin: String,
+                               in keyPath: ReferenceWritableKeyPath<Store, [String: URLSession]>,
+                               resourceTimeout: TimeInterval?) -> URLSession {
         let key = pin.lowercased()
         lock.lock()
         defer { lock.unlock() }
-        if let existing = cache[key] { return existing }
+        if let existing = store[keyPath: keyPath][key] { return existing }
         let config = URLSessionConfiguration.default
-        // A pinned port that accepts the connection but never completes the handshake
-        // would otherwise hang far past the request timeout, which reads as a frozen
-        // Reconnect button. Bound the whole exchange, not just the idle gap.
-        config.timeoutIntervalForResource = 30
+        if let resourceTimeout { config.timeoutIntervalForResource = resourceTimeout }
         let session = URLSession(configuration: config, delegate: PinningDelegate(pin: key), delegateQueue: nil)
-        cache[key] = session
+        store[keyPath: keyPath][key] = session
         return session
     }
+
+    /// Boxed so the two caches can be addressed by key path under one lock.
+    final class Store {
+        var longRunning: [String: URLSession] = [:]
+        var probes: [String: URLSession] = [:]
+    }
+    private static let store = Store()
 }

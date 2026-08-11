@@ -130,6 +130,10 @@ struct CircleIconButton: View {
     /// tapped button visibly works instead of just going quiet.
     var busy = false
     /// VoiceOver name — icon-only buttons are otherwise read as their symbol name.
+    /// Stays a `String` because one caller hands over an already-translated string;
+    /// the label is resolved through the string table at render time instead, so
+    /// plain literals get translated and an already-translated string passes through
+    /// untouched. Rendering it as `Text(a11y)` left every label English.
     var a11y: String? = nil
     let action: () -> Void
 
@@ -148,9 +152,12 @@ struct CircleIconButton: View {
                 }
             }
             .frame(width: 40, height: 40)
+            // The ring stays 40pt; the tap target has to be 44pt.
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
         }
         .disabled(!enabled || busy)
-        .accessibilityLabel(Text(a11y ?? system))
+        .accessibilityLabel(Text(LocalizedStringKey(a11y ?? system)))
         .accessibilityValue(busy ? Text("busy") : Text(""))
     }
 }

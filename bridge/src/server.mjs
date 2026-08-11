@@ -62,8 +62,15 @@ const logBuffer = [];
 // shown in the app's log viewer, tailed by `service logs`, pasted into bug reports.
 // Anything captured for later reading gets the token stripped; the live terminal
 // banner (written by `original` below, untouched) still shows it.
+// Bearer JWTs, which is what grok prints into stderr under RUST_LOG=debug: a complete,
+// unexpired xAI credential. The bridge no longer passes RUST_LOG through, but a user
+// who exports it globally, or a future grok that logs one by default, must not have it
+// land in a log built to be pasted into a bug report.
+const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
 function redactSecrets(text) {
-  return config.token ? String(text).split(config.token).join("<pairing token hidden>") : String(text);
+  let out = String(text);
+  if (config.token) out = out.split(config.token).join("<pairing token hidden>");
+  return out.replace(JWT_RE, "<token hidden>");
 }
 for (const level of ["log", "warn", "error"]) {
   const original = console[level].bind(console);
@@ -111,13 +118,22 @@ function latestNpmVersion() {
 // tool. ACP declares image content blocks unsupported (promptCapabilities.image:
 // false), so a file on disk + its path in the prompt is the working transport.
 const UPLOAD_DIR = join(config.stateDir, "uploads");
+function sweepUploads() {
+  try {
+    const cutoff = Date.now() - 7 * 24 * 3600_000;   // sweep uploads older than a week
+    for (const f of readdirSync(UPLOAD_DIR)) {
+      try { if (statSync(join(UPLOAD_DIR, f)).mtimeMs < cutoff) rmSync(join(UPLOAD_DIR, f), { force: true }); } catch { /* ignore */ }
+    }
+  } catch { /* uploads become unavailable, not fatal */ }
+}
 try {
-  mkdirSync(UPLOAD_DIR, { recursive: true });
-  const cutoff = Date.now() - 7 * 24 * 3600_000;   // sweep uploads older than a week
-  for (const f of readdirSync(UPLOAD_DIR)) {
-    try { if (statSync(join(UPLOAD_DIR, f)).mtimeMs < cutoff) rmSync(join(UPLOAD_DIR, f), { force: true }); } catch { /* ignore */ }
-  }
+  // 0700: these are the user's own photos.
+  mkdirSync(UPLOAD_DIR, { recursive: true, mode: 0o700 });
+  sweepUploads();
 } catch { /* uploads become unavailable, not fatal */ }
+// Running this only at module load meant an always-on service installed once never
+// swept again, however long it ran.
+setInterval(sweepUploads, 12 * 3600_000).unref?.();
 
 // Single-use, decision-bound tokens for lock-screen approval links, so the full
 // pairing token is never embedded in an ntfy notification.
@@ -291,11 +307,35 @@ function authed(req, url) {
   return tokenOk(bearer) || tokenOk(qp);
 }
 
+// Images ride in the JSON body as base64, so the ceiling has to clear three of them.
+const MAX_BODY = 48 * 1024 * 1024;
+
+/**
+ * Read a JSON body.
+ *
+ * Returns `undefined` for "no body at all", which callers must distinguish from `{}`:
+ * a route that treats an aborted POST as an empty object turns a dropped connection
+ * into a default, and for plan approval that default was "approved".
+ */
 async function readJson(req) {
   const chunks = [];
-  for await (const c of req) chunks.push(c);
-  if (!chunks.length) return {};
+  let total = 0;
+  for await (const c of req) {
+    total += c.length;
+    if (total > MAX_BODY) {
+      const e = new Error("request body too large");
+      e.tooLarge = true;
+      throw e;
+    }
+    chunks.push(c);
+  }
+  if (!chunks.length) return undefined;
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+/** Body for routes where absent and malformed are both simply "no fields given". */
+async function readJsonOrEmpty(req) {
+  try { return (await readJson(req)) ?? {}; } catch { return {}; }
 }
 
 async function serveStatic(res, urlPath) {
@@ -337,9 +377,24 @@ async function pushNotify(session, { title, message, priority = "default", tags,
   }
 }
 
+// pushNotify stays silent while anyone is watching the session live. A backgrounded
+// app still holds its SSE socket open, so locking your phone with a session on screen
+// meant the approval alert was never sent, not once. Re-check on a widening schedule:
+// the first reminder that lands after the stream drops is the one that reaches you.
+const APPROVAL_REMINDERS = [60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+function remindAboutApproval(session, event, step = 0) {
+  if (step >= APPROVAL_REMINDERS.length) return;
+  const timer = setTimeout(() => {
+    // Answered, abandoned, or the process died: nothing to chase.
+    if (session.dead || session.waitingOn?.kind !== "permission") return;
+    notifyPermission(session, event, step + 1);
+  }, APPROVAL_REMINDERS[step]);
+  timer.unref?.();
+}
+
 // Push an approval alert with Approve/Reject buttons (when a public URL is set) so
 // you can resolve a permission from the lock screen without opening the app.
-function notifyPermission(session, event) {
+function notifyPermission(session, event, reminderStep = 0) {
   const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId));
   const reject = (event.options || []).find((o) => /reject|deny/i.test(o.kind || o.optionId));
 
@@ -347,12 +402,15 @@ function notifyPermission(session, event) {
   if (config.publicUrl && event.requestId) {
     const base = config.publicUrl.replace(/\/$/, "");
     const parts = [];
-    if (allow) parts.push(`http, Approve, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, allow.optionId)}, clear=true`);
-    if (reject) parts.push(`http, Reject, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, reject.optionId)}, clear=true`);
+    // method=POST is ntfy's default, but the route now rejects anything else, so say it.
+    if (allow) parts.push(`http, Approve, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, allow.optionId)}, method=POST, clear=true`);
+    if (reject) parts.push(`http, Reject, ${base}/api/approve/${mintApprovalToken(session.id, event.requestId, reject.optionId)}, method=POST, clear=true`);
     if (parts.length) actions = parts.join("; ");
   }
   pushNotify(session, {
-    title: `${displayTitle(session)} — approval needed`,
+    title: reminderStep
+      ? `${displayTitle(session)}: still waiting for you`
+      : `${displayTitle(session)}: approval needed`,
     message: event.command || event.title || "Grok wants to run a tool",
     priority: "high", tags: "warning", actions,
     // Drives Approve/Reject buttons on the iOS notification itself.
@@ -361,18 +419,27 @@ function notifyPermission(session, event) {
     allowOptionId: allow?.optionId,
     rejectOptionId: reject?.optionId,
   });
+  remindAboutApproval(session, event, reminderStep);
 }
 
 // /api/health is unauthenticated by design, and used to spawn `grok --version` on
 // every single request — so anyone reachable could exhaust the user's process table
 // just by opening enough connections. One spawn a minute is plenty.
 let versionCache = { value: null, at: 0 };
+let versionInFlight = null;
 async function cachedGrokVersion() {
   const now = Date.now();
-  if (versionCache.value !== null && now - versionCache.at < 60_000) return versionCache.value;
-  const value = await grokVersion(config.grokBin);
-  versionCache = { value, at: now };
-  return value;
+  // Cache on the TIMESTAMP, not on a non-null value: a missing or broken grok returns
+  // null, so gating on the value meant every hit on the unauthenticated /api/health
+  // spawned another process.
+  if (versionCache.at && now - versionCache.at < 60_000) return versionCache.value;
+  // Share one lookup across concurrent callers rather than spawning per request.
+  if (!versionInFlight) {
+    versionInFlight = grokVersion(config.grokBin)
+      .catch(() => null)
+      .then((value) => { versionCache = { value, at: Date.now() }; versionInFlight = null; return value; });
+  }
+  return versionInFlight;
 }
 
 // ---- grok self-update ------------------------------------------------------
@@ -580,7 +647,16 @@ async function listWorkflows(cwd) {
 function friendlyTurnError(err) {
   const raw = String(err?.message || err);
   if (/Authentication required|no auth method|unauthenticated|not authenticated/i.test(raw)) {
-    return "Grok Build isn't signed in on your computer. Open a terminal there, run `grok`, and sign in — then send this again.";
+    return "Grok Build isn't signed in on your computer. Open a terminal there, run `grok`, and sign in, then send this again.";
+  }
+  // grok 1.0.0 changed `-s <uuid>` to mean "start a NEW conversation with this id", so
+  // the headless transport's second turn hits this instead of resuming. The turn is
+  // retried with --resume, and this only shows if that retry also failed.
+  if (/Session ID .* is already in use/i.test(raw)) {
+    return "Grok could not resume this session. Start a new one and try again.";
+  }
+  if (/did not answer .* within/i.test(raw)) {
+    return "Grok Build stopped responding on your computer. The session was restarted; send this again.";
   }
   return raw;
 }
@@ -616,7 +692,7 @@ function warnContextIfNearlyFull(session) {
   session._ctxWarned = true;
   pushNotify(session, {
     title: displayTitle(session),
-    message: `Context window ${Math.round(frac * 100)}% full — consider starting a fresh session soon.`,
+    message: `Context window ${Math.round(frac * 100)}% full. Compact or start a fresh session soon.`,
     tags: "warning",
   });
 }
@@ -817,21 +893,35 @@ async function ensureAcp(session) {
     planMode: session.planMode,
     resumeSessionId: session.grokSessionId || undefined,
     onEvent: (event) => {
-      if (event.kind === "closed") { session.acp = null; return; }
+      if (event.kind === "closed") {
+        // Only the CURRENT process may clear the reference. The turn's error path
+        // installs a replacement synchronously, before the dying child's close fires,
+        // so an unconditional null here wiped the live process: every approval then
+        // 409'd and grok blocked forever on a tool nobody could answer.
+        if (event.acp && session.acp !== event.acp) return;
+        session.acp = null;
+        session.clearWaiting();
+        return;
+      }
       if (event.kind === "permission_request") {
-        if (session.autoApprove) {
+        if (session.shouldAutoApprove(event)) {
           const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId)) || event.options?.[0];
           if (allow) {
             const acp = session.acp, rid = event.requestId, oid = allow.optionId;
             setImmediate(() => acp?.resolvePermission(rid, oid)); // defer out of the stdout read handler
-            return; // "always allow" — auto-approve, no card
+            return; // answered by policy — no card
           }
         }
+        session.setWaiting("permission", event.command || event.title || event.tool);
         notifyPermission(session, event);
         laWaiting(session, event.command || event.title);
       }
+      if (event.kind === "permission_resolved" || event.kind === "plan_resolved") {
+        session.clearWaiting();
+      }
       if (event.kind === "plan_review") {
-        pushNotify(session, { title: `${displayTitle(session)} — plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
+        session.setWaiting("plan", "Plan ready to review");
+        pushNotify(session, { title: `${displayTitle(session)}: plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
         laWaiting(session, "Plan ready to review");
       }
       if (event.kind === "commands" && event.commands?.length) {
@@ -949,7 +1039,7 @@ startScheduler({
     startTurn(session, { text: s.prompt });
   },
   onSkip: (session, s, why) => {
-    pushNotify(session, { title: displayTitle(session), message: `Scheduled task skipped — ${why}.`, tags: "warning" });
+    pushNotify(session, { title: displayTitle(session), message: `Scheduled task skipped: ${why}.`, tags: "warning" });
   },
 });
 
@@ -1041,12 +1131,23 @@ async function handle(req, res) {
   // single-use, decision-bound token in the URL, never the pairing token.
   const am = pathname.match(/^\/api\/approve\/([A-Za-z0-9_-]+)$/);
   if (am) {
+    // Every other mutating route checks the method; this one did not, so a link
+    // preview or a prefetch could burn the token by merely GETting it.
+    if (req.method !== "POST") return send(res, 405, { error: "use POST" });
     const rec = approvalTokens.get(am[1]);
-    approvalTokens.delete(am[1]); // one-time, valid or not
-    if (!rec || rec.exp < Date.now()) return send(res, 403, { error: "expired or invalid approval link" });
+    if (!rec || rec.exp < Date.now()) {
+      approvalTokens.delete(am[1]);
+      return send(res, 403, { error: "expired or invalid approval link" });
+    }
     const session = store.get(rec.sessionId);
     const ok = session && session.acp ? session.acp.resolvePermission(rec.requestId, rec.optionId) : false;
-    return send(res, 200, { ok });
+    // Burn it only once it actually landed, so a failed attempt can be retried
+    // instead of the tap silently consuming the user's one chance to answer.
+    if (ok) approvalTokens.delete(am[1]);
+    // 200 {ok:false} read as success everywhere; the sibling /permissions route was
+    // already fixed to fail loudly, and this one has to match.
+    if (!ok) return send(res, 409, { error: "that approval is no longer pending" });
+    return send(res, 200, { ok: true });
   }
 
   // Everything else under /api requires the pairing token.
@@ -1079,7 +1180,7 @@ async function handle(req, res) {
 
   // Register this phone's APNs device token so the bridge can push alerts.
   if (pathname === "/api/devices" && req.method === "POST") {
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     const ok = apns.addDevice(body.token);
     return send(res, ok ? 200 : 400, { ok, push: apns.enabled });
   }
@@ -1088,7 +1189,7 @@ async function handle(req, res) {
   // activity with the app closed (iOS 17.2+); "update-token" drives one session's
   // running activity.
   if (pathname === "/api/live-activity" && req.method === "POST") {
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     const ok = body.kind === "start-token" ? apns.addLaStartToken(body.token)
       : body.kind === "update-token" ? apns.setLaUpdateToken(body.sessionId, body.token)
       : false;
@@ -1102,7 +1203,7 @@ async function handle(req, res) {
     const requested = url.searchParams.get("path") || home;
     const full = resolvePath(requested);
     if (full !== home && !full.startsWith(home + sep)) {
-      return send(res, 403, { error: "outside your home folder — type the path instead" });
+      return send(res, 403, { error: "outside your home folder, type the path instead" });
     }
     try {
       const entries = await readdir(full, { withFileTypes: true });
@@ -1206,13 +1307,15 @@ async function handle(req, res) {
   // palette by themselves once installed.
   if (pathname === "/api/grok/plugins" && req.method === "GET") {
     const plugins = await listGrokPlugins();
-    if (!plugins) return send(res, 502, { error: "couldn't list plugins — is grok installed and signed in?" });
+    if (!plugins) return send(res, 502, { error: "couldn't list plugins. Is grok installed and signed in?" });
     return send(res, 200, { plugins });
   }
   if (pathname === "/api/grok/plugins" && req.method === "POST") {
-    const body = await readJson(req).catch(() => ({}));
-    const make = PLUGIN_ACTIONS[body.action];
-    if (!make) return send(res, 400, { error: "unknown action" });
+    const body = await readJsonOrEmpty(req);
+    // Plain property access also resolves inherited keys, so an action of
+    // "constructor" passed this gate and handed the request body straight to spawn().
+    const make = Object.hasOwn(PLUGIN_ACTIONS, body.action) ? PLUGIN_ACTIONS[body.action] : null;
+    if (typeof make !== "function") return send(res, 400, { error: "unknown action" });
     if (body.action === "install") {
       const source = String(body.source || "").trim();
       // From a phone the sane install source is a URL or a GitHub shorthand;
@@ -1241,10 +1344,10 @@ async function handle(req, res) {
   }
   if (pathname === "/api/grok/update" && req.method === "POST") {
     const fresh = await checkGrokUpdate();         // don't install stale knowledge
-    if (!fresh) return send(res, 502, { error: "couldn't check for a grok update — is grok signed in and online?" });
+    if (!fresh) return send(res, 502, { error: "couldn't check for a grok update. Is grok signed in and online?" });
     if (!grokUpdate.available) return send(res, 200, { ok: true, upToDate: true, version: await cachedGrokVersion() });
     const r = await installGrokUpdate();
-    if (!r.ok && r.error === "busy") return send(res, 409, { error: "a session is running — try again when it's idle" });
+    if (!r.ok && r.error === "busy") return send(res, 409, { error: "a session is running, try again when it's idle" });
     if (!r.ok && r.error === "already updating") return send(res, 409, { error: "an update is already in progress" });
     return send(res, r.ok ? 200 : 500, r);
   }
@@ -1254,7 +1357,7 @@ async function handle(req, res) {
     return send(res, 200, { schedules: schedules.list() });
   }
   if (pathname === "/api/schedules" && req.method === "POST") {
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     if (!store.get(body.sessionId)) return send(res, 404, { error: "no such session" });
     const made = schedules.create(body);
     if (typeof made === "string") return send(res, 400, { error: made });
@@ -1262,7 +1365,7 @@ async function handle(req, res) {
   }
   const sm = pathname.match(/^\/api\/schedules\/([0-9a-fA-F-]{36})$/);
   if (sm && req.method === "PATCH") {
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     const updated = schedules.update(sm[1], body);
     return updated ? send(res, 200, updated) : send(res, 404, { error: "no such schedule" });
   }
@@ -1275,7 +1378,7 @@ async function handle(req, res) {
     return send(res, 200, { sessions: store.list() });
   }
   if (pathname === "/api/sessions" && req.method === "POST") {
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     const session = store.create({
       cwd: body.cwd || config.defaultCwd,
       model: body.model || config.defaultModel,
@@ -1293,13 +1396,21 @@ async function handle(req, res) {
   if (pm && req.method === "POST") {
     const session = store.get(pm[1]);
     if (!session) return send(res, 404, { error: "no such session" });
-    const body = await readJson(req).catch(() => ({}));
+    const body = await readJsonOrEmpty(req);
     const ok = session.acp ? session.acp.resolvePermission(pm[2], body.optionId ?? null) : false;
     // A dead process or an already-answered request used to return 200 {ok:false},
     // which every client read as success — the card said "approved" while grok
     // wasn't waiting on anything. Fail loudly and only honor side effects on success.
     if (!ok) return send(res, 409, { error: "that approval is no longer pending" });
-    if (body.always) { session.autoApprove = true; store.save(); } // "always allow" for this session
+    // "Always allow" for this session. `policy` lets a client pick the read-only floor
+    // instead of the blanket one; `always` stays for clients that only know the boolean.
+    if (body.policy === "reads" || body.policy === "all" || body.policy === "ask") {
+      session.approvalPolicy = body.policy;
+      store.save();
+    } else if (body.always) {
+      session.autoApprove = true;
+      store.save();
+    }
     // "Deny & explain": the reason becomes the next thing grok hears. Queued rather
     // than sent, because rejecting a tool doesn't reliably end the turn — and drained
     // straight away in case it did.
@@ -1328,8 +1439,15 @@ async function handle(req, res) {
   if (plm && req.method === "POST") {
     const session = store.get(plm[1]);
     if (!session) return send(res, 404, { error: "no such session" });
-    const body = await readJson(req).catch(() => ({}));
-    const approved = body.approved !== false;
+    // Strict: `approved` must be an explicit boolean. This used to default to true on a
+    // missing or malformed body, so a POST that died mid-flight (the phone dropping off
+    // cellular as you tapped Reject) read as approval, armed the auto-continue, and grok
+    // was told to implement the plan you had just rejected, on a machine you were not at.
+    let body;
+    try { body = await readJson(req); }
+    catch (e) { return send(res, e.tooLarge ? 413 : 400, { error: "could not read the request body" }); }
+    if (typeof body?.approved !== "boolean") return send(res, 400, { error: "approved must be true or false" });
+    const approved = body.approved;
     const ok = session.acp ? session.acp.resolvePlan(plm[2], approved) : false;
     if (!ok) return send(res, 409, { error: "that plan review is no longer pending" });
     // Only arm the auto-continue when the approval actually landed. Setting it first
@@ -1356,14 +1474,14 @@ async function handle(req, res) {
     }
 
     if (!sub && req.method === "PATCH") {
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
       if (typeof body.title === "string" && body.title.trim()) store.rename(m[1], body.title.trim());
       if (typeof body.folder === "string") { session.folder = body.folder.trim(); store.save(); }
       return send(res, 200, session.toJSON());
     }
 
     if (sub === "messages" && req.method === "POST") {
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
       const text = typeof body.text === "string" ? body.text : "";
       const images = Array.isArray(body.images) ? body.images : [];
       if (!text.trim() && !images.length) {
@@ -1373,7 +1491,7 @@ async function handle(req, res) {
         return send(res, 409, { error: "a turn is already running in this session" });
       }
       if (grokUpdate.updating) {
-        return send(res, 409, { error: "grok is updating on this computer — try again in a minute" });
+        return send(res, 409, { error: "grok is updating on this computer, try again in a minute" });
       }
 
       if (images.length) {
@@ -1395,7 +1513,38 @@ async function handle(req, res) {
 
     if (sub === "cancel" && req.method === "POST") {
       const cancelled = session.cancel();
+      // session/cancel is a notification a wedged agent never reads, so a turn that is
+      // genuinely stuck stayed "running" forever and every later message 409'd. Give it
+      // a moment to stop politely, then take the process down so the turn unwinds.
+      if (cancelled && session.status === "running") {
+        const acp = session.acp;
+        setTimeout(() => {
+          if (session.status === "running" && session.acp === acp) {
+            try { acp?.stop(); } catch { /* ignore */ }
+          }
+        }, 5000).unref?.();
+      }
       return send(res, 200, { ok: true, cancelled });
+    }
+
+    // Restart a wedged session: stop the grok process so the in-flight turn unwinds
+    // through its own catch and finally. Deleting the session used to be the only
+    // remote lever, and that threw away the conversation.
+    if (sub === "restart" && req.method === "POST") {
+      if (session.transport !== "acp") return send(res, 400, { error: "restart needs the acp transport" });
+      const acp = session.acp;
+      if (!acp) {
+        // Nothing to stop, but a status left stuck on "running" still needs clearing.
+        if (session.status === "running") { session.endTurn(); session.clearWaiting(); store.save(); }
+        return send(res, 200, { ok: true, restarted: false, status: session.status });
+      }
+      // stop() runs _failPending, which rejects the pending prompt; the turn's own
+      // finally then calls endTurn/save. Do NOT also endTurn() here, or
+      // continueAfterTurn fires twice and drains two queued items at once.
+      try { acp.stop(); } catch { /* ignore */ }
+      session.clearWaiting();
+      session.emit({ kind: "error", message: "Session restarted. Grok's context is restored on the next message." });
+      return send(res, 200, { ok: true, restarted: true });
     }
 
     // Compact: grok's own /compact is inert over ACP, so the bridge does it for
@@ -1423,7 +1572,7 @@ async function handle(req, res) {
     if (sub === "branch" && req.method === "POST") {
       if (session.transport !== "acp") return send(res, 400, { error: "branching needs the acp transport" });
       if (session.status === "running") return send(res, 409, { error: "a turn is already running" });
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
 
       // Nothing has been said yet, so there is nothing to carry over: a branch of an
       // empty session is just a second session with the same settings. Burning a grok
@@ -1461,7 +1610,7 @@ async function handle(req, res) {
       return send(res, 200, { queue: session.queue });
     }
     if (sub === "queue" && req.method === "POST") {
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
       const images = Array.isArray(body.images) ? body.images : [];
       if (images.length > 3) return send(res, 400, { error: "up to 3 images per message" });
       if (images.length && session.transport !== "acp") {
@@ -1496,7 +1645,7 @@ async function handle(req, res) {
 
     // Live per-session settings: /api/sessions/:id/config { planMode?, effort?, autoApprove? }
     if (sub === "config" && req.method === "POST") {
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
       if (typeof body.planMode === "boolean") {
         session.planMode = body.planMode;
         if (session.acp && session.acp.running) session.acp.setMode(body.planMode ? "plan" : "default");
@@ -1510,7 +1659,13 @@ async function handle(req, res) {
         if (session.acp && session.status === "idle") { try { session.acp.stop(); } catch { /* ignore */ } session.acp = null; }
         else if (session.acp) session._recycleAcp = true;
       }
-      if (typeof body.autoApprove === "boolean") session.autoApprove = body.autoApprove;
+      // approvalPolicy wins when both are sent: a client that knows the three states is
+      // more specific than one that only knows the boolean.
+      if (body.approvalPolicy === "ask" || body.approvalPolicy === "reads" || body.approvalPolicy === "all") {
+        session.approvalPolicy = body.approvalPolicy;
+      } else if (typeof body.autoApprove === "boolean") {
+        session.autoApprove = body.autoApprove;
+      }
       store.save();
       return send(res, 200, session.toJSON());
     }
@@ -1578,14 +1733,14 @@ async function handle(req, res) {
     }
     // { action: "commit", message } | { action: "discard" }  (+ optional dir)
     if (sub === "git" && req.method === "POST") {
-      const body = await readJson(req).catch(() => ({}));
+      const body = await readJsonOrEmpty(req);
       const candidates = await git.candidateRepos(session.editedPaths, session.cwd);
       // Commit and DISCARD are destructive. With several candidate repos, a dir-less
       // request would target whichever repo happens to be newest-edited AT POST TIME
       // — which can drift from what the user just reviewed (a queued follow-up edits
       // another repo in between). Make ambiguity an explicit error instead.
       if (!body.dir && candidates.length > 1) {
-        return send(res, 409, { error: "several repos changed — pass dir", candidates });
+        return send(res, 409, { error: "several repos changed, pass dir", candidates });
       }
       const dir = pickGitDir(candidates, body.dir);
       if (body.dir && !dir) return send(res, 400, { error: "dir is not one of this session's repos", candidates });
@@ -1608,7 +1763,12 @@ async function handle(req, res) {
         "x-accel-buffering": "no",
       });
       res.write("retry: 3000\n\n");
-      const lastEventId = Number(req.headers["last-event-id"] || url.searchParams.get("lastEventId") || 0);
+      // A proxy that joins duplicate headers yields "3, 3", whose Number() is NaN, and
+      // `id > NaN` is false for every event: the phone would open onto a blank
+      // transcript with nothing to say why. Anything unparseable means replay it all.
+      const raw = req.headers["last-event-id"] ?? url.searchParams.get("lastEventId") ?? 0;
+      const parsed = Number(raw);
+      const lastEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
       session.subscribe(res, lastEventId);
       // Heartbeat so intermediaries and the phone keep the connection open.
       const ping = setInterval(() => res.write(": ping\n\n"), 15000);
@@ -1709,6 +1869,10 @@ server.listen(config.port, listenHost, async () => {
   pinnedServer?.listen(tlsPort, listenHost, () => { pinnedListening = true; });
   setTimeout(resumeQueuedWork, 2500).unref?.();
   startGrokUpdateLoop();
+  // Transcripts left behind by a session that was deleted mid-turn, before delete()
+  // marked sessions dead. They are unreachable but still hold the conversation.
+  const orphans = store.sweepOrphanHistory(readdirSync);
+  if (orphans) console.log(`[bridge] removed ${orphans} orphaned transcript${orphans === 1 ? "" : "s"}`);
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);
@@ -1719,7 +1883,7 @@ server.listen(config.port, listenHost, async () => {
   }
   const latest = latestNpmVersion();
   if (latest && latest !== OWN_VERSION) {
-    console.log(`  ├─ UPDATE      v${latest} is out (you run v${OWN_VERSION}) — npm i -g tethrx-bridge`);
+    console.log(`  ├─ UPDATE      v${latest} is out (you run v${OWN_VERSION}): npm i -g tethrx-bridge`);
   }
   console.log(`  ├─ grok        ${version || "NOT FOUND — check GROK_BIN"}  (${config.grokBin})`);
   console.log(`  ├─ transport   ${config.transport}${config.transport === "acp" ? ` (approve/reject: ${grokHome ? "on" : "off"})` : ""}`);
@@ -1729,7 +1893,15 @@ server.listen(config.port, listenHost, async () => {
   console.log(`  ├─ push (apns) ${apns.enabled ? `on  (${apns.tokens.length} device${apns.tokens.length === 1 ? "" : "s"})` : "off  (set apns key in config.json)"}`);
   console.log(`  ├─ push (ntfy) ${config.ntfy || "off  (set GROK_REMOTE_NTFY)"}`);
   if (config.publicUrl) console.log(`  ├─ public url  ${config.publicUrl}  (lock-screen approve/reject)`);
-  console.log(`  └─ pairing token:\n\n     ${config.token}\n`);
+  // Only ever print the real token to an interactive terminal. Run as a service, stdout
+  // is a log file that `service logs` tails and users paste into bug reports, and it was
+  // being written world-readable with the token in it: any other local account could
+  // read it and drive this bridge, which is a shell on this machine.
+  if (process.stdout.isTTY) {
+    console.log(`  └─ pairing token:\n\n     ${config.token}\n`);
+  } else {
+    console.log(`  └─ pairing token: hidden (not a terminal). Open ${scheme}://localhost:${config.port}/pair to see it.\n`);
+  }
   if (config.host === "127.0.0.1") {
     console.log("  (loopback only — set GROK_REMOTE_HOST=0.0.0.0 or use Tailscale to reach it from your phone)\n");
   }

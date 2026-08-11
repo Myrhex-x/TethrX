@@ -18,6 +18,16 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- ATS is per bundle, and the extension is its own bundle: without this copy
+		     of the app's exception, sharing to an HTTP bridge failed with a bare -1022
+		     and no way for the user to act on it. NOTE: on iOS 10+ NSAllowsArbitraryLoads
+		     is IGNORED whenever NSAllowsLocalNetworking is also present, so it must stand
+		     alone. Keep in step with GrokRemote/Info.plist. -->
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

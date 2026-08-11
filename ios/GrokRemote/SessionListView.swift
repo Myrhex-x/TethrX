@@ -128,7 +128,10 @@ struct SessionListView: View {
             return
         }
         app.pendingOpenSessionId = nil
-        if !path.contains(session) { path.append(session) }
+        // Compare ids, not whole values. SessionInfo's equality includes turnCount and
+        // lastEventId, which change constantly, so a push deep link into a session the
+        // user was already inside appended a SECOND copy with its own SSE stream.
+        if !path.contains(where: { $0.id == session.id }) { path.append(session) }
     }
 
     // MARK: Header
@@ -205,7 +208,10 @@ struct SessionListView: View {
     /// Sessions with a turn in flight, surfaced above the folders — with schedules
     /// and long tasks, the RUNNING badges alone are too easy to lose in the list.
     @ViewBuilder private var runningNow: some View {
-        let running = app.sessions.filter { $0.isRunning }
+        // A session blocked on an approval is the one you most need to find, so it
+        // belongs in this strip too, listed first.
+        let running = app.sessions.filter { $0.isRunning || $0.isWaitingOnYou }
+            .sorted { ($0.isWaitingOnYou ? 0 : 1) < ($1.isWaitingOnYou ? 0 : 1) }
         if !running.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Eyebrow("RUNNING NOW")
@@ -213,7 +219,7 @@ struct SessionListView: View {
                     HStack(spacing: 8) {
                         ForEach(running) { session in
                             Button {
-                                if let onSelect { onSelect(session) } else if !path.contains(session) { path.append(session) }
+                                if let onSelect { onSelect(session) } else if !path.contains(where: { $0.id == session.id }) { path.append(session) }
                             } label: {
                                 HStack(spacing: 7) {
                                     Circle().fill(Grok.accent).frame(width: 6, height: 6)
@@ -409,7 +415,7 @@ struct SessionListView: View {
                 ForEach(extras) { hit in
                     if let session = app.sessions.first(where: { $0.id == hit.sessionId }) {
                         Button {
-                            if let onSelect { onSelect(session) } else if !path.contains(session) { path.append(session) }
+                            if let onSelect { onSelect(session) } else if !path.contains(where: { $0.id == session.id }) { path.append(session) }
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(session.displayName)
@@ -611,7 +617,16 @@ struct SessionRow: View {
                 HStack(spacing: 8) {
                     Text(session.id.prefix(8))
                         .font(Grok.mono(11, .medium)).foregroundStyle(Grok.textFaint)
-                    if session.isRunning {
+                    // Blocked on you outranks running: it is the state that needs an
+                    // action, and it used to be invisible.
+                    if session.isWaitingOnYou {
+                        HStack(spacing: 5) {
+                            Image(systemName: "hand.raised.fill").font(.system(size: 8, weight: .bold))
+                            Text("WAITING FOR YOU").font(Grok.mono(9, .semibold)).tracking(0.8)
+                        }
+                        .foregroundStyle(Grok.text)
+                        .accessibilityLabel(Text("Waiting for your approval"))
+                    } else if session.isRunning {
                         HStack(spacing: 5) {
                             Circle().fill(Grok.accent).frame(width: 6, height: 6)
                             Text("RUNNING").font(Grok.mono(9, .semibold)).tracking(0.8).foregroundStyle(Grok.accent)

@@ -7,7 +7,7 @@ Drive **Grok Build** running on your computer from your **iPhone**
 
 Your phone is only a control plane. Grok, its tools, and your code stay on your machine; the phone sends prompts, watches Grok work **tool-by-tool**, and **approves or rejects** each action.
 
-**Public TestFlight:** https://testflight.apple.com/join/nR19zett — you still run the bridge yourself (below).
+**[Download on the App Store](https://apps.apple.com/app/tethrx/id6792520305)** — free, iPhone and iPad, iOS 17+. You still run the bridge yourself (below).
 
 ```
 ┌────────────┐   HTTP + SSE    ┌─────────────────────┐   JSON-RPC (ACP)   ┌───────────┐
@@ -84,13 +84,13 @@ logged out.
 
 **Easiest pairing:** open **`http://localhost:4180/pair`** on the computer running the bridge. It shows a scannable QR code (one for Wi-Fi, one for Tailscale) plus the token to copy. That page is **loopback-only** — the token never leaves the machine.
 
-### 2. Run the app
+### 2. Get the app
 
-```bash
-open ios/GrokRemote.xcodeproj      # Xcode 26.3+ / 27
-```
+**[Download TethrX on the App Store](https://apps.apple.com/app/tethrx/id6792520305)** — free, iPhone and iPad, iOS 17+.
 
-Pick a simulator (or set your Team + a device), Run. Tap **Scan to pair** and point at a code on `localhost:4180/pair` — or enter the **bridge address** + **pairing token** by hand — then **＋** to start a session.
+Tap **Scan to pair** and point at a code on `localhost:4180/pair` — or enter the **bridge address** + **pairing token** by hand — then **＋** to start a session.
+
+**Building from source instead?** `open ios/GrokRemote.xcodeproj` (Xcode 26.3+ / 27), pick a simulator or set your Team + a device, and Run.
 
 ---
 
@@ -101,6 +101,18 @@ With the ACP transport, when Grok wants to run a shell command or edit a file, t
 - **On by default.** The bridge runs Grok under a **redirected HOME** so per-tool prompting is enabled *without editing your global `~/.grok/config.toml`* (it symlinks your real files and supplies its own `config.toml`).
 - Set `GROK_REMOTE_ASK=0` to inherit your global grok permission config instead (e.g. if you run `always-approve` and want the phone to match).
 - You still see everything either way: thoughts, `tool_call`s with their commands, live `tool_update` status + exit codes, and plans.
+
+**Three approval settings**, per session, from the chat's toolbar:
+
+| Setting | What goes through without asking |
+|---|---|
+| **Ask each time** (default) | nothing |
+| **Reads only** | tools Grok itself marks read-only, so a long build stops stalling on every `cat` |
+| **Auto-approve** | everything, including `rm -rf` and `git push --force` |
+
+A session that is **blocked on you** says so in the session list, instead of looking identical to one that is busy working, and the approval push is repeated on a widening schedule until you answer it.
+
+If a turn stops responding entirely, **Restart this session** (in the session details) ends the stuck turn and keeps the conversation. Grok's context is restored on your next message.
 
 ---
 
@@ -134,7 +146,7 @@ So you're alerted when Grok **needs approval** or **finishes** while the app is 
 }
 ```
 
-Scope the key to **Sandbox & Production** — a TestFlight build uses the production environment. Then enable notifications in the app's Settings. Approvals arrive with **Approve / Reject** buttons on the notification itself.
+Scope the key to **Sandbox & Production** — App Store and TestFlight builds both use the production environment. Then enable notifications in the app's Settings. Approvals arrive with **Approve / Reject** buttons on the notification itself.
 
 > This requires an Apple developer account, so it's genuinely optional. Without it everything else works; you just won't get alerts while the app is closed.
 

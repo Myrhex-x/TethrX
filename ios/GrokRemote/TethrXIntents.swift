@@ -13,7 +13,13 @@ enum IntentBridge {
         guard let url = URL(string: base) else { return nil }
         let token = d.string(forKey: "bridge.token") ?? Keychain.load() ?? ""
         guard !token.isEmpty else { return nil }
-        return BridgeClient(config: .init(baseURL: url, token: token))
+        // The pin is not optional in practice. Once the app upgrades to pinned HTTPS it
+        // rewrites bridge.baseURL to https://host:port+1, and a client built without the
+        // fingerprint hands that self-signed certificate to URLSession.shared, which
+        // rejects it. Both shortcuts answered "couldn't reach your computer" for every
+        // pinned user, which is every user.
+        let pin = d.string(forKey: "bridge.pin") ?? ""
+        return BridgeClient(config: .init(baseURL: url, token: token, pin: pin.isEmpty ? nil : pin))
     }
 }
 
@@ -23,6 +29,9 @@ struct SendToGrokIntent: AppIntent {
     static var title: LocalizedStringResource = "Send a task to Grok"
     static var description = IntentDescription("Sends a prompt to your most recent Grok Build session, and leaves it running on your computer.")
     static var openAppWhenRun = false
+    // This runs a command on the user's Mac. Without it, "Allow Siri When Locked" let a
+    // locked phone dictate work straight past the app's own Face ID lock.
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @Parameter(title: "Task", requestValueDialog: "What should Grok do?")
     var prompt: String
@@ -47,7 +56,9 @@ struct SendToGrokIntent: AppIntent {
                     : "Grok is already working on something. Try again once it's finished.")
             }
             try await client.send(sessionId: target.id, text: text)
-            let name = target.cwd.map { ($0 as NSString).lastPathComponent } ?? "your session"
+            // The fallback used to be a bare Swift string spliced into a localized
+            // frame, so it stayed English in all seven languages.
+            let name = target.cwd.map { ($0 as NSString).lastPathComponent } ?? String(localized: "your session")
             return .result(dialog: "Sent to \(name). I'll notify you when Grok is done.")
         } catch {
             return .result(dialog: "Couldn't reach your computer. Check that the bridge is running.")
@@ -68,11 +79,21 @@ struct GrokStatusIntent: AppIntent {
         do {
             let sessions = try await client.listSessions()
             let running = sessions.filter { $0.isRunning }
+            // Whole sentences per case. Appending an English "s", and splicing an English
+            // " and N more" into a translated frame, cannot be expressed in most of the
+            // languages this app ships in.
             if running.isEmpty {
-                return .result(dialog: "Grok is idle. You have \(sessions.count) session\(sessions.count == 1 ? "" : "s").")
+                let dialog: IntentDialog = sessions.count == 1
+                    ? "Grok is idle. You have 1 session."
+                    : "Grok is idle. You have \(sessions.count) sessions."
+                return .result(dialog: dialog)
             }
             let names = running.compactMap { $0.cwd.map { ($0 as NSString).lastPathComponent } }
-            return .result(dialog: "Grok is working on \(names.first ?? "a session")\(running.count > 1 ? " and \(running.count - 1) more" : "").")
+            let first = names.first ?? String(localized: "a session")
+            let dialog: IntentDialog = running.count > 1
+                ? "Grok is working on \(first) and \(running.count - 1) more."
+                : "Grok is working on \(first)."
+            return .result(dialog: dialog)
         } catch {
             return .result(dialog: "Couldn't reach your computer.")
         }

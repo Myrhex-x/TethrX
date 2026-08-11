@@ -9,6 +9,8 @@ final class ChatViewModel: ObservableObject {
     @Published var items: [ChatItem] = []
     @Published var busy = false
     @Published var live = false
+    /// Grok is blocked on an approval or a plan review, rather than working.
+    @Published var waitingOnYou = false
     @Published var mode: String?          // "plan" while Grok is planning
     @Published var errorMessage: String?
     @Published var usage: SessionUsage?   // live token/context/cost meter
@@ -20,7 +22,13 @@ final class ChatViewModel: ObservableObject {
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
     @Published var effort: String         // "", "high", "medium", "low"
-    @Published var autoApprove: Bool
+    /// "ask" | "reads" | "all".
+    @Published var approvalPolicy: String
+    /// Legacy view, still used by the older call sites and by setConfig's wire format.
+    var autoApprove: Bool {
+        get { approvalPolicy == "all" }
+        set { approvalPolicy = newValue ? "all" : "ask" }
+    }
 
     let client: BridgeClient
     let session: SessionInfo
@@ -31,6 +39,13 @@ final class ChatViewModel: ObservableObject {
     var sessionName: String { session.displayName }
 
     private var streamTask: Task<Void, Never>?
+    /// Set by stop(), so a watchdog that was already sleeping cannot revive the stream.
+    private var stopped = false
+    private var watchdog: Task<Void, Never>?
+    /// Streamed prose waiting to be folded in, in arrival order, with consecutive
+    /// same-kind chunks already merged.
+    private var pendingChunks: [(thought: Bool, text: String)] = []
+    private var flushTask: Task<Void, Never>?
     /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from
     /// there instead of replaying the whole session and duplicating the transcript.
     private var lastEventId = 0
@@ -51,7 +66,7 @@ final class ChatViewModel: ObservableObject {
         self.replayWatermark = session.lastEventId ?? 0
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
-        self.autoApprove = session.autoApprove ?? false
+        self.approvalPolicy = session.effectiveApprovalPolicy
         self.usage = session.usage
         self.queued = session.queue ?? []
         // Hand each activity's update token to the bridge, so the lock-screen
@@ -69,7 +84,7 @@ final class ChatViewModel: ObservableObject {
         self.replayWatermark = 0
         self.planMode = demoSession.planMode ?? false
         self.effort = demoSession.effort ?? ""
-        self.autoApprove = demoSession.autoApprove ?? false
+        self.approvalPolicy = demoSession.effectiveApprovalPolicy
         self.usage = demoSession.usage
     }
 
@@ -83,8 +98,38 @@ final class ChatViewModel: ObservableObject {
             let updated = try await client.setConfig(sessionId: session.id, planMode: planMode, effort: effort, autoApprove: autoApprove)
             self.planMode = updated.planMode ?? self.planMode
             self.effort = updated.effort ?? self.effort
-            self.autoApprove = updated.autoApprove ?? self.autoApprove
+            self.approvalPolicy = updated.effectiveApprovalPolicy
         } catch {
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Unstick a session whose turn is wedged. Cancel only asks politely, and a grok
+    /// that has stopped reading never sees it, so every later message 409s forever.
+    func restart() async {
+        if isDemo { return }
+        do {
+            try await client.restartSession(session.id)
+            busy = false
+            waitingOnYou = false
+            restartStream()
+        } catch {
+            errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Set how tool permissions are answered: "ask", "reads" or "all".
+    func setApprovalPolicy(_ policy: String) async {
+        let previous = approvalPolicy
+        approvalPolicy = policy
+        if isDemo { return }
+        do {
+            let updated = try await client.setConfig(sessionId: session.id, approvalPolicy: policy)
+            approvalPolicy = updated.effectiveApprovalPolicy
+        } catch {
+            // An older bridge does not know approvalPolicy at all. "reads" has no
+            // equivalent there, so do not silently promote it to "all".
+            approvalPolicy = previous
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -107,7 +152,9 @@ final class ChatViewModel: ObservableObject {
                 if commands.isEmpty { commands = seed }
             }
         }
+        stopped = false
         streamTask = Task { @MainActor in
+            var attempt = 0
             while !Task.isCancelled {
                 // `live` turns on when the stream actually delivers (the synthetic
                 // "_open" marker counts) — setting it before dialing showed a green
@@ -117,19 +164,40 @@ final class ChatViewModel: ObservableObject {
                         if let id = event["_eventId"] as? Int { lastEventId = max(lastEventId, id) }
                         apply(event)
                     }
+                    attempt = 0                     // a stream that delivered then ended is transient
                 } catch {
-                    // transient — fall through to reconnect
+                    // Not everything is transient. A deleted session (404) or a rotated
+                    // token (401) will never recover, and retrying a fatal failure at a
+                    // flat 2s meant a full handshake thirty times a minute, for as long
+                    // as the view stayed open, with only a grey dot to show for it.
+                    if case BridgeError.badStatus(let code) = error, code == 401 || code == 404 {
+                        live = false
+                        flushStream()
+                        errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+                        break
+                    }
+                    attempt += 1
                 }
                 live = false
                 if Task.isCancelled { break }
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                // 2s, 4s, 8s, capped at 30s.
+                let backoff = min(30.0, 2.0 * pow(2.0, Double(max(0, attempt - 1))))
+                try? await Task.sleep(nanoseconds: UInt64(backoff * 1_000_000_000))
             }
         }
     }
 
     func stop() {
+        stopped = true
+        watchdog?.cancel()
+        watchdog = nil
         streamTask?.cancel()
         streamTask = nil
+        flushStream()
+        // A turn still running keeps its card: the bridge drives it from here via the
+        // activity's push token. With nothing running there is nothing to report, and
+        // leaving it meant the lock screen said WORKING for hours after a swipe back.
+        if busy { liveActivity.detach() } else { liveActivity.end(phase: "done", detail: "Finished") }
     }
 
     /// The demo's canned-reply task, so Stop can actually stop it.
@@ -156,6 +224,7 @@ final class ChatViewModel: ObservableObject {
         }
         busy = true
         errorMessage = nil
+        watchdog?.cancel()
         if !thumbnails.isEmpty { pendingEcho = thumbnails }
         let sentAt = Date()
         do {
@@ -165,17 +234,30 @@ final class ChatViewModel: ObservableObject {
             busy = false
             pendingEcho = []
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+            // The composer clears optimistically, and the user bubble only arrives with
+            // the turn_start event, so a send that fails leaves nothing behind at all:
+            // the typed message and up to three re-picked photos are simply gone.
+            failedSend = FailedSend(text: trimmed, images: images, thumbnails: thumbnails)
         }
     }
+
+    /// The last send that did not land, so the composer can put it back for one tap of retry.
+    struct FailedSend { var text: String; var images: [Data]; var thumbnails: [UIImage] }
+    @Published var failedSend: FailedSend?
 
     /// A Wi-Fi→cellular hop can leave the SSE stream half-dead: the POST lands (the
     /// turn runs on the computer) while the old stream never delivers another byte —
     /// no user bubble, typing dots forever. If the accepted send's turn_start hasn't
     /// folded in shortly, force a fresh stream; replay-from-lastEventId fills the gap.
     private func watchdogAfterSend(_ sentAt: Date) {
-        Task { @MainActor [weak self] in
+        watchdog?.cancel()
+        // Held, and cancelled by stop()/send(). As a bare unstructured Task its own
+        // `Task.isCancelled` was always false, so leaving the chat within five seconds
+        // of a send still called restartStream() after stop(), spawning a stream that
+        // captured self strongly and was never cancelled again.
+        watchdog = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
-            guard let self, !Task.isCancelled else { return }
+            guard let self, !Task.isCancelled, !self.stopped else { return }
             if self.lastTurnStartAt < sentAt {
                 self.restartStream()
             }
@@ -302,6 +384,52 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: Streamed-text buffering
+
+    /// Merge into the tail run when it is the same kind, so a burst of chunks becomes
+    /// one string append instead of hundreds.
+    private func enqueueChunk(_ text: String, thought: Bool) {
+        guard !text.isEmpty else { return }
+        if let last = pendingChunks.last, last.thought == thought {
+            pendingChunks[pendingChunks.count - 1].text += text
+        } else {
+            pendingChunks.append((thought, text))
+        }
+        guard flushTask == nil else { return }
+        flushTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.flushTask = nil
+            self.flushStream()
+        }
+    }
+
+    /// Fold everything buffered into the transcript now. Safe to call at any time.
+    func flushStream() {
+        flushTask?.cancel()
+        flushTask = nil
+        guard !pendingChunks.isEmpty else { return }
+        let runs = pendingChunks
+        pendingChunks = []
+        for run in runs {
+            if run.thought {
+                if let i = thoughtIndex, items.indices.contains(i) {
+                    items[i].text += run.text
+                } else {
+                    append(.thought, run.text)
+                    thoughtIndex = items.count - 1
+                }
+            } else {
+                if let i = assistantIndex, items.indices.contains(i) {
+                    items[i].text += run.text
+                } else {
+                    append(.assistant, run.text)
+                    assistantIndex = items.count - 1
+                }
+            }
+        }
+    }
+
     // MARK: Event folding
 
     private func apply(_ event: [String: Any]) {
@@ -310,7 +438,21 @@ final class ChatViewModel: ObservableObject {
         // re-fire side effects: without this, opening a finished 6-turn session
         // flashed six Live Activities across the lock screen.
         let isReplay = (event["_eventId"] as? Int ?? Int.max) <= replayWatermark
-        switch event["kind"] as? String {
+        let kind = event["kind"] as? String
+
+        // Streamed prose is buffered and flushed on a short timer. grok streams about
+        // 4.3 characters per event, so a 4000 character answer arrives as roughly 930
+        // separate publishes, and each one re-ran the whole bubble's markdown parse and
+        // code-fence split over the entire accumulated text. Anything that is NOT a
+        // chunk has to flush first, or it would be folded in ahead of prose that was
+        // streamed before it.
+        if kind == "text" || kind == "thought" {
+            enqueueChunk(event["text"] as? String ?? "", thought: kind == "thought")
+            return
+        }
+        flushStream()
+
+        switch kind {
         case "turn_start":
             assistantIndex = nil
             thoughtIndex = nil
@@ -328,24 +470,6 @@ final class ChatViewModel: ObservableObject {
             }
             items.append(item)
 
-        case "text":
-            let t = event["text"] as? String ?? ""
-            if let i = assistantIndex, items.indices.contains(i) {
-                items[i].text += t
-            } else {
-                append(.assistant, t)
-                assistantIndex = items.count - 1
-            }
-
-        case "thought":
-            let t = event["text"] as? String ?? ""
-            if let i = thoughtIndex, items.indices.contains(i) {
-                items[i].text += t
-            } else {
-                append(.thought, t)
-                thoughtIndex = items.count - 1
-            }
-
         case "tool_call":
             assistantIndex = nil
             thoughtIndex = nil
@@ -358,8 +482,13 @@ final class ChatViewModel: ObservableObject {
             items.append(item)
 
         case "tool_update":
+            // Must match the TOOL row, not merely the last item carrying this id. The
+            // permission card is appended after the tool row and copies the same
+            // toolCallId, so `lastIndex` wrote status, exit code, output and diff onto a
+            // card that renders none of them: the real tool row span forever, and the
+            // auto-expand-on-failure could never fire.
             if let id = event["id"] as? String,
-               let idx = items.lastIndex(where: { $0.toolCallId == id }) {
+               let idx = items.lastIndex(where: { $0.role == .tool && $0.toolCallId == id }) {
                 if let st = event["status"] as? String, !st.isEmpty { items[idx].toolStatus = st }
                 if let code = event["exitCode"] as? Int, code != 0 { items[idx].toolStatus = "failed" }
                 if let out = event["output"] as? String, !out.isEmpty { items[idx].toolOutput = out }
@@ -453,6 +582,24 @@ final class ChatViewModel: ObservableObject {
             busy = false
             if !isReplay { liveActivity.end(phase: "error", detail: "Something went wrong") }
             append(.error, event["message"] as? String ?? "Something went wrong.")
+
+        case "waiting":
+            // Grok is blocked on you (or no longer is). The chip in the session list is
+            // driven from the session metadata; here it only needs to stop the spinner
+            // from implying work is happening.
+            waitingOnYou = event["waiting"] != nil && !(event["waiting"] is NSNull)
+
+        case "compacted":
+            // grok compacted the conversation, either because you asked or because it
+            // crossed its own threshold. Nothing else in the stream says the window
+            // shrank, so without this the user waits for a reply that never comes.
+            let before = event["tokensBefore"] as? Int
+            let after = event["tokensAfter"] as? Int
+            if let before, let after, after < before {
+                append(.status, String(localized: "· compacted to \(Fmt.tokens(after)) tokens ·"))
+            } else {
+                append(.status, String(localized: "· compacted ·"))
+            }
 
         case "_open":
             break   // synthetic stream-connected marker; `live` was set above

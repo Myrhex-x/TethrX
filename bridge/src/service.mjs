@@ -17,7 +17,7 @@
 // HOME, their PATH, and their file permissions — nothing more.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -182,6 +182,37 @@ function parseFlags(argv) {
 const isMac = process.platform === "darwin";
 const isLinux = process.platform === "linux";
 
+/** The port the installed service actually listens on. `install --port 4182` bakes
+ *  the port into the plist / unit, and nothing puts it back in this shell's env —
+ *  so `status` used to probe the default port and tell a perfectly healthy service
+ *  it wasn't answering. */
+function installedPort() {
+  try {
+    const text = readFileSync(isMac ? PLIST : UNIT, "utf8");
+    const m = isMac
+      ? text.match(/<key>GROK_REMOTE_PORT<\/key>\s*<string>(\d+)<\/string>/)
+      : text.match(/^Environment=GROK_REMOTE_PORT=(\d+)$/m);
+    if (m) return Number(m[1]);
+  } catch { /* not installed, or unreadable: fall back to the default */ }
+  return config.port;
+}
+
+/** The service writes its startup banner, pairing token and all, into these files.
+ *  Created through the default umask they were world-readable, which is how the
+ *  token ended up leaking; repair an existing install as well as a fresh one. */
+function secureLogFiles() {
+  mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
+  try { chmodSync(LOG_DIR, 0o700); } catch { /* leave it */ }
+  for (const path of [OUT_LOG, ERR_LOG]) {
+    // launchd and systemd append to whatever is already there and never set a mode,
+    // so the file has to exist with the right one before the service opens it.
+    try {
+      if (!existsSync(path)) writeFileSync(path, "", { mode: 0o600 });
+      chmodSync(path, 0o600);
+    } catch { /* leave it */ }
+  }
+}
+
 async function install(flags) {
   const host = flags.host || process.env.GROK_REMOTE_HOST || config.host;
   const port = String(flags.port || config.port);
@@ -206,7 +237,7 @@ async function install(flags) {
     return 1;
   }
 
-  mkdirSync(LOG_DIR, { recursive: true });
+  secureLogFiles();
 
   if (isMac) {
     mkdirSync(dirname(PLIST), { recursive: true });
@@ -302,12 +333,13 @@ async function status() {
   if (isMac && installed) loaded = run("launchctl", ["print", `gui/${userInfo().uid}/${LABEL}`]).ok;
   if (isLinux && installed) loaded = run("systemctl", ["--user", "is-active", "tethrx-bridge"]).out.trim() === "active";
 
-  const health = await probe(config.port);
+  const port = installedPort();
+  const health = await probe(port);
 
   console.log("\n  TethrX bridge service");
   console.log(`  ├─ installed   ${installed ? "yes" : "no"}${installed ? `  (${isMac ? PLIST : UNIT})` : ""}`);
   console.log(`  ├─ loaded      ${loaded ? "yes" : "no"}`);
-  console.log(`  ├─ answering   ${health ? `yes  (v${health.version || "?"} on port ${config.port})` : `no   (nothing on port ${config.port})`}`);
+  console.log(`  ├─ answering   ${health ? `yes  (v${health.version || "?"} on port ${port})` : `no   (nothing on port ${port})`}`);
   if (health) console.log(`  ├─ grok        ${health.grok || "NOT FOUND — the service can't see the grok binary"}`);
   console.log(`  └─ logs        ${OUT_LOG}`);
   if (!installed) console.log("\n  Install it with: tethrx-bridge service install --host 0.0.0.0");

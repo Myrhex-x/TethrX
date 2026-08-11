@@ -7,7 +7,7 @@ import Foundation
 enum DemoData {
     static let health = HealthInfo(
         ok: true, name: "TethrX", host: "demo-mac",
-        grok: "grok 0.2.106", grokAvailable: true,
+        grok: "grok 1.0.0", grokAvailable: true,
         version: AppState.wantedBridgeVersion, latestVersion: nil, tls: nil
     )
 
@@ -35,10 +35,15 @@ enum DemoData {
                         planMode: false, effort: "", autoApprove: false,
                         status: "idle", turnCount: 6, createdAt: "2026-07-21T09:12:00Z",
                         lastEventId: 40, usage: richUsage),
+            // Deliberately blocked on an approval, not merely running: "waiting for you"
+            // is the state the app exists to surface, so the tour has to show it.
             SessionInfo(id: "demo-flaky-test", title: "Hunt the flaky auth test", folder: "Acme app",
                         cwd: "/Users/you/acme-app", model: nil, transport: "acp",
-                        planMode: false, effort: "high", autoApprove: true,
-                        status: "running", turnCount: 3, createdAt: "2026-07-21T08:03:00Z",
+                        planMode: false, effort: "high", autoApprove: false,
+                        approvalPolicy: "reads",
+                        status: "running",
+                        waiting: WaitingState(kind: "permission", label: "rm -rf .build", since: nil),
+                        turnCount: 3, createdAt: "2026-07-21T08:03:00Z",
                         lastEventId: 21, usage: lightUsage),
             SessionInfo(id: "demo-landing", title: "New session", folder: nil,
                         cwd: "/Users/you/landing-page", model: nil, transport: "acp",

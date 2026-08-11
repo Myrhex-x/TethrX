@@ -17,6 +17,16 @@ jobs:
       - name: syntax
         run: |
           for f in bridge/src/*.mjs; do node --check "$f"; done
+      - name: version format
+        run: |
+          # The app's "your bridge is out of date" banner parses this, and anything
+          # that is not three plain integers makes it fail OPEN: no banner, ever,
+          # on a shipped build that cannot be patched.
+          V=$(node -p "require('./bridge/package.json').version")
+          echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "bridge version '$V' must be exactly three integers"; exit 1; }
+      - name: unit
+        run: node bridge/test/verify-fixes.mjs
       - name: smoke
         run: |
           export HOME="$RUNNER_TEMP/home"
@@ -75,6 +85,17 @@ jobs:
                 | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).id))")
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
             -d '{}' "localhost:4180/api/sessions/$BID/branch" | grep -q '"title":"fork (2)"'
+
+          # A plan approval must be an EXPLICIT boolean. This used to default to
+          # approved on a missing or malformed body, so a POST that died in flight read
+          # as "yes, implement the plan I just rejected".
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" \
+            -H 'content-type: application/json' -d '{}' \
+            "localhost:4180/api/sessions/$SID/plan/anything")" = "400"
+
+          # The one-time approval link is a mutation, so it must refuse a bare GET
+          # (a link preview or a prefetch could otherwise burn the token).
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:4180/api/approve/whatever)" = "405"
 
           # `service` must never fall through into starting a server
           node bridge/src/server.mjs service status | grep -q 'TethrX bridge service'

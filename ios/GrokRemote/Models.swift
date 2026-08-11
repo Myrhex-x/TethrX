@@ -81,7 +81,13 @@ struct UsageDay: Codable, Identifiable, Hashable {
 
     /// "Mon", for the chart's axis.
     var weekdayLabel: String {
+        // PARSING a fixed machine format must not use the user's locale or calendar.
+        // Left on Locale.current, a Japanese or Buddhist-calendar device read the
+        // bridge's plain "2026-08-11" against its own era and produced nothing, so the
+        // whole axis came back blank. Only the OUTPUT is localized.
         let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.calendar = Calendar(identifier: .gregorian)
         parser.dateFormat = "yyyy-MM-dd"
         parser.timeZone = .current
         guard let d = parser.date(from: date) else { return "" }
@@ -92,6 +98,13 @@ struct UsageDay: Codable, Identifiable, Hashable {
 }
 
 /// A Grok conversation tracked by the bridge.
+/// What grok is blocked on, when it is blocked on you.
+struct WaitingState: Codable, Hashable {
+    var kind: String        // "permission" | "plan"
+    var label: String?      // the command or title, for the chip
+    var since: String?
+}
+
 struct SessionInfo: Codable, Identifiable, Hashable {
     let id: String
     var title: String
@@ -102,7 +115,13 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var planMode: Bool?
     var effort: String?
     var autoApprove: Bool?
+    /// "ask" | "reads" | "all". Absent on bridges that only had the boolean.
+    var approvalPolicy: String?
     var status: String
+    /// Set while grok is blocked on you. A session waiting for an approval used to be
+    /// indistinguishable from one busy working, so finding the stuck one among several
+    /// meant opening each and scrolling to the bottom.
+    var waiting: WaitingState?
     var turnCount: Int
     var createdAt: String
     var lastEventId: Int?
@@ -115,6 +134,13 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     var seedContext: String?
 
     var isRunning: Bool { status == "running" }
+    var isWaitingOnYou: Bool { waiting != nil }
+
+    /// Effective policy, tolerating a bridge that only reports the old boolean.
+    var effectiveApprovalPolicy: String {
+        if let approvalPolicy, !approvalPolicy.isEmpty { return approvalPolicy }
+        return (autoApprove ?? false) ? "all" : "ask"
+    }
 
     /// What the UI shows. Renaming writes `title`, so it has to win here — the views
     /// used to render the working directory's folder name unconditionally, which made
@@ -186,11 +212,26 @@ struct UsageReport: Codable {
 enum Semver {
     static func isOlder(_ a: String?, than b: String) -> Bool {
         guard let a, !a.isEmpty else { return true }
-        let x = a.split(separator: ".").compactMap { Int($0) }
-        let y = b.split(separator: ".").compactMap { Int($0) }
-        guard x.count == 3, y.count == 3 else { return false }
+        let x = parts(a), y = parts(b)
         for i in 0..<3 where x[i] != y[i] { return x[i] < y[i] }
         return false
+    }
+
+    /// Always three components.
+    ///
+    /// This used to `compactMap { Int($0) }` and then bail out unless exactly three
+    /// survived, returning false, which means "not older", which means no banner. So
+    /// "1.0" and "0.1.19.1" silently disabled the app's ONLY channel for telling a user
+    /// their bridge is too old, permanently, on a build that cannot be patched. And
+    /// "0.2.0-beta.1" dropped its unparseable component and compared [0, 2, 1], lining
+    /// the wrong numbers up against each other.
+    private static func parts(_ v: String) -> [Int] {
+        var out = v.split(separator: ".", omittingEmptySubsequences: false).map { field -> Int in
+            // Take the leading digits, so a prerelease suffix degrades to its number.
+            Int(field.prefix(while: \.isNumber)) ?? 0
+        }
+        while out.count < 3 { out.append(0) }
+        return Array(out.prefix(3))
     }
 }
 
@@ -232,26 +273,44 @@ struct SlashCommand: Codable, Identifiable, Hashable {
     var name: String                 // without the leading slash, e.g. "compact"
     var description: String = ""
     var hint: String = ""            // arg hint from the command's input, if any
-    var scope: String = "builtin"    // "builtin" | "user" | "bundled"
+    var scope: String = "builtin"    // legacy routing hint: "builtin" | "user" | "bundled" | "command"
+    /// grok's own classification, unmodified by the bridge's routing policy.
+    var kind: String?
+    /// The bridge's explicit routing decision: "send" | "details" | "auto-approve" | "hidden".
+    var routing: String?
+    /// Expensive enough to confirm first. A bare /loop measured about 52k tokens.
+    var costly: Bool = false
+
     var id: String { name }
     var display: String { "/" + name }
     var takesArgs: Bool { !hint.isEmpty }
 
+    /// Badge text in the palette: grok's real classification, not the routing hint.
+    var isBuiltin: Bool { (kind ?? scope) == "builtin" }
+
     /// What actually happens when this command is run.
     ///
-    /// grok implements its built-in commands only inside its own terminal UI. Sent over
-    /// ACP they arrive, produce zero tokens and no events, and do nothing — verified
-    /// against /compact. Skills, by contrast, execute as a normal turn. So skills are
-    /// passed through, the built-ins the app can perform itself are handled locally,
-    /// and the remainder are hidden rather than offered as commands that quietly fail.
+    /// grok 0.2.x really did implement its built-ins only inside its own terminal UI.
+    /// grok 1.0.0 executes them over ACP: /workflow, /goal and /feedback return real
+    /// text, and /compact compacts in place. Only /context is still genuinely inert.
+    ///
+    /// The bridge knows which grok it is talking to, so it decides and sends `routing`.
+    /// The derivation below is the fallback for a bridge too old to say.
     enum Action: Equatable {
-        case send            // a skill — grok runs it
-        case openDetails     // /context, /session-info — the app already shows this
-        case autoApprove     // /always-approve — the app has a real toggle
-        case unsupported     // /compact, /goal, /loop, /feedback — inert over ACP
+        case send            // grok runs it
+        case openDetails     // /context — inert over ACP, but the app already shows this
+        case autoApprove     // /always-approve — the app owns the approval loop
+        case unsupported     // hidden rather than offered as something that quietly fails
     }
 
     var action: Action {
+        switch routing {
+        case "send":         return .send
+        case "details":      return .openDetails
+        case "auto-approve": return .autoApprove
+        case "hidden":       return .unsupported
+        default: break
+        }
         guard scope == "builtin" else { return .send }
         switch name {
         case "context", "session-info": return .openDetails
@@ -398,8 +457,21 @@ struct FileDiff: Equatable {
     var oldText: String
     var newText: String
     var filename: String { (path as NSString).lastPathComponent }
-    var oldLines: [String] { oldText.isEmpty ? [] : oldText.components(separatedBy: "\n") }
-    var newLines: [String] { newText.isEmpty ? [] : newText.components(separatedBy: "\n") }
+    /// Split ONCE, at construction.
+    ///
+    /// These were computed properties, so every access re-split the whole file, and the
+    /// views read them repeatedly while building one row per line. A large rewrite
+    /// therefore re-split thousands of lines many times over during a single layout.
+    let oldLines: [String]
+    let newLines: [String]
+
+    init(path: String, oldText: String, newText: String) {
+        self.path = path
+        self.oldText = oldText
+        self.newText = newText
+        self.oldLines = oldText.isEmpty ? [] : oldText.components(separatedBy: "\n")
+        self.newLines = newText.isEmpty ? [] : newText.components(separatedBy: "\n")
+    }
 }
 
 /// One rendered line in the conversation. Streaming text is appended into the

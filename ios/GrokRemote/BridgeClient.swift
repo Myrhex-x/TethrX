@@ -11,11 +11,15 @@ enum BridgeError: LocalizedError {
     case badURL
     case badStatus(Int)
 
+    /// These reach a visible banner through AppState.friendly(), so they are localized
+    /// like any other copy. They used to be raw Swift strings: enter a wrong token in
+    /// any of the seven other languages and the explanation came back in English.
     var errorDescription: String? {
         switch self {
-        case .badURL: return "Invalid server address."
-        case .badStatus(401): return "Unauthorized — check your pairing token."
-        case .badStatus(let code): return "Server returned status \(code)."
+        case .badURL: return String(localized: "Invalid server address.")
+        case .badStatus(401): return String(localized: "Not authorized. Check your pairing token.")
+        case .badStatus(404): return String(localized: "That session no longer exists on your computer.")
+        case .badStatus(let code): return String(localized: "Your computer returned an error (status \(code)).")
         }
     }
 }
@@ -26,6 +30,13 @@ struct BridgeClient {
     let config: BridgeConfig
     private var session: URLSession {
         if let pin = config.pin, !pin.isEmpty { return PinnedSessions.session(for: pin) }
+        return .shared
+    }
+
+    /// Reachability probes only: bounded so a stalled listener cannot hold the UI.
+    /// Everything else must use `session`, whose lifetime is deliberately unbounded.
+    private var probeSession: URLSession {
+        if let pin = config.pin, !pin.isEmpty { return PinnedSessions.probeSession(for: pin) }
         return .shared
     }
 
@@ -40,11 +51,12 @@ struct BridgeClient {
         return u
     }
 
-    private func request(_ path: String, method: String = "GET", json: [String: Any]? = nil) throws -> URLRequest {
+    private func request(_ path: String, method: String = "GET", json: [String: Any]? = nil,
+                         authenticated: Bool = true) throws -> URLRequest {
         var req = URLRequest(url: try url(path))
         req.httpMethod = method
         req.timeoutInterval = 15   // bound failed reconnects (streaming sets its own)
-        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        if authenticated { req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization") }
         if let json {
             req.httpBody = try JSONSerialization.data(withJSONObject: json)
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -64,10 +76,14 @@ struct BridgeClient {
     /// milliseconds, but a port that accepts the connection and then stalls (a dead
     /// TLS listener, something else squatting the port) holds the default timeout
     /// open — long enough that Reconnect looks like it simply doesn't work.
-    func health(timeout: TimeInterval? = nil) async throws -> HealthInfo {
-        var req = try request("/api/health")
+    /// `authenticated: false` sends no pairing token. Health is unauthenticated by
+    /// design, and the recovery path has to be able to ASK a channel what it is before
+    /// deciding whether that channel deserves the credential.
+    func health(timeout: TimeInterval? = nil, authenticated: Bool = true) async throws -> HealthInfo {
+        var req = try request("/api/health", authenticated: authenticated)
         if let timeout { req.timeoutInterval = timeout }
-        let (data, resp) = try await session.data(for: req)
+        // The bounded session, and only here: this is the one call that must give up fast.
+        let (data, resp) = try await (timeout == nil ? session : probeSession).data(for: req)
         try Self.check(resp)
         return try JSONDecoder().decode(HealthInfo.self, from: data)
     }
@@ -320,13 +336,24 @@ struct BridgeClient {
         try Self.check(resp)
     }
 
+    /// Restart a wedged session: the bridge stops grok so the stuck turn unwinds, and
+    /// the next message resumes the conversation's context. Deleting the session used to
+    /// be the only remote lever, and that threw the conversation away.
+    func restartSession(_ sessionId: String) async throws {
+        let (_, resp) = try await session.data(
+            for: try request("/api/sessions/\(sessionId)/restart", method: "POST"))
+        try Self.check(resp)
+    }
+
     /// Live per-session settings (plan mode, reasoning effort, auto-approve).
     @discardableResult
-    func setConfig(sessionId: String, planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil) async throws -> SessionInfo {
+    func setConfig(sessionId: String, planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil,
+                   approvalPolicy: String? = nil) async throws -> SessionInfo {
         var body: [String: Any] = [:]
         if let planMode { body["planMode"] = planMode }
         if let effort { body["effort"] = effort }
         if let autoApprove { body["autoApprove"] = autoApprove }
+        if let approvalPolicy { body["approvalPolicy"] = approvalPolicy }
         let (data, resp) = try await session.data(
             for: try request("/api/sessions/\(sessionId)/config", method: "POST", json: body))
         try Self.check(resp)

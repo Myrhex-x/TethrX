@@ -117,14 +117,14 @@ struct SettingsView: View {
             Eyebrow("CONNECTION")
             Text("The bridge is the small helper program running on your computer — this phone talks only to it, never to a cloud.")
                 .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
-            row("Bridge", app.normalizedBase.isEmpty ? "—" : app.normalizedBase)
+            row("Bridge", app.normalizedBase.isEmpty ? "·" : app.normalizedBase)
             HStack {
                 Text("Security").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                 Spacer()
                 HStack(spacing: 5) {
                     Image(systemName: pinned ? "lock.fill" : "lock.open")
                         .font(.system(size: 10, weight: .semibold))
-                    Text(pinned ? "HTTPS · certificate pinned" : "HTTP")
+                    (pinned ? Text("HTTPS · certificate pinned") : Text("HTTP"))
                 }
                 .font(Grok.mono(12)).foregroundStyle(pinned ? Grok.text : Grok.textDim)
             }
@@ -221,12 +221,12 @@ struct SettingsView: View {
                 .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reasoning effort").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
-                Text("Higher thinks longer and costs more tokens; Auto lets Grok decide.")
+                Text("Higher thinks longer and costs more tokens. High is Grok's default.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
                 HStack(spacing: 8) {
                     ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
                         Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.mono(12, .medium)) }
-                            .buttonStyle(SegPill(selected: app.defaultEffort == pair.1))
+                            .buttonStyle(SegPill(selected: effectiveEffort == pair.1))
                     }
                     Spacer(minLength: 0)
                 }
@@ -416,7 +416,7 @@ struct SettingsView: View {
                 Text("Plugins bundle skills, agents, and tools for Grok — and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
-            .task(id: app.activeBridgeId) { await loadPlugins() }
+            .task(id: pluginsReloadKey) { await loadPlugins() }
             .confirmationDialog(
                 Text("Remove \(removingPlugin?.name ?? "")?"),
                 isPresented: Binding(get: { removingPlugin != nil }, set: { if !$0 { removingPlugin = nil } }),
@@ -436,6 +436,10 @@ struct SettingsView: View {
     private var installDisabled: Bool {
         installSource.trimmingCharacters(in: .whitespaces).isEmpty
     }
+
+    /// Reload when the computer changes *and* when the connection comes back: keyed
+    /// on the computer alone, a load that failed while disconnected stayed failed.
+    private var pluginsReloadKey: String { "\(app.activeBridgeId ?? "-")|\(app.connected)" }
 
     private func pluginRow(_ plugin: GrokPlugin) -> some View {
         HStack(alignment: .top, spacing: 10) {
@@ -480,7 +484,12 @@ struct SettingsView: View {
     }
 
     private func loadPlugins() async {
-        guard let client = app.client, app.connected else { return }
+        // A reconnect blip lands here with no client. Returning quietly left
+        // `plugins` nil with no failure recorded, and the section spun forever.
+        guard let client = app.client, app.connected else {
+            if plugins == nil { pluginsFailed = true }
+            return
+        }
         do {
             plugins = try await client.grokPlugins()
             pluginsFailed = false
@@ -556,7 +565,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("ABOUT")
             row("App", "TethrX \(appVersion)")
-            row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "—")
+            row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "·")
             grokUpdateRows
             if let v = app.health?.version, !v.isEmpty {
                 row("Bridge", "v\(v)" + (bridgeOutdated ? " · update available" : ""))
@@ -583,7 +592,7 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         if grokUpdating { ProgressView().controlSize(.mini).tint(.black) }
-                        Text(grokUpdating ? "Updating…" : "Update now").font(Grok.mono(11, .semibold))
+                        (grokUpdating ? Text("Updating…") : Text("Update now")).font(Grok.mono(11, .semibold))
                     }
                     .padding(.horizontal, 10).padding(.vertical, 5)
                     .background(Capsule().fill(Color.white))
@@ -666,6 +675,10 @@ struct SettingsView: View {
         report = try? await client.usage()
     }
 
-    private var efforts: [(LocalizedStringKey, String)] { [("Auto", ""), ("High", "high"), ("Med", "medium"), ("Low", "low")] }
+    // No "Auto": grok has three efforts and omitting the flag simply runs high, so
+    // the option promised adaptive behaviour while quietly picking the dearest one.
+    private var efforts: [(LocalizedStringKey, String)] { [("High", "high"), ("Med", "medium"), ("Low", "low")] }
+    /// Sessions set up before "Auto" went away still store "", which is high.
+    private var effectiveEffort: String { app.defaultEffort.isEmpty ? "high" : app.defaultEffort }
     private var appVersion: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "" }
 }

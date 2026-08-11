@@ -228,7 +228,7 @@ struct DirectoryPickerSheet: View {
         loading = true
         errorText = nil
         defer { loading = false }
-        guard let client = app.client else { errorText = "Not connected."; return }
+        guard let client = app.client else { errorText = String(localized: "Not connected."); return }
         do { listing = try await client.listDirs(path: path) }
         catch { errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription }
     }

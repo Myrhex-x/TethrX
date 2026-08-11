@@ -4,7 +4,7 @@ import ActivityKit
 @main
 struct TethrXApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var app = AppState()
+    @StateObject private var app = AppState.shared
     @StateObject private var lock = AppLock()
     @StateObject private var snippets = SnippetStore()
     @StateObject private var push = PushManager.shared
@@ -28,14 +28,9 @@ struct TethrXApp: App {
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .animation(.easeInOut(duration: 0.2), value: lock.locked)
             .task {
-                push.onToken = { token in Task { await app.registerDevice(token) } }
-                push.onOpenSession = { id in Task { @MainActor in app.pendingOpenSessionId = id } }   // tap → jump to session
-                push.onPermissionDecision = { sessionId, requestId, optionId in
-                    await app.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
-                }
-                push.onReply = { sessionId, text in
-                    await app.queueReply(sessionId: sessionId, text: text)
-                }
+                // The notification-action handlers are wired in the app delegate, which
+                // runs even for a background launch with no scene. Only scene-scoped
+                // work belongs here.
                 push.refreshIfEnabled()            // re-register if the user enabled push before
                 observeLiveActivities()
             }

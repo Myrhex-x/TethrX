@@ -11,6 +11,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, symlinkSync,
   lstatSync, copyFileSync, renameSync,
@@ -18,6 +19,13 @@ import {
 
 const REAL_GROK = join(homedir(), ".grok");
 const OUTPUT_LIMIT = 8000;   // cap tool output per update so a chatty build can't flood the phone
+const HANDSHAKE_TIMEOUT = 120000;  // initialize / session-new / session-load must not hang forever
+// A turn with no protocol traffic at all for this long is wedged, not slow: grok streams
+// thoughts and tool updates continuously while it works. Without this, a hung child left
+// `prompt()` awaiting forever, the session stuck "running", and the caffeinate assertion
+// held, so the Mac never slept again. A pending permission is a legitimate wait and is
+// excluded, because the user may answer it hours later.
+const STALL_TIMEOUT = 30 * 60 * 1000;
 
 /**
  * Build (or rebuild) a HOME dir whose ~/.grok mirrors the real one via symlinks but
@@ -123,13 +131,26 @@ export class AcpSession {
     this.grokSessionId = null;
     this.contextWindow = null;       // model's max context tokens (from initialize)
     this.currentModelId = null;      // grok's chosen model when we don't pin one
+    this.capabilities = null;        // initialize.agentCapabilities — the gate for anything version-specific
+    this.agentVersion = null;        // initialize._meta.agentVersion, e.g. "1.0.0"
     this.availableCommands = [];     // grok's slash commands (/compact, /context, skills…)
     this.lastActivity = Date.now();
     this._nextId = 1;
     this._pending = new Map();       // our request id -> {resolve, reject}
     this._permissions = new Map();   // permission requestId (string) -> grok's json-rpc id
     this._plans = new Map();         // exit_plan requestId (string) -> grok's json-rpc id
+    this._unhandled = new Set();     // notification methods we have already warned about
+    this._stallTimer = null;
+    // Grok numbers its JSON-RPC ids from zero PER PROCESS, so permission request ids
+    // repeat across restarts — across real transcripts here they are only 0..3, with 0
+    // in most sessions. A card left over from a dead process would otherwise resolve
+    // whichever unrelated request reused that number after a respawn. Namespacing the
+    // id with a per-process nonce makes a stale approval fail closed instead.
+    this._nonce = randomBytes(4).toString("hex");
   }
+
+  /** Stable, process-unique id for a grok JSON-RPC request awaiting our answer. */
+  _tag(id) { return `${this._nonce}.${id}`; }
 
   async start() {
     // `-m` and `--reasoning-effort` are options of `grok agent`, not of the `stdio`
@@ -141,6 +162,9 @@ export class AcpSession {
 
     const env = { ...process.env };
     if (this.home) env.HOME = this.home;
+    // Under RUST_LOG=debug grok prints its own xAI bearer token into stderr, which we
+    // tee into the shareable log ring served by GET /api/logs. Never inherit it.
+    delete env.RUST_LOG;
 
     this.proc = spawn(this.grokBin, args, { cwd: this.cwd, stdio: ["pipe", "pipe", "pipe"], env });
     this.proc.stderr.on("data", (d) => console.error("[grok stderr] " + d.toString().trimEnd())); // drain + surface
@@ -150,15 +174,20 @@ export class AcpSession {
       // Nothing else settles in-flight requests, so a grok that dies mid-turn used to
       // leave `prompt()` awaiting forever: the turn's finally never ran, the session
       // stayed "running", and every later message got a permanent 409.
+      this._clearStallTimer();
       this._failPending(new Error("grok agent exited"));
-      this.onEvent({ kind: "closed" });
+      // `acp` identifies WHICH process died. The turn's error path installs a fresh
+      // AcpSession synchronously, before this fires — so an untagged event made the
+      // dying process null out its live replacement, after which every approval 409'd
+      // and grok blocked forever on a tool nobody could answer.
+      this.onEvent({ kind: "closed", acp: this });
     });
     this.proc.on("error", (e) => this.onEvent({ kind: "error", message: `grok agent failed: ${e.message}` }));
 
     const init = await this._request("initialize", {
       protocolVersion: 1,
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-    });
+    }, HANDSHAKE_TIMEOUT);
     // Capture the active model's context window so the phone can show a real meter.
     try {
       const ms = init?._meta?.modelState;
@@ -166,6 +195,13 @@ export class AcpSession {
       this.contextWindow = cur?._meta?.totalContextTokens || this.contextWindow;
       this.currentModelId = ms?.currentModelId || this.currentModelId;
     } catch { /* usage meter is best-effort */ }
+    // Everything version-specific gates on these rather than on a version string.
+    this.capabilities = init?.agentCapabilities || null;
+    this.agentVersion = init?._meta?.agentVersion || null;
+    // grok 1.0.0 hands the command roster back at initialize; older builds only ever
+    // send it later via available_commands_update.
+    const atInit = init?._meta?.availableCommands;
+    if (Array.isArray(atInit) && atInit.length) this._adoptCommands(atInit);
 
     // Resume prior context if we have a grok sessionId; otherwise start fresh.
     if (this.resumeSessionId) {
@@ -177,21 +213,25 @@ export class AcpSession {
         // time the process was recreated — after idle reaping, a crash, or a restart.
         // Grok still gets its context; only the echo to our clients is suppressed.
         this._replaying = true;
-        await this._request("session/load", { sessionId: this.resumeSessionId, cwd: this.cwd, mcpServers: [] });
+        await this._request("session/load", { sessionId: this.resumeSessionId, cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
         this.grokSessionId = this.resumeSessionId;
-      } catch {
-        const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] });
+      } catch (e) {
+        // Falling back to a fresh session silently DISCARDS the user's context, so say
+        // so rather than letting the transcript quietly restart with no explanation.
+        console.error(`[acp] could not resume grok session ${this.resumeSessionId}: ${e.message}`);
+        const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
         this.grokSessionId = res?.sessionId;
+        this.onEvent({ kind: "log", level: "warn", message: "Could not restore this session's context in Grok; continuing with a fresh one." });
       } finally {
         this._replaying = false;
       }
     } else {
-      const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] });
+      const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
       this.grokSessionId = res?.sessionId;
     }
 
     if (this.planMode) {
-      try { await this._request("session/set_mode", { sessionId: this.grokSessionId, modeId: "plan" }); } catch { /* mode optional */ }
+      try { await this._request("session/set_mode", { sessionId: this.grokSessionId, modeId: "plan" }, 30000); } catch { /* mode optional */ }
     }
     return this.grokSessionId;
   }
@@ -201,14 +241,61 @@ export class AcpSession {
     try { this._send({ jsonrpc: "2.0", id, method: "session/set_mode", params: { sessionId: this.grokSessionId, modeId } }); } catch { /* ignore */ }
   }
 
-  get running() { return Boolean(this.proc && !this.proc.killed); }
+  /**
+   * `killed` alone only reflects an explicit kill we issued, so a grok that crashed or
+   * exited on its own still reported as running. Turns were then written into a closed
+   * stdin and hung forever, and every later message 409'd for the life of the bridge.
+   */
+  get running() {
+    const p = this.proc;
+    if (!p || p.killed) return false;
+    if (p.exitCode !== null || p.signalCode !== null) return false;
+    return Boolean(p.stdin && p.stdin.writable);
+  }
 
-  _send(obj) { this.proc.stdin.write(JSON.stringify(obj) + "\n"); }
+  _send(obj) {
+    if (!this.running) throw new Error("grok agent is not running");
+    this.proc.stdin.write(JSON.stringify(obj) + "\n");
+  }
 
-  _request(method, params) {
+  _request(method, params, timeoutMs = 0) {
     const id = this._nextId++;
     this._send({ jsonrpc: "2.0", id, method, params });
-    return new Promise((resolve, reject) => this._pending.set(id, { resolve, reject }));
+    return new Promise((resolve, reject) => {
+      // A prompt is a whole turn and can legitimately run for a long time, so it passes
+      // no timeout and is bounded by the stall watchdog instead. Handshake calls do get
+      // one: a grok that accepts stdin but never answers used to wedge session creation.
+      const timer = timeoutMs
+        ? setTimeout(() => {
+            this._pending.delete(id);
+            reject(new Error(`grok did not answer ${method} within ${Math.round(timeoutMs / 1000)}s`));
+          }, timeoutMs)
+        : null;
+      if (timer?.unref) timer.unref();
+      this._pending.set(id, {
+        resolve: (v) => { if (timer) clearTimeout(timer); resolve(v); },
+        reject: (e) => { if (timer) clearTimeout(timer); reject(e); },
+      });
+    });
+  }
+
+  _clearStallTimer() {
+    if (this._stallTimer) { clearInterval(this._stallTimer); this._stallTimer = null; }
+  }
+
+  /** Kill a turn that has produced no protocol traffic at all for STALL_TIMEOUT. */
+  _startStallTimer() {
+    this._clearStallTimer();
+    const timer = setInterval(() => {
+      // Waiting on the user is not a stall, however long it takes.
+      if (this._permissions.size || this._plans.size) return;
+      if (Date.now() - this.lastActivity < STALL_TIMEOUT) return;
+      console.error(`[acp] no activity for ${Math.round(STALL_TIMEOUT / 60000)}m, stopping a wedged grok`);
+      this._clearStallTimer();
+      this.stop();   // _failPending unwinds prompt(), which releases the turn and the caffeinate hold
+    }, 60000);
+    if (timer.unref) timer.unref();
+    this._stallTimer = timer;
   }
 
   _onLine(line) {
@@ -232,10 +319,10 @@ export class AcpSession {
     if (msg.method === "session/request_permission") {
       const { toolCall, options } = msg.params || {};
       const meta = toolCall?._meta?.["x.ai/tool"] || {};
-      this._permissions.set(String(msg.id), msg.id);
+      this._permissions.set(this._tag(msg.id), msg.id);
       this.onEvent({
         kind: "permission_request",
-        requestId: String(msg.id),
+        requestId: this._tag(msg.id),
         toolCallId: toolCall?.toolCallId,
         title: toolCall?.title,
         tool: meta.name || toolCall?.kind,
@@ -246,14 +333,21 @@ export class AcpSession {
       // Intentionally no response yet — the phone answers via resolvePermission().
     } else if (msg.method === "_x.ai/exit_plan_mode") {
       // Grok finished planning and wants to proceed — forward the plan for review.
-      this._plans.set(String(msg.id), msg.id);
+      this._plans.set(this._tag(msg.id), msg.id);
       this.onEvent({
         kind: "plan_review",
-        requestId: String(msg.id),
+        requestId: this._tag(msg.id),
         toolCallId: msg.params?.toolCallId,
         planContent: msg.params?.planContent || "",
       });
     } else {
+      // Acking blind is the safest default, but doing it silently meant a new
+      // server-to-client method (hooks, plugin callbacks) would take an unintended
+      // default with no diagnostic anywhere. Warn once per method.
+      if (!this._unhandled.has(msg.method)) {
+        this._unhandled.add(msg.method);
+        console.error(`[acp] acking unhandled grok request method: ${msg.method}`);
+      }
       this._send({ jsonrpc: "2.0", id: msg.id, result: {} }); // ack unsupported client methods
     }
   }
@@ -282,8 +376,16 @@ export class AcpSession {
   }
 
   _onNotification(msg) {
+    // Any traffic at all counts as progress for the stall watchdog.
+    this.lastActivity = Date.now();
     const u = msg.params?.update;
-    if (!u) return;
+    if (!u) {
+      // grok 1.0.0 emits a family of _x.ai/* notifications that carry no `update`
+      // (models/update, queue/changed, mcp/servers_updated, sessions/changed…). None
+      // needs handling today, but silence here is how a future one goes unnoticed.
+      this._noteUnhandled(msg.method);
+      return;
+    }
     if (this._replaying) return;   // session/load echoing history we already have
     const text = (c) => c?.text ?? (typeof c === "string" ? c : "");
     switch (u.sessionUpdate) {
@@ -327,29 +429,115 @@ export class AcpSession {
       case "current_mode_update":
         this.onEvent({ kind: "mode", mode: u.currentModeId });
         break;
-      case "available_commands_update": {
+      case "available_commands_update":
         // grok advertises its slash commands (built-ins + skills) here; surface them
         // so the phone can offer a "/" command palette like the terminal TUI.
-        const cmds = (u.availableCommands || []).map((c) => ({
-          name: String(c.name || "").replace(/^\//, ""),
-          description: c.description || "",
-          hint: c.input?.hint || "",
-          scope: c._meta?.scope || "builtin",
-        })).filter((c) => c.name);
-        this.availableCommands = cmds;
-        this.onEvent({ kind: "commands", commands: cmds });
+        this._adoptCommands(u.availableCommands || []);
         break;
-      }
-      // user_message_chunk / x.ai internals -> ignored
+      case "auto_compact_completed":
+        // Fires for grok's own threshold compaction as well as an explicit /compact.
+        // It is a marker, not a reply: nothing else in the stream says the window shrank.
+        this.onEvent({
+          kind: "compacted",
+          tokensBefore: u.tokens_before ?? u.tokensBefore ?? null,
+          tokensAfter: u.tokens_after ?? u.tokensAfter ?? null,
+        });
+        break;
+      case "user_message_chunk":
+        break;   // our own prompt echoed back
+      default:
+        this._noteUnhandled(`${msg.method}:${u.sessionUpdate}`);
     }
+  }
+
+  /** Warn once per unrecognised notification, so new grok surface is visible in the log. */
+  _noteUnhandled(key) {
+    if (!key || this._unhandled.has(key)) return;
+    this._unhandled.add(key);
+    console.error(`[acp] unhandled grok notification: ${key}`);
+  }
+
+  /**
+   * Normalise grok's command roster and decide how each one should be routed.
+   *
+   * grok 0.2.x really did run its built-ins only in the TUI. grok 1.0.0 executes them
+   * over ACP: /workflow, /goal and /feedback all return real text, and /compact
+   * compacts in place. Only /context is still genuinely inert.
+   *
+   * Two fields are emitted because the App Store build cannot be patched. `action` is
+   * explicit and is what current clients read. `scope` stays legacy-compatible: older
+   * clients derive routing from it, treating anything non-builtin as "send to grok",
+   * which is exactly what the newly-working commands need.
+   */
+  _adoptCommands(raw) {
+    const list = (raw || []).map((c) => ({
+      name: String(c.name || "").replace(/^\//, ""),
+      description: c.description || "",
+      hint: c.input?.hint || "",
+      kind: c._meta?.scope || "builtin",     // grok's own classification, unmodified
+    })).filter((c) => c.name);
+
+    // Gate on the roster itself rather than a version string: these three only exist
+    // on builds that execute their built-ins over ACP.
+    const names = new Set(list.map((c) => c.name));
+    const executesBuiltins = ["workflow", "goal", "deep-research"].some((n) => names.has(n));
+
+    const cmds = list.map((c) => {
+      const out = { ...c, scope: c.kind, routing: "send", costly: false };
+      if (c.kind !== "builtin") return out;                 // skills always ran as a normal turn
+      if (!executesBuiltins) {
+        // Legacy grok: only the three the app can perform itself are usable.
+        out.routing = c.name === "context" || c.name === "session-info" ? "details"
+          : c.name === "always-approve" ? "auto-approve"
+          : "hidden";
+        return out;
+      }
+      switch (c.name) {
+        case "context":
+          out.routing = "details";        // measured: still emits nothing at all
+          break;
+        case "session-info":
+          out.routing = "details";        // works, but duplicates the details sheet
+          break;
+        case "always-approve":
+          // NEVER forward this. The bridge owns the approval loop; flipping grok's own
+          // mode would stop session/request_permission arriving and silently delete the
+          // phone's approval cards while the toggle still read "Ask each time".
+          out.routing = "auto-approve";
+          break;
+        case "deep-research":
+        case "loop":
+          // Real, and expensive: a bare /loop measured ~52k tokens and outlives the
+          // session. Offer it only where the client can warn first.
+          out.routing = "send";
+          out.costly = true;
+          out.scope = "builtin";         // older clients hide it, which is the safe default
+          return out;
+        default:
+          out.routing = "send";
+          out.scope = "command";         // routes to "send" on clients that predate `action`
+          return out;
+      }
+      out.scope = "builtin";
+      return out;
+    });
+
+    this.availableCommands = cmds;
+    this.onEvent({ kind: "commands", commands: cmds });
   }
 
   async prompt(text) {
     this.lastActivity = Date.now();
-    const result = await this._request("session/prompt", {
-      sessionId: this.grokSessionId,
-      prompt: [{ type: "text", text }],
-    });
+    this._startStallTimer();
+    let result;
+    try {
+      result = await this._request("session/prompt", {
+        sessionId: this.grokSessionId,
+        prompt: [{ type: "text", text }],
+      });
+    } finally {
+      this._clearStallTimer();
+    }
     this.lastActivity = Date.now();
     // grok reports token usage for the turn in the result _meta — surface it so the
     // bridge can accumulate per-session + overall usage.
@@ -358,10 +546,31 @@ export class AcpSession {
     return {
       stopReason: result?.stopReason || "end_turn",
       usage,   // { inputTokens, outputTokens, totalTokens, cachedReadTokens, reasoningTokens, costUsdTicks, modelCalls, apiDurationMs, numTurns }
-      contextTokens: (usage?.inputTokens ?? meta.inputTokens) ?? null,  // ~current conversation footprint
+      contextTokens: await this._contextUsed(usage),
       contextWindow: this.contextWindow || null,
       modelId: meta.modelId || this.currentModelId || this.model || null,
     };
+  }
+
+  /**
+   * How much of the context window the conversation now occupies.
+   *
+   * `usage.inputTokens` is the turn's BILLED input, summed over `usage.modelCalls`, so
+   * a tool-heavy turn multiplies it and the meter runs ahead of reality. grok exposes
+   * the real footprint via _x.ai/session/info, at zero tokens and zero model calls, and
+   * it is accurate once a turn has run on this process. Fall back to the billed figure
+   * on older grok, where the method does not exist.
+   */
+  async _contextUsed(usage) {
+    try {
+      const info = await this._request("_x.ai/session/info", { sessionId: this.grokSessionId }, 10000);
+      const ctx = info?.result?.context || info?.context;   // the payload is double-wrapped
+      if (Number.isFinite(ctx?.used)) {
+        if (Number.isFinite(ctx?.total) && ctx.total > 0) this.contextWindow = ctx.total;
+        return ctx.used;
+      }
+    } catch { /* older grok, or the session went away — fall through */ }
+    return usage?.inputTokens ?? null;
   }
 
   cancel() {
@@ -370,15 +579,33 @@ export class AcpSession {
   }
 
   stop() {
+    this._clearStallTimer();
     try { this.proc?.kill(); } catch { /* ignore */ }
     this._failPending(new Error("grok agent stopped"));
   }
 
-  /** Reject every in-flight JSON-RPC request so callers unwind instead of hanging. */
+  /**
+   * Unwind everything in flight so callers stop hanging.
+   *
+   * The permission and plan maps used to be left behind, so an approval card outlived
+   * the process that asked for it: it persisted into the transcript, replayed on every
+   * reconnect, and 409'd on every tap, with nothing to tell the phone it was dead.
+   */
   _failPending(err) {
     for (const [, pending] of this._pending) {
       try { pending.reject(err); } catch { /* already settled */ }
     }
     this._pending.clear();
+
+    for (const requestId of this._permissions.keys()) {
+      try { this.onEvent({ kind: "permission_resolved", requestId, optionId: null, abandoned: true }); }
+      catch { /* best effort */ }
+    }
+    this._permissions.clear();
+    for (const requestId of this._plans.keys()) {
+      try { this.onEvent({ kind: "plan_resolved", requestId, approved: false, abandoned: true }); }
+      catch { /* best effort */ }
+    }
+    this._plans.clear();
   }
 }

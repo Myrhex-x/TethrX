@@ -177,8 +177,38 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         MainActor.assumeIsolated {
             UNUserNotificationCenter.current().delegate = PushManager.shared
+            // Wired HERE, not in the WindowGroup's .task. Approve, Reject and Reply are
+            // non-foreground actions: iOS launches the process with no scene connected,
+            // so a scene-scoped .task never runs and the decision had nowhere to go.
+            let app = AppState.shared
+            let push = PushManager.shared
+            push.onToken = { token in Task { await app.registerDevice(token) } }
+            push.onOpenSession = { id in Task { @MainActor in app.pendingOpenSessionId = id } }
+            push.onPermissionDecision = { sessionId, requestId, optionId in
+                // The round trip has to outlive the brief background launch, or iOS
+                // suspends the process mid-request and grok is left blocked.
+                await Self.keepingAlive {
+                    await app.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
+                }
+            }
+            push.onReply = { sessionId, text in
+                await Self.keepingAlive {
+                    await app.queueReply(sessionId: sessionId, text: text)
+                }
+            }
         }
         return true
+    }
+
+    /// Hold a background assertion for the duration of `work`.
+    private static func keepingAlive(_ work: () async -> Void) async {
+        let app = UIApplication.shared
+        var id = UIBackgroundTaskIdentifier.invalid
+        id = app.beginBackgroundTask(withName: "tethrx.notification-action") {
+            if id != .invalid { app.endBackgroundTask(id); id = .invalid }
+        }
+        await work()
+        if id != .invalid { app.endBackgroundTask(id); id = .invalid }
     }
 
     func application(_ application: UIApplication,

@@ -18,6 +18,9 @@ struct ChatView: View {
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var attachments: [Data] = []
     @State private var attachmentThumbs: [UIImage] = []
+    /// A command that costs a full expensive turn, held until the user confirms.
+    @State private var pendingCostlyCommand: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     private var name: String { vm.session.displayName }
 
@@ -62,6 +65,48 @@ struct ChatView: View {
             // other apps' audio ducked) until the object happened to deallocate.
             if dictation.isRecording { dictation.stop() }
             vm.stop()
+        }
+        // The bridge stays silent while anyone is watching a session live, and a
+        // backgrounded app still holds its SSE socket open. So locking the phone with a
+        // session on screen meant its approval alert was never sent, not once. Drop the
+        // stream when we genuinely go away, and pick it back up on return.
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                if dictation.isRecording { dictation.stop() }
+                vm.stop()
+            case .active:
+                vm.start()
+            default:
+                break   // .inactive is a transient (control centre, call banner), not a departure
+            }
+        }
+        .alert("Run this command?", isPresented: Binding(
+            get: { pendingCostlyCommand != nil },
+            set: { if !$0 { pendingCostlyCommand = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { pendingCostlyCommand = nil }
+            Button("Run") {
+                if let text = pendingCostlyCommand {
+                    pendingCostlyCommand = nil
+                    draft = ""
+                    Task { await vm.send(text) }
+                }
+            }
+        } message: {
+            Text("This one runs a long, expensive task that keeps going after you close the app.")
+        }
+        // The composer clears optimistically and the user bubble only arrives with the
+        // turn_start event, so a send that failed took the typed message and every
+        // attached photo with it. Put them back so retry is one tap.
+        .onChange(of: vm.failedSend?.text) { _, _ in
+            guard let failed = vm.failedSend else { return }
+            if draft.trimmingCharacters(in: .whitespaces).isEmpty { draft = failed.text }
+            if attachments.isEmpty {
+                attachments = failed.images
+                attachmentThumbs = failed.thumbnails
+            }
+            vm.failedSend = nil
         }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
         .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session, demo: vm.isDemo) }
@@ -165,7 +210,9 @@ struct ChatView: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .onPreferenceChange(BottomOffsetKey.self) { minY in
-                    let bottom = minY <= outer.size.height + 80
+                    // The sentinel is not rendered at all, which means we are scrolled
+                    // well away from the bottom, not at it.
+                    let bottom = minY != .greatestFiniteMagnitude && minY <= outer.size.height + 80
                     if bottom != atBottom { atBottom = bottom }
                 }
                 .onChange(of: vm.items.count) { _, _ in if atBottom { scrollToBottom(proxy) } }
@@ -360,7 +407,11 @@ struct ChatView: View {
             let scaled = Self.downscale(image, maxDimension: 1600)
             guard let jpeg = scaled.jpegData(compressionQuality: 0.72) else { continue }
             attachments.append(jpeg)
-            attachmentThumbs.append(scaled)
+            // Keep a SMALL preview, not the 1600px bitmap. The renderer hands back a
+            // fully decoded image (scale 1), and it was retained three times over
+            // (attachmentThumbs, pendingEcho, the ChatItem) purely to be drawn at 110
+            // and 64 points: roughly 4.7MB of live memory per attached photo.
+            attachmentThumbs.append(Self.downscale(scaled, maxDimension: 320))
         }
         pickedItems = []
         if !attachments.isEmpty { Haptics.tap() }
@@ -425,12 +476,18 @@ struct ChatView: View {
                         Button(pair.0) { Task { await vm.setConfig(effort: pair.1) } }
                     }
                 } label: {
-                    Label(effortLabel, systemImage: "gauge.with.dots.needle.50percent").chip(on: !vm.effort.isEmpty)
+                    Label(effortLabel, systemImage: "gauge.with.dots.needle.50percent").chip(on: effectiveEffort != "high")
                 }
 
-                Button { Task { await vm.setConfig(autoApprove: !vm.autoApprove) } } label: {
-                    Label(vm.autoApprove ? "Auto-approve" : "Ask each", systemImage: vm.autoApprove ? "bolt.fill" : "hand.raised")
-                        .chip(on: vm.autoApprove)
+                // Three states, not two. "Auto-approve" used to mean everything, so
+                // turning it on so a long build would stop stalling on every read also
+                // signed off on rm -rf, unattended.
+                Menu {
+                    Button("Ask each time") { Task { await vm.setApprovalPolicy("ask") } }
+                    Button("Auto-approve reads only") { Task { await vm.setApprovalPolicy("reads") } }
+                    Button("Auto-approve everything") { Task { await vm.setApprovalPolicy("all") } }
+                } label: {
+                    Label(approvalLabel, systemImage: approvalIcon).chip(on: vm.approvalPolicy != "ask")
                 }
                 .buttonStyle(.plain)
 
@@ -562,10 +619,15 @@ struct ChatView: View {
                     Task { await vm.setConfig(autoApprove: on) }
                     return
                 case .unsupported:
-                    vm.errorMessage = String(localized: "Grok only runs /\(name) inside its own terminal, so it does nothing from here.")
+                    vm.errorMessage = String(localized: "Grok does not run /\(name) from here.")
                     return
                 case .send:
-                    break
+                    // A bare /loop or /deep-research is a full, expensive turn that keeps
+                    // running after you put the phone down. Confirm before spending it.
+                    if command.costly {
+                        pendingCostlyCommand = text
+                        return
+                    }
                 }
             }
         }
@@ -588,8 +650,37 @@ struct ChatView: View {
         }
     }
 
-    private var efforts: [(LocalizedStringKey, String)] { [("Auto", ""), ("High", "high"), ("Medium", "medium"), ("Low", "low")] }
-    private var effortLabel: String { vm.effort.isEmpty ? String(localized: "Effort") : vm.effort.capitalized }
+    /// grok advertises exactly three efforts, with high as its default. There used to be
+    /// an "Auto" option mapped to the empty string, which only meant the bridge omitted
+    /// the flag: grok then ran high anyway, so anyone choosing Auto believing grok would
+    /// adapt was silently on the slowest and most expensive setting every turn.
+    private var efforts: [(LocalizedStringKey, String)] { [("High", "high"), ("Medium", "medium"), ("Low", "low")] }
+    /// Sessions stored before that fix carry "", which is high.
+    private var effectiveEffort: String { vm.effort.isEmpty ? "high" : vm.effort }
+    /// `.capitalized` would render the raw wire value, so the chip read "High" in every
+    /// language. Map it back to the same keys the menu uses.
+    private var effortLabel: LocalizedStringKey {
+        switch effectiveEffort {
+        case "medium": return "Medium"
+        case "low":    return "Low"
+        default:       return "High"
+        }
+    }
+
+    private var approvalLabel: LocalizedStringKey {
+        switch vm.approvalPolicy {
+        case "all":   return "Auto-approve"
+        case "reads": return "Reads only"
+        default:      return "Ask each"
+        }
+    }
+    private var approvalIcon: String {
+        switch vm.approvalPolicy {
+        case "all":   return "bolt.fill"
+        case "reads": return "bolt.badge.checkmark"
+        default:      return "hand.raised"
+        }
+    }
 
     private let bottomID = "bottom"
     private var lastText: String { vm.items.last?.text ?? "" }
@@ -603,7 +694,13 @@ struct ChatView: View {
 /// Tracks the bottom marker's position in the scroll viewport, so the chat view
 /// can show a "jump to latest" button once the user scrolls up from the bottom.
 private struct BottomOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    /// "Not rendered", deliberately NOT zero.
+    ///
+    /// The only contributor is a sentinel inside the LazyVStack, so scrolling up far
+    /// enough discards it and the aggregate falls back to this default. At zero that
+    /// read as "the bottom marker is above the viewport", so `atBottom` flipped true and
+    /// the next streamed token yanked the reader back down to the bottom mid-sentence.
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
@@ -954,17 +1051,40 @@ struct ToolLine: View {
 /// Monochrome before/after diff for an edit tool call (removed = red −, added = white +).
 struct DiffView: View {
     let diff: FileDiff
+    /// Rows built up front for a big rewrite would all materialize synchronously inside
+    /// a plain VStack, which is a multi-second hitch on a large edit. Cap it, and let
+    /// the reader ask for the rest.
+    private static let previewLines = 200
+    @State private var showAll = false
+
+    private var oldShown: ArraySlice<String> {
+        showAll ? diff.oldLines[...] : diff.oldLines.prefix(Self.previewLines)
+    }
+    private var newShown: ArraySlice<String> {
+        showAll ? diff.newLines[...] : diff.newLines.prefix(Self.previewLines)
+    }
+    private var hidden: Int {
+        max(0, diff.oldLines.count - oldShown.count) + max(0, diff.newLines.count - newShown.count)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "doc.text").font(.system(size: 10)).foregroundStyle(Grok.textFaint)
                 Text(diff.filename).font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
-            ForEach(Array(diff.oldLines.enumerated()), id: \.offset) { _, l in row("−", l, removed: true) }
-            ForEach(Array(diff.newLines.enumerated()), id: \.offset) { _, l in row("+", l, removed: false) }
+            ForEach(Array(oldShown.enumerated()), id: \.offset) { _, l in row("−", l, removed: true) }
+            ForEach(Array(newShown.enumerated()), id: \.offset) { _, l in row("+", l, removed: false) }
+            if hidden > 0 {
+                Button { showAll = true } label: {
+                    Text("Show \(hidden) more lines")
+                        .font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.bottom, 8)
     }
@@ -1092,7 +1212,7 @@ struct PermissionCard: View {
     }
 
     private func outcomeLabel(_ optionId: String) -> String {
-        if optionId == "cancelled" { return "— cancelled —" }
+        if optionId == "cancelled" { return String(localized: "· cancelled ·") }
         if let opt = item.options.first(where: { $0.optionId == optionId }) {
             return (opt.isAllow ? "✓ " : "✗ ") + opt.name
         }
@@ -1108,6 +1228,7 @@ struct SessionDetailsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var shareURL: ShareFile?
     @State private var confirmCompact = false
+    @State private var confirmRestart = false
     @State private var compacting = false
     @State private var compactError: String?
     @State private var confirmBranch = false
@@ -1210,6 +1331,27 @@ struct SessionDetailsSheet: View {
                     Text(branchError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
                 }
             }
+
+            // Only while a turn is actually in flight: this is the escape hatch for one
+            // that has stopped responding. Stop asks politely, and a grok that is no
+            // longer reading never hears it, after which every message is refused.
+            if vm.busy, !vm.isDemo {
+                Button { confirmRestart = true } label: {
+                    Label("Restart this session", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+                Text("Use this if Grok has stopped responding. It ends the stuck turn and keeps the conversation.")
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+            }
+        }
+        // Deliberately not "Restart this session?": a string catalog derives its symbol
+        // from the key, so that and the button's "Restart this session" collide and the
+        // build fails.
+        .alert("Stop the stuck turn?", isPresented: $confirmRestart) {
+            Button("Restart", role: .destructive) { Task { await vm.restart() } }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("The turn that is running now will end. The conversation is kept, and your next message carries on from it.")
         }
         .alert("Compact this session?", isPresented: $confirmCompact) {
             Button("Compact") { Task { await compact() } }

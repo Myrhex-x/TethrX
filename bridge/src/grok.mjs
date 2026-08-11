@@ -1,9 +1,15 @@
 // Grok Build process wrapper.
 //
-// Transport A (implemented): HEADLESS. Spawns `grok -p <prompt> -s <uuid>
+// Transport A (implemented): HEADLESS. Spawns `grok -p <prompt>
 // --output-format streaming-json` and parses the newline-delimited JSON event
-// stream into normalized events. `-s <uuid>` makes the session multi-turn: the same
-// id resumes context across calls.
+// stream into normalized events.
+//
+// `-s <uuid>` does NOT make a session multi-turn. On grok 1.0.0 it names a NEW
+// conversation and refuses a uuid that already exists, so every turn after the
+// first exited 1 with an empty stdout and "Session ID ... is already in use" on
+// stderr; with no `end` event to parse, that surfaced on the phone as the
+// useless "grok exited (code 1) without completing". Turn one creates the
+// session with `-s`, every turn after it continues with `--resume <uuid>`.
 //
 // Transport B (phase 2): ACP via `grok agent stdio` — a persistent JSON-RPC process
 // that additionally streams tool_call / plan / permission-request updates, enabling
@@ -11,6 +17,17 @@
 
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+
+/** grok's refusal to reuse a session uuid, the signal that this turn must resume. */
+const SESSION_IN_USE = /session id .* is already in use/i;
+
+// Session uuids grok has demonstrably created (we saw an `end` event for them),
+// so the next turn must use `--resume`. Deliberately not derived from the
+// session's turn count: the server increments that before the turn runs, and
+// `--resume` on a uuid grok has never seen fails a different way. After a bridge
+// restart the set is empty, so the first turn of an existing session pays for one
+// discovery spawn, which costs no tokens (grok rejects the id before any model call).
+const resumable = new Set();
 
 /**
  * Run a single Grok turn headlessly, streaming normalized events via `onEvent`.
@@ -24,7 +41,20 @@ import { createInterface } from "node:readline";
  *
  * @returns {Promise<{sessionId:string, stopReason:string}>}
  */
-export function runHeadlessTurn(opts) {
+export async function runHeadlessTurn(opts) {
+  if (resumable.has(opts.sessionId)) return spawnTurn(opts, true);
+  try {
+    return await spawnTurn(opts, false);
+  } catch (err) {
+    // The session already exists (created by an earlier run of this bridge, or by
+    // a turn we cancelled before its `end`). Retry once in the resume form.
+    if (!err?.sessionIdInUse || opts.signal?.aborted) throw err;
+    resumable.add(opts.sessionId);
+    return spawnTurn(opts, true);
+  }
+}
+
+function spawnTurn(opts, resume) {
   const {
     grokBin,
     prompt,
@@ -42,7 +72,8 @@ export function runHeadlessTurn(opts) {
 
   const args = [
     "-p", prompt,
-    "-s", sessionId,
+    // Never both: grok only accepts `-s` alongside `--resume` when forking.
+    ...(resume ? ["--resume", sessionId] : ["-s", sessionId]),
     "--output-format", "streaming-json",
   ];
   if (model) args.push("-m", model);
@@ -67,8 +98,9 @@ export function runHeadlessTurn(opts) {
       return;
     }
 
-    let ended = null;      // captured `end` event payload
-    let stderrTail = "";   // keep the last chunk of stderr for error reporting
+    let ended = null;        // captured `end` event payload
+    let stderrTail = "";     // keep the last chunk of stderr for error reporting
+    let sessionInUse = false; // grok refused the uuid; the caller retries with --resume
 
     const rl = createInterface({ input: child.stdout });
     rl.on("line", (line) => {
@@ -83,13 +115,25 @@ export function runHeadlessTurn(opts) {
         return;
       }
       const normalized = normalize(obj);
-      if (normalized.kind === "end") ended = normalized;
+      if (normalized.kind === "end") {
+        ended = normalized;
+        // Grok has persisted the conversation, so the id is spent: the next turn
+        // has to resume it. Recorded here rather than on resolve because a turn
+        // cancelled before its `end` may never have created the session.
+        resumable.add(sessionId);
+      }
       onEvent(normalized);
     });
 
     child.stderr.on("data", (buf) => {
       const text = buf.toString();
       stderrTail = (stderrTail + text).slice(-4000);
+      if (!sessionInUse && SESSION_IN_USE.test(stderrTail)) {
+        // Ours to handle, not the user's to read: the retry below re-runs the
+        // same prompt, so don't drop a scary line into the transcript first.
+        sessionInUse = true;
+        return;
+      }
       onEvent({ kind: "log", text: text.trimEnd() });
     });
 
@@ -107,8 +151,10 @@ export function runHeadlessTurn(opts) {
         resolve({ sessionId, stopReason: "Cancelled" });
         return;
       }
-      reject(new Error(`grok exited (code ${code}) without completing.` +
-        (stderrTail ? ` stderr: ${stderrTail.trim()}` : "")));
+      const err = new Error(`grok exited (code ${code}) without completing.` +
+        (stderrTail ? ` stderr: ${stderrTail.trim()}` : ""));
+      if (sessionInUse) err.sessionIdInUse = true;
+      reject(err);
     });
   });
 }

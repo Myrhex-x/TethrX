@@ -127,7 +127,7 @@ struct AddComputerSheet: View {
             Haptics.success()
             dismiss()
         } else {
-            failure = app.errorMessage ?? "Couldn't reach that computer. Check the address and that its bridge is running."
+            failure = app.errorMessage ?? String(localized: "Couldn't reach that computer. Check the address and that its bridge is running.")
         }
     }
 
@@ -136,7 +136,7 @@ struct AddComputerSheet: View {
               let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
               let tok = c.queryItems?.first(where: { $0.name == "token" })?.value,
               !addr.isEmpty, !tok.isEmpty else {
-            failure = "That doesn't look like a TethrX pairing code."
+            failure = String(localized: "That doesn't look like a TethrX pairing code.")
             return
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
