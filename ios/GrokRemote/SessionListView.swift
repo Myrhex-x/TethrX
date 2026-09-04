@@ -22,6 +22,7 @@ struct SessionListView: View {
     @State private var creatingFolder = false
     @State private var newFolderName = ""
     @State private var deletingSession: SessionInfo?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -103,6 +104,22 @@ struct SessionListView: View {
             if ProcessInfo.processInfo.arguments.contains("-openSettings") { showSettings = true }
             #endif
             await app.reloadSessions(); openPending()
+        }
+        // The list used to be a snapshot from whenever it last appeared: a session
+        // that started, finished, or blocked on an approval while you were looking
+        // straight at it said nothing until you pulled to refresh. Poll while it is
+        // on screen — briskly when something is in flight, sparingly when nothing is.
+        .task(id: scenePhase) {
+            guard scenePhase == .active, !app.demoMode else { return }
+            while !Task.isCancelled {
+                let busy = app.sessions.contains { $0.isRunning || $0.isWaitingOnYou }
+                try? await Task.sleep(nanoseconds: busy ? 4_000_000_000 : 20_000_000_000)
+                guard !Task.isCancelled else { return }
+                // A chat on top of this one has its own live stream; two pollers on
+                // the same bridge is just cellular data for nothing.
+                guard path.isEmpty, app.client != nil, !app.switching else { continue }
+                await app.reloadSessions(quiet: true)
+            }
         }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
         // The whole array, not just its count: switching to another computer can
@@ -224,6 +241,8 @@ struct SessionListView: View {
                                 HStack(spacing: 7) {
                                     Circle().fill(Grok.accent).frame(width: 6, height: 6)
                                     Text(session.displayName).font(Grok.mono(12, .medium)).lineLimit(1)
+                                    ElapsedLabel(since: Fmt.date(fromISO: session.isWaitingOnYou
+                                                                 ? session.waiting?.since : session.runningSince))
                                 }
                                 .foregroundStyle(Grok.text)
                                 .padding(.horizontal, 12).padding(.vertical, 8)
@@ -606,6 +625,24 @@ struct SessionListView: View {
     }
 }
 
+/// A ticking "· 4m" beside a RUNNING or WAITING badge. A badge alone is the same
+/// shape at four seconds and at forty minutes, which is the difference between
+/// "it's working" and "it's stuck".
+struct ElapsedLabel: View {
+    let since: Date?
+
+    var body: some View {
+        if let since {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(verbatim: "· \(Fmt.elapsed(since: since, now: context.date))")
+                    .font(Grok.mono(9)).monospacedDigit()
+                    .foregroundStyle(Grok.textFaint)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 struct SessionRow: View {
     let session: SessionInfo
 
@@ -623,6 +660,7 @@ struct SessionRow: View {
                         HStack(spacing: 5) {
                             Image(systemName: "hand.raised.fill").font(.system(size: 8, weight: .bold))
                             Text("WAITING FOR YOU").font(Grok.mono(9, .semibold)).tracking(0.8)
+                            ElapsedLabel(since: Fmt.date(fromISO: session.waiting?.since))
                         }
                         .foregroundStyle(Grok.text)
                         .accessibilityLabel(Text("Waiting for your approval"))
@@ -630,6 +668,7 @@ struct SessionRow: View {
                         HStack(spacing: 5) {
                             Circle().fill(Grok.accent).frame(width: 6, height: 6)
                             Text("RUNNING").font(Grok.mono(9, .semibold)).tracking(0.8).foregroundStyle(Grok.accent)
+                            ElapsedLabel(since: Fmt.date(fromISO: session.runningSince))
                         }
                     }
                 }

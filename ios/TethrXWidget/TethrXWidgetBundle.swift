@@ -21,6 +21,9 @@ struct TethrXSnapshot: Codable {
     var totalTokens = 0
     var costUSD: Double = 0
     var updatedAt = Date()
+    var waitingCount = 0
+    var waitingName = ""
+    var waitingSessionId = ""
 }
 
 struct StatusEntry: TimelineEntry {
@@ -55,11 +58,42 @@ struct TethrXStatusWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TethrXStatus", provider: StatusProvider()) { entry in
             StatusWidgetView(entry: entry)
-                .containerBackground(Color.black, for: .widget)
         }
         .configurationDisplayName("Grok status")
-        .description("Whether your computer's Grok is working, and what it's cost.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("Whether your computer's Grok is working, and whether it needs you.")
+        // The lock-screen families matter most here: the question this widget answers
+        // is "is it waiting on me?", and that is a glance, not an unlock.
+        .supportedFamilies([.systemSmall, .systemMedium,
+                            .accessoryRectangular, .accessoryCircular, .accessoryInline])
+    }
+}
+
+/// The three states the widget can report, in the order they matter.
+enum GrokState {
+    case needsYou, working, idle, unpaired
+
+    static func of(_ snapshot: TethrXSnapshot?) -> GrokState {
+        guard let snapshot else { return .unpaired }
+        if snapshot.waitingCount > 0 { return .needsYou }
+        if snapshot.runningCount > 0 { return .working }
+        return .idle
+    }
+
+    var glyph: String {
+        switch self {
+        case .needsYou: return "hand.raised.fill"
+        case .working:  return "circle.hexagongrid.fill"
+        case .idle:     return "moon.zzz"
+        case .unpaired: return "bolt.horizontal.circle"
+        }
+    }
+    var word: LocalizedStringKey {
+        switch self {
+        case .needsYou: return "needs you"
+        case .working:  return "working"
+        case .idle:     return "idle"
+        case .unpaired: return "not paired"
+        }
     }
 }
 
@@ -67,7 +101,69 @@ struct StatusWidgetView: View {
     let entry: StatusEntry
     @Environment(\.widgetFamily) private var family
 
+    private var snapshot: TethrXSnapshot? { entry.snapshot }
+    private var state: GrokState { GrokState.of(snapshot) }
+
     var body: some View {
+        content.widgetURL(link)
+    }
+
+    /// A tap on "needs you" opens the session that is asking. Anything else just
+    /// opens the app, which is what a widget with nothing pending should do.
+    private var link: URL? {
+        guard state == .needsYou, let id = snapshot?.waitingSessionId, !id.isEmpty else { return nil }
+        return URL(string: "tethrx://session/\(id)")
+    }
+
+    @ViewBuilder private var content: some View {
+        switch family {
+        case .accessoryInline:
+            Label { Text(state.word) } icon: { Image(systemName: state.glyph) }
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 1) {
+                    Image(systemName: state.glyph).font(.system(size: 14, weight: .semibold))
+                    if let snapshot, snapshot.waitingCount > 0 {
+                        Text(verbatim: "\(snapshot.waitingCount)").font(.system(size: 12, weight: .bold)).monospacedDigit()
+                    } else if let snapshot, snapshot.runningCount > 0 {
+                        Text(verbatim: "\(snapshot.runningCount)").font(.system(size: 12, weight: .bold)).monospacedDigit()
+                    }
+                }
+            }
+            .containerBackground(.clear, for: .widget)
+            .accessibilityLabel(Text(verbatim: "TethrX"))
+            .accessibilityValue(Text(state.word))
+        case .accessoryRectangular:
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Image(systemName: state.glyph).font(.system(size: 11, weight: .semibold))
+                    Text("TETHRX").font(.system(size: 11, weight: .semibold, design: .monospaced)).tracking(0.8)
+                }
+                .widgetAccentable()
+                Text(state.word).font(.system(size: 15, weight: .semibold))
+                Text(detail).font(.system(size: 11, design: .monospaced)).opacity(0.7).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .containerBackground(.clear, for: .widget)
+        default:
+            home.containerBackground(Color.black, for: .widget)
+        }
+    }
+
+    /// The second line: what is waiting, what is running, or which computer this is.
+    private var detail: String {
+        guard let snapshot else { return String(localized: "Open TethrX to connect") }
+        if snapshot.waitingCount > 0 {
+            return snapshot.waitingName.isEmpty ? String(localized: "an approval is pending") : snapshot.waitingName
+        }
+        if snapshot.runningCount > 0, !snapshot.activeName.isEmpty { return snapshot.activeName }
+        return snapshot.computer
+    }
+
+    // MARK: Home screen
+
+    private var home: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
                 Image("TethrXLogo")
@@ -77,26 +173,26 @@ struct StatusWidgetView: View {
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .tracking(1.1).foregroundStyle(.white)
                 Spacer(minLength: 0)
+                if let s = snapshot, s.waitingCount > 0 {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                }
             }
 
-            if let s = entry.snapshot {
+            if let s = snapshot {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(s.runningCount > 0 ? Color.white : Color.white.opacity(0.3))
+                        .fill(state == .idle ? Color.white.opacity(0.3) : Color.white)
                         .frame(width: 7, height: 7)
-                    Text(s.runningCount > 0 ? "working" : "idle")
+                    Text(state.word)
                         .font(.system(size: family == .systemSmall ? 19 : 22, weight: .semibold))
                         .foregroundStyle(.white)
+                        .minimumScaleFactor(0.7).lineLimit(1)
                 }
-                if s.runningCount > 0, !s.activeName.isEmpty {
-                    Text(s.activeName)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-                } else if !s.computer.isEmpty {
-                    Text(s.computer)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.45)).lineLimit(1).truncationMode(.tail)
-                }
+                Text(detail)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.white.opacity(state == .needsYou ? 0.75 : 0.5))
+                    .lineLimit(1).truncationMode(.tail)
 
                 Spacer(minLength: 0)
 

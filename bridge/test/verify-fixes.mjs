@@ -347,6 +347,20 @@ await check("non-ASCII filenames survive the status parser", async () => {
   assert.ok((await git.diff(repo, f.path)).includes("+deux"), "its diff must not be empty");
 });
 
+// --- turn stopwatch ---------------------------------------------------------
+
+check("a running turn reports when it started, and stops reporting when it ends", () => {
+  const s = store.create({ cwd: dir });
+  assert.equal(s.toJSON().runningSince, undefined, "an idle session has no start time");
+  s.beginTurn();
+  const started = s.toJSON().runningSince;
+  assert.ok(started && !Number.isNaN(Date.parse(started)), `runningSince must be a date, got ${started}`);
+  // The phone renders a stopwatch from this, so a stale value would show a turn
+  // that finished minutes ago as still going.
+  s.endTurn();
+  assert.equal(s.toJSON().runningSince, undefined, "an ended turn clears its start time");
+});
+
 rmSync(dir, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");

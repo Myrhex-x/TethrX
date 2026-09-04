@@ -18,6 +18,11 @@ final class ChatViewModel: ObservableObject {
     /// Follow-ups the BRIDGE is holding. Mirrored from it (not owned here), so they
     /// survive the app closing and stay in step across devices.
     @Published var queued: [QueuedMessage] = []
+    /// Grok's checklist for the turn in flight, so the header can show its position
+    /// without scrolling back to the card.
+    @Published var plan: [PlanEntry] = []
+    /// When the running turn began, for the stopwatch under the title. Nil when idle.
+    @Published var turnStartedAt: Date?
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
@@ -46,6 +51,9 @@ final class ChatViewModel: ObservableObject {
     /// same-kind chunks already merged.
     private var pendingChunks: [(thought: Bool, text: String)] = []
     private var flushTask: Task<Void, Never>?
+    /// When the turn already in flight began, per the bridge. Replay ends on that
+    /// turn's `turn_start` with no `turn_complete`, so this is what the stopwatch reads.
+    private let runningSince: Date?
     /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from
     /// there instead of replaying the whole session and duplicating the transcript.
     private var lastEventId = 0
@@ -55,6 +63,8 @@ final class ChatViewModel: ObservableObject {
     private let replayWatermark: Int
     private var assistantIndex: Int?   // current assistant bubble being appended to
     private var thoughtIndex: Int?     // current thought bubble being appended to
+    /// The turn's plan card, revised in place as grok re-sends the whole checklist.
+    private var planIndex: Int?
     /// Thumbnails of images just sent from THIS device; attached to the next
     /// turn_start's user bubble (history replay only knows the count).
     private var pendingEcho: [UIImage] = []
@@ -64,6 +74,7 @@ final class ChatViewModel: ObservableObject {
         self.session = session
         self.isDemo = false
         self.replayWatermark = session.lastEventId ?? 0
+        self.runningSince = Fmt.date(fromISO: session.runningSince)
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
         self.approvalPolicy = session.effectiveApprovalPolicy
@@ -82,6 +93,7 @@ final class ChatViewModel: ObservableObject {
         self.session = demoSession
         self.isDemo = true
         self.replayWatermark = 0
+        self.runningSince = Fmt.date(fromISO: demoSession.runningSince)
         self.planMode = demoSession.planMode ?? false
         self.effort = demoSession.effort ?? ""
         self.approvalPolicy = demoSession.effectiveApprovalPolicy
@@ -138,8 +150,11 @@ final class ChatViewModel: ObservableObject {
     func start() {
         if isDemo {
             if items.isEmpty, let canned = DemoData.transcript(for: session.id) { items = canned }
-            // The list says this one is running — the transcript should agree.
+            // The list says this one is running — the transcript should agree, down to
+            // the stopwatch and the checklist's position.
             busy = session.isRunning
+            turnStartedAt = busy ? runningSince : nil
+            plan = items.last(where: { $0.role == .tasks })?.planEntries ?? []
             live = true
             return
         }
@@ -456,7 +471,14 @@ final class ChatViewModel: ObservableObject {
         case "turn_start":
             assistantIndex = nil
             thoughtIndex = nil
+            // A new turn gets a new checklist; the previous one stays in the transcript
+            // exactly as it ended.
+            planIndex = nil
+            plan = []
             busy = true
+            // Replayed turns are history — except the last one, when the session is
+            // still running: the bridge says when that began.
+            turnStartedAt = isReplay ? runningSince : Date()
             if !isReplay {
                 lastTurnStartAt = Date()
                 liveActivity.start(sessionName: sessionName, sessionId: session.id,
@@ -501,10 +523,22 @@ final class ChatViewModel: ObservableObject {
 
         case "plan":
             assistantIndex = nil
-            thoughtIndex = nil   // else the next thought chunk appends ABOVE the plan line
-            let entries = event["entries"] as? [[String: Any]] ?? []
-            let lines = entries.compactMap { $0["content"] as? String }
-            if !lines.isEmpty { append(.tool, "plan\n" + lines.map { "• \($0)" }.joined(separator: "\n")) }
+            thoughtIndex = nil   // else the next thought chunk appends ABOVE the plan card
+            let entries = PlanEntry.decode(event["entries"] as? [[String: Any]] ?? [])
+            guard !entries.isEmpty else { break }
+            // ONE card per turn, revised in place. Grok re-sends the whole checklist
+            // every time a step changes state, and appending each revision left a stack
+            // of near-identical bullet dumps with no sign of which step was live — and
+            // the status it sends with every entry was thrown away entirely.
+            if let index = planIndex, items.indices.contains(index), items[index].role == .tasks {
+                items[index].planEntries = entries
+            } else {
+                var item = ChatItem(role: .tasks, text: "")
+                item.planEntries = entries
+                items.append(item)
+                planIndex = items.count - 1
+            }
+            plan = entries
 
         case "permission_request":
             assistantIndex = nil
@@ -570,6 +604,7 @@ final class ChatViewModel: ObservableObject {
 
         case "turn_complete":
             busy = false
+            turnStartedAt = nil
             assistantIndex = nil
             thoughtIndex = nil
             // The visible "turn ended" separator lives here — the bridge emits
@@ -580,6 +615,7 @@ final class ChatViewModel: ObservableObject {
 
         case "error":
             busy = false
+            turnStartedAt = nil
             if !isReplay { liveActivity.end(phase: "error", detail: "Something went wrong") }
             append(.error, event["message"] as? String ?? "Something went wrong.")
 

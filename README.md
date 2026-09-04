@@ -25,8 +25,10 @@ Everything below is **built and tested** against a real `grok` install.
 
 ## What the app does
 
-- **Live console** — Grok's reasoning, tool calls, **command output**, and file diffs as they happen, with code rendered as real blocks you can scroll and copy.
-- **Approvals** — nothing runs until you tap. Also answerable straight from the notification — including **Deny & explain**, which refuses and tells Grok what to do instead in one step.
+- **Live console** — Grok's reasoning, tool calls, **command output**, and file diffs as they happen, with code rendered as real blocks you can scroll and copy, syntax highlighted.
+- **Watch the plan** — Grok keeps a checklist while it works; the app shows it as one card that updates in place, so you can see which step it is on and how many are left.
+- **Real diffs** — before and after are interleaved into a unified diff, untouched lines are folded away, and on a one-for-one change the characters that actually changed are marked.
+- **Approvals** — nothing runs until you tap. Commands that delete, overwrite, publish or touch credentials say so on the card, in a line about *that* command. Also answerable straight from the notification — including **Deny & explain**, which refuses and tells Grok what to do instead in one step.
 - **Plan mode** — read the plan before Grok builds it.
 - **Review the work** — changed files, per-file diffs, and **commit or discard** from the phone.
 - **Browse the project** — the session's file tree and any text file, read-only, from the phone.
@@ -38,9 +40,9 @@ Everything below is **built and tested** against a real `grok` install.
 - **Share into a session** — send a link, some text, or a screenshot from any app straight to Grok via the share sheet.
 - **Branch a session** — fork the conversation so a second one starts knowing everything the first one knows, for trying another approach without losing this one.
 - **Voice dictation** and reusable prompt snippets.
-- **Sessions** — search, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing.
+- **Sessions** — search across conversations, find inside one, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing. The list stays live, and a running or blocked session says how long it has been that way.
 - **Siri** — start a task or ask what Grok is doing without opening the app.
-- **Home-screen widget** and a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+).
+- **Home-screen and lock-screen widgets**, plus a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+). A widget that says *needs you* opens the session that is asking.
 - **Usage** — context window, tokens, and cost per session, plus **day-by-day** totals across everything, and a push when a session's context runs low.
 - **Face ID lock**, since the bridge can run commands on your machine.
 - Your computer is kept **awake** for as long as a task is running, and the bridge can install itself as a **background service** so it's there after a reboot.

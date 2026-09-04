@@ -284,9 +284,7 @@ struct GitDiffScreen: View {
                 // thousands of views synchronously before anything appeared.
                 LazyVStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(shownLines.enumerated()), id: \.offset) { _, line in
-                        Text(line.isEmpty ? " " : line)
-                            .font(Grok.mono(11))
-                            .foregroundStyle(color(for: line))
+                        Text(styled(line))
                             .padding(.horizontal, 12).padding(.vertical, 1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(background(for: line))
@@ -322,6 +320,34 @@ struct GitDiffScreen: View {
     private var shownLines: ArraySlice<String> {
         showAllLines ? lines[...] : lines.prefix(Self.previewLines)
     }
+
+    /// The diff's own +/- gutter stays plain; what follows it is highlighted like
+    /// source, so a changed line reads as code rather than as a wall of monospace.
+    private func styled(_ line: String) -> AttributedString {
+        let text = line.isEmpty ? " " : line
+        let tint = color(for: text)
+        // Headers, hunk markers and anything too long stay as they are.
+        guard !text.hasPrefix("+++"), !text.hasPrefix("---"), !text.hasPrefix("@@"),
+              Syntax.supports(language), text.count < 600,
+              let marker = text.first, marker == "+" || marker == "-" || marker == " " else {
+            var plain = AttributedString(text)
+            plain.font = Grok.mono(11)
+            plain.foregroundColor = tint
+            return plain
+        }
+        var gutter = AttributedString(String(marker))
+        gutter.font = Grok.mono(11, .bold)
+        gutter.foregroundColor = tint
+        var body = Syntax.highlight(String(text.dropFirst()), language: language, size: 11)
+        // Removed lines are red throughout; the highlighter's weights still carry.
+        if marker == "-" { body.foregroundColor = tint }
+        if marker == " " { body.foregroundColor = Grok.textDim }
+        gutter.append(body)
+        return gutter
+    }
+
+    /// Guessed from the file being viewed, not from the diff text.
+    private var language: String { Syntax.language(forPath: file.path) }
 
     private func color(for line: String) -> Color {
         if line.hasPrefix("+++") || line.hasPrefix("---") { return Grok.textFaint }

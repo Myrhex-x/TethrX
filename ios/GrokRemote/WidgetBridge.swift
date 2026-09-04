@@ -11,6 +11,12 @@ struct TethrXSnapshot: Codable {
     var totalTokens = 0
     var costUSD: Double = 0
     var updatedAt = Date()
+    // Blocked on you is the one state that needs an action, and the widget used to
+    // report it as plain "working" — the same face it wears while it's fine.
+    var waitingCount = 0
+    var waitingName = ""
+    /// So a tap lands on the session that is asking, not on the app's last screen.
+    var waitingSessionId = ""
 }
 
 enum WidgetBridge {

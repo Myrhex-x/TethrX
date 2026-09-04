@@ -11,6 +11,14 @@ enum DemoData {
         version: AppState.wantedBridgeVersion, latestVersion: nil, tls: nil
     )
 
+    /// An ISO timestamp `seconds` ago, so the tour's RUNNING and WAITING rows carry a
+    /// believable stopwatch instead of a date from whenever this file was written.
+    static func ago(_ seconds: TimeInterval) -> String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.string(from: Date().addingTimeInterval(-seconds))
+    }
+
     static var sessions: [SessionInfo] {
         var richUsage = SessionUsage()
         richUsage.turns = 6
@@ -42,8 +50,8 @@ enum DemoData {
                         planMode: false, effort: "high", autoApprove: false,
                         approvalPolicy: "reads",
                         status: "running",
-                        waiting: WaitingState(kind: "permission", label: "rm -rf .build", since: nil),
-                        turnCount: 3, createdAt: "2026-07-21T08:03:00Z",
+                        waiting: WaitingState(kind: "permission", label: "rm -rf .build", since: ago(74)),
+                        turnCount: 3, runningSince: ago(212), createdAt: "2026-07-21T08:03:00Z",
                         lastEventId: 21, usage: lightUsage),
             SessionInfo(id: "demo-landing", title: "New session", folder: nil,
                         cwd: "/Users/you/landing-page", model: nil, transport: "acp",
@@ -77,8 +85,44 @@ enum DemoData {
         edit.toolStatus = "completed"
         edit.diff = FileDiff(
             path: "Sources/SettingsView.swift",
-            oldText: "Section(\"Appearance\") {\n}",
-            newText: "Section(\"Appearance\") {\n    Toggle(\"Dark mode\", isOn: $darkMode)\n}"
+            oldText: """
+            struct SettingsView: View {
+                @EnvironmentObject var settings: Settings
+
+                var body: some View {
+                    Form {
+                        Section("Appearance") {
+                            Picker("Accent", selection: $settings.accent) {
+                                ForEach(Accent.allCases) { Text($0.name).tag($0) }
+                            }
+                        }
+                        Section("About") {
+                            LabeledContent("Version", value: Bundle.main.version)
+                        }
+                    }
+                }
+            }
+            """,
+            newText: """
+            struct SettingsView: View {
+                @EnvironmentObject var settings: Settings
+                @AppStorage("darkMode") private var darkMode = false
+
+                var body: some View {
+                    Form {
+                        Section("Appearance") {
+                            Toggle("Dark mode", isOn: $darkMode)
+                            Picker("Accent", selection: $settings.accent) {
+                                ForEach(Accent.allCases) { Text($0.name).tag($0) }
+                            }
+                        }
+                        Section("About") {
+                            LabeledContent("Version", value: Bundle.main.version)
+                        }
+                    }
+                }
+            }
+            """
         )
         items.append(edit)
 
@@ -127,8 +171,33 @@ enum DemoData {
 
         var grep = ChatItem(role: .tool, text: "grep -r TokenStore Tests/")
         grep.toolCallId = "demo-f2"
-        grep.toolStatus = "in_progress"
+        grep.toolStatus = "completed"
+        grep.toolOutput = "Tests/AuthTests.swift:14: TokenStore.shared.reset()\nTests/ProfileTests.swift:9: TokenStore.shared.seed(.expired)"
         items.append(grep)
+
+        // Grok's own checklist, with a step in flight — this is what the app shows
+        // live while a long task runs.
+        var tasks = ChatItem(role: .tasks, text: "")
+        tasks.planEntries = [
+            PlanEntry(id: 0, content: "Re-run AuthTests in isolation", status: "completed"),
+            PlanEntry(id: 1, content: "Find everything that touches TokenStore", status: "completed"),
+            PlanEntry(id: 2, content: "Reproduce the ordering failure locally", status: "in_progress"),
+            PlanEntry(id: 3, content: "Reset the shared store between tests", status: "pending"),
+            PlanEntry(id: 4, content: "Run the suite 50 times to confirm", status: "pending"),
+        ]
+        items.append(tasks)
+
+        items.append(ChatItem(role: .assistant, text: "ProfileTests seeds an expired token into the shared store and never clears it. I'll reproduce it from a clean build."))
+
+        // Undecided, and destructive: the approval card is the whole product, and the
+        // tour used to show only one that had already been answered.
+        var ask = ChatItem(role: .permission, text: "rm -rf .build")
+        ask.requestId = "demo-p2"
+        ask.options = [
+            PermissionOption(optionId: "allow", name: "Yes, run it", kind: "allow_once"),
+            PermissionOption(optionId: "reject", name: "No, and tell Grok why", kind: "reject_once"),
+        ]
+        items.append(ask)
         return items
     }
 

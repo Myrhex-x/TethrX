@@ -20,6 +20,14 @@ struct ChatView: View {
     @State private var attachmentThumbs: [UIImage] = []
     /// A command that costs a full expensive turn, held until the user confirms.
     @State private var pendingCostlyCommand: String?
+    // Find in this conversation. The session list searches ACROSS conversations; this
+    // is the other half — a long turn buries the one command whose output you wanted.
+    @State private var finding = false
+    @State private var findQuery = ""
+    @State private var findCursor = 0
+    /// Set to jump the transcript to an item; the scroll reader owns the proxy.
+    @State private var scrollTarget: UUID?
+    @FocusState private var findFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     private var name: String { vm.session.displayName }
@@ -29,6 +37,7 @@ struct ChatView: View {
             Grok.bg.ignoresSafeArea()
             VStack(spacing: 0) {
                 actionStrip
+                if finding { findBar }
                 transcript
                 errorBanner
                 composer
@@ -50,11 +59,23 @@ struct ChatView: View {
                             .accessibilityLabel(vm.live ? "Connected" : "Reconnecting")
                     }
                     // Context and tokens live here so they're readable at a glance,
-                    // rather than only inside the details sheet.
-                    if let u = vm.usage, u.contextWindow > 0 {
-                        Text("\(Int(u.contextFraction * 100))% ctx · \(Fmt.tokens(u.totalTokens)) tok")
-                            .font(Grok.mono(9))
-                            .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
+                    // rather than only inside the details sheet. While a turn runs, so
+                    // does how long it has been going — "working" says nothing about
+                    // whether this is a pause or a hang.
+                    HStack(spacing: 6) {
+                        if let u = vm.usage, u.contextWindow > 0 {
+                            Text("\(Int(u.contextFraction * 100))% ctx · \(Fmt.tokens(u.totalTokens)) tok")
+                                .font(Grok.mono(9))
+                                .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
+                        }
+                        if vm.busy, let started = vm.turnStartedAt {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                Text(verbatim: "· \(Fmt.elapsed(since: started, now: context.date))")
+                                    .font(Grok.mono(9)).monospacedDigit()
+                                    .foregroundStyle(Grok.textFaint)
+                            }
+                            .accessibilityHidden(true)
+                        }
                     }
                 }
             }
@@ -139,7 +160,15 @@ struct ChatView: View {
                 stripButton("Changes") { showGit = true }
             }
             stripButton("Session") { showDetails = true }
+            stripButton("Find") {
+                withAnimation(.easeOut(duration: 0.15)) { finding.toggle() }
+                if finding { findFocused = true } else { findQuery = "" }
+            }
             Spacer(minLength: 0)
+            // Where grok is in its own checklist, without scrolling back to the card.
+            if !vm.plan.isEmpty, vm.busy || !vm.plan.allDone {
+                PlanProgressPill(entries: vm.plan)
+            }
             if vm.mode == "plan" {
                 Text("PLAN").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
                     .padding(.horizontal, 7).padding(.vertical, 3)
@@ -147,6 +176,77 @@ struct ChatView: View {
             }
         }
         .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+    }
+
+    // MARK: Find in this conversation
+
+    /// Matching items, in transcript order. Cards without prose (approvals, plans)
+    /// are searched on their text too — the command IS the text.
+    private var findMatches: [ChatItem] {
+        let q = findQuery.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else { return [] }
+        return vm.items.filter {
+            $0.text.localizedCaseInsensitiveContains(q)
+            || ($0.toolOutput?.localizedCaseInsensitiveContains(q) ?? false)
+            || $0.planEntries.contains { $0.content.localizedCaseInsensitiveContains(q) }
+        }
+    }
+
+    private var findBar: some View {
+        let matches = findMatches
+        return HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(Grok.textFaint)
+                .accessibilityHidden(true)
+            TextField("", text: $findQuery,
+                      prompt: Text("find in this conversation").foregroundColor(Grok.textFaint))
+                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .focused($findFocused)
+                .submitLabel(.search)
+                .onSubmit { step(+1, in: matches) }
+            if !matches.isEmpty {
+                Text(verbatim: "\(min(findCursor + 1, matches.count))/\(matches.count)")
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).monospacedDigit()
+                Button { step(-1, in: matches) } label: {
+                    Image(systemName: "chevron.up").font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Grok.textDim).frame(width: 36, height: 36).contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Previous match"))
+                Button { step(+1, in: matches) } label: {
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Grok.textDim).frame(width: 36, height: 36).contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Next match"))
+            } else if findQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
+                Text("none").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { finding = false }
+                findQuery = ""
+            } label: {
+                Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Grok.textDim).frame(width: 36, height: 36).contentShape(Rectangle())
+            }
+            .accessibilityLabel(Text("Close find"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 14).padding(.bottom, 6)
+        .onChange(of: findQuery) { _, _ in
+            findCursor = 0
+            if let first = findMatches.first { scrollTarget = first.id }
+        }
+    }
+
+    /// Move the find cursor and scroll there, wrapping at both ends.
+    private func step(_ delta: Int, in matches: [ChatItem]) {
+        guard !matches.isEmpty else { return }
+        findCursor = (findCursor + delta + matches.count) % matches.count
+        scrollTarget = matches[findCursor].id
+        Haptics.tap()
     }
 
     private func stripButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
@@ -174,15 +274,17 @@ struct ChatView: View {
                         ForEach(vm.items) { item in
                             switch item.role {
                             case .permission:
-                                PermissionCard(item: item) { optionId, always, reason in
+                                PermissionCard(item: item, highlight: finding ? findQuery : "") { optionId, always, reason in
                                     Task { await vm.decide(item, optionId: optionId, always: always, reason: reason) }
                                 }.id(item.id)
                             case .plan:
-                                PlanCard(item: item) { approved in
+                                PlanCard(item: item, highlight: finding ? findQuery : "") { approved in
                                     Task { await vm.decidePlan(item, approved: approved) }
                                 }.id(item.id)
+                            case .tasks:
+                                TaskListCard(entries: item.planEntries, highlight: finding ? findQuery : "").id(item.id)
                             default:
-                                ChatBubble(item: item).id(item.id)
+                                ChatBubble(item: item, highlight: finding ? findQuery : "").id(item.id)
                                     .contextMenu {
                                         copyButton(item.text)
                                         if item.role == .user, !item.text.isEmpty {
@@ -215,9 +317,15 @@ struct ChatView: View {
                     let bottom = minY != .greatestFiniteMagnitude && minY <= outer.size.height + 80
                     if bottom != atBottom { atBottom = bottom }
                 }
-                .onChange(of: vm.items.count) { _, _ in if atBottom { scrollToBottom(proxy) } }
-                .onChange(of: lastText) { _, _ in if atBottom { scrollToBottom(proxy) } }
-                .onChange(of: vm.busy) { _, _ in if atBottom { scrollToBottom(proxy) } }
+                // While the find bar is open the reader is looking at a match, not at
+                // the tail — a streaming turn must not drag them back down.
+                .onChange(of: vm.items.count) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
+                .onChange(of: lastText) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
+                .onChange(of: vm.busy) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .center) }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if !atBottom { jumpButton(proxy) }
                 }
@@ -785,6 +893,9 @@ struct TypingIndicator: View {
 /// Renders one conversation line in the console style.
 struct ChatBubble: View {
     let item: ChatItem
+    /// Non-empty while the find bar is open: every occurrence is marked in place, so
+    /// a match is visible where it sits rather than only counted in the toolbar.
+    var highlight: String = ""
 
     /// Grok emits Markdown (**bold**, `code`, links). Render inline markdown while
     /// keeping line breaks; fall back to plain text on partial/streaming input.
@@ -792,6 +903,26 @@ struct ChatBubble: View {
         let text = s.isEmpty ? " " : s
         let opts = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: opts)) ?? AttributedString(text)
+    }
+
+    /// Paint every occurrence of `query`. Returns the input untouched when there is
+    /// nothing to find, so the non-searching path costs nothing.
+    static func marking(_ base: AttributedString, query: String) -> AttributedString {
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard needle.count >= 2 else { return base }
+        var out = base
+        var cursor = out.startIndex
+        while cursor < out.endIndex,
+              let found = out[cursor...].range(of: needle, options: [.caseInsensitive]) {
+            out[found].backgroundColor = Color.white.opacity(0.22)
+            out[found].foregroundColor = Grok.text
+            cursor = found.upperBound
+        }
+        return out
+    }
+
+    private func marked(_ text: String) -> AttributedString {
+        Self.marking(AttributedString(text), query: highlight)
     }
 
     /// One run of a message: either prose (inline markdown) or a fenced code block.
@@ -864,7 +995,7 @@ struct ChatBubble: View {
                         .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
                     }
                     if !item.text.isEmpty {
-                        Text(item.text)
+                        Text(marked(item.text))
                             .font(Grok.sans(15))
                             .foregroundStyle(Grok.text)
                             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -883,7 +1014,7 @@ struct ChatBubble: View {
                     if seg.isCode {
                         CodeBlock(code: seg.text, language: seg.language)
                     } else {
-                        Text(Self.markdown(seg.text))
+                        Text(Self.marking(Self.markdown(seg.text), query: highlight))
                             .font(Grok.sans(15))
                             .foregroundStyle(Grok.text)
                             .lineSpacing(3)
@@ -897,7 +1028,7 @@ struct ChatBubble: View {
         case .thought:
             HStack(alignment: .top, spacing: 10) {
                 Rectangle().fill(Grok.hairlineStrong).frame(width: 2)
-                Text(item.text)
+                Text(marked(item.text))
                     .font(Grok.mono(12))
                     .foregroundStyle(Grok.textDim)
                     .lineSpacing(2)
@@ -905,10 +1036,10 @@ struct ChatBubble: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .tool:
-            ToolLine(item: item)
+            ToolLine(item: item, highlight: highlight)
 
-        case .permission, .plan:
-            EmptyView()   // rendered by PermissionCard / PlanCard in the transcript
+        case .permission, .plan, .tasks:
+            EmptyView()   // rendered by PermissionCard / PlanCard / TaskListCard above
 
         case .status:
             Text(item.text)
@@ -935,6 +1066,10 @@ struct CodeBlock: View {
     let code: String
     var language: String = ""
     @State private var copied = false
+    /// Tokenized off the render pass and cached: a streaming reply re-evaluates this
+    /// body every 50ms, and highlighting the whole block each time would undo the
+    /// buffering that made streaming smooth in the first place.
+    @State private var rendered: AttributedString?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -963,7 +1098,7 @@ struct CodeBlock: View {
             Rectangle().fill(Grok.hairline).frame(height: 1)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
+                Text(rendered ?? AttributedString(code))
                     .font(Grok.mono(12))
                     .foregroundStyle(Grok.text)
                     .lineSpacing(2)
@@ -975,12 +1110,17 @@ struct CodeBlock: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: code) {
+            guard Syntax.supports(language) else { rendered = nil; return }
+            rendered = Syntax.highlight(code, language: language, size: 12)
+        }
     }
 }
 
 /// A tool invocation line with a status glyph (running ▸ / done ✓ / failed ✗).
 struct ToolLine: View {
     let item: ChatItem
+    var highlight: String = ""
     @State private var showOutput = false
 
     private var output: String? {
@@ -1002,7 +1142,8 @@ struct ToolLine: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
                 Text(glyph).font(Grok.mono(12, .bold)).foregroundStyle(tint)
-                Text(item.text).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
+                    .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
                 Spacer(minLength: 0)
                 if output != nil {
                     Button {
@@ -1023,7 +1164,7 @@ struct ToolLine: View {
             if let output, showOutput {
                 Rectangle().fill(Grok.hairline).frame(height: 1)
                 ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    Text(output)
+                    Text(ChatBubble.marking(AttributedString(output), query: highlight))
                         .font(Grok.mono(11))
                         .foregroundStyle(item.toolStatus == "failed" ? Grok.danger.opacity(0.9) : Grok.textDim)
                         .lineSpacing(2)
@@ -1041,6 +1182,11 @@ struct ToolLine: View {
         // A failure is exactly when you want the output without hunting for it.
         .onAppear { if item.toolStatus == "failed" { showOutput = true } }
         .onChange(of: item.toolStatus) { _, status in if status == "failed" { showOutput = true } }
+        // A find hit inside collapsed output is a hit you cannot see.
+        .onChange(of: highlight) { _, query in
+            guard query.count >= 2, let output else { return }
+            if output.localizedCaseInsensitiveContains(query) { showOutput = true }
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
@@ -1048,35 +1194,35 @@ struct ToolLine: View {
     }
 }
 
-/// Monochrome before/after diff for an edit tool call (removed = red −, added = white +).
+/// Monochrome unified diff for an edit tool call.
+///
+/// This used to print every old line, then every new line, one block under the other.
+/// For grok's usual edit — a few lines changed inside forty — that meant reading two
+/// nearly identical walls and finding the difference yourself. Now the two sides are
+/// interleaved, untouched runs are folded away, and on a one-for-one replacement the
+/// part of the line that actually changed is marked.
 struct DiffView: View {
     let diff: FileDiff
-    /// Rows built up front for a big rewrite would all materialize synchronously inside
-    /// a plain VStack, which is a multi-second hitch on a large edit. Cap it, and let
-    /// the reader ask for the rest.
-    private static let previewLines = 200
+    /// Rows materialize synchronously inside a plain VStack, which is a multi-second
+    /// hitch on a large edit. Cap it, and let the reader ask for the rest.
+    private static let previewRows = 140
     @State private var showAll = false
+    @State private var result = UnifiedDiff.Result()
 
-    private var oldShown: ArraySlice<String> {
-        showAll ? diff.oldLines[...] : diff.oldLines.prefix(Self.previewLines)
+    private var shown: ArraySlice<UnifiedDiff.Row> {
+        showAll ? result.rows[...] : result.rows.prefix(Self.previewRows)
     }
-    private var newShown: ArraySlice<String> {
-        showAll ? diff.newLines[...] : diff.newLines.prefix(Self.previewLines)
-    }
-    private var hidden: Int {
-        max(0, diff.oldLines.count - oldShown.count) + max(0, diff.newLines.count - newShown.count)
+    private var hidden: Int { max(0, result.rows.count - shown.count) }
+    /// Highlighting is per line, so it stays off for the very large rewrites where it
+    /// would cost more than it reveals.
+    private var syntax: String {
+        result.rows.count <= 400 ? Syntax.language(forPath: diff.path) : ""
     }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "doc.text").font(.system(size: 10)).foregroundStyle(Grok.textFaint)
-                Text(diff.filename).font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
-            ForEach(Array(oldShown.enumerated()), id: \.offset) { _, l in row("−", l, removed: true) }
-            ForEach(Array(newShown.enumerated()), id: \.offset) { _, l in row("+", l, removed: false) }
+            header
+            ForEach(shown) { row in DiffRowView(row: row, language: syntax) }
             if hidden > 0 {
                 Button { showAll = true } label: {
                     Text("Show \(hidden) more lines")
@@ -1087,21 +1233,131 @@ struct DiffView: View {
             }
         }
         .padding(.bottom, 8)
+        // Aligning the two sides is real work, and the tool row re-renders whenever
+        // its status or output changes. Do it once per diff, not once per layout.
+        .task(id: diff) { result = UnifiedDiff.build(old: diff.oldLines, new: diff.newLines) }
     }
 
-    private func row(_ marker: String, _ text: String, removed: Bool) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(marker).font(Grok.mono(11, .bold))
-                .foregroundStyle(removed ? Grok.danger : Grok.text).frame(width: 10, alignment: .leading)
-            Text(text.isEmpty ? " " : text)
-                .font(Grok.mono(11))
-                .foregroundStyle(removed ? Grok.danger.opacity(0.85) : Grok.text)
-                .strikethrough(removed, color: Grok.danger.opacity(0.4))
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "doc.text").font(.system(size: 10)).foregroundStyle(Grok.textFaint)
+                .accessibilityHidden(true)
+            Text(diff.filename).font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
+                .lineLimit(1).truncationMode(.head)
+            Spacer(minLength: 6)
+            if result.added > 0 {
+                Text(verbatim: "+\(result.added)").font(Grok.mono(10, .semibold)).foregroundStyle(Grok.text)
+                    .monospacedDigit()
+            }
+            if result.removed > 0 {
+                Text(verbatim: "−\(result.removed)").font(Grok.mono(10, .semibold)).foregroundStyle(Grok.danger)
+                    .monospacedDigit()
+            }
         }
-        .padding(.horizontal, 12).padding(.vertical, 2)
-        .background(removed ? Grok.danger.opacity(0.10) : Color.white.opacity(0.06))
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(diff.filename), \(result.added) lines added, \(result.removed) removed"))
+    }
+}
+
+/// One line of a unified diff: gutter marker, line number, and the code itself.
+struct DiffRowView: View {
+    let row: UnifiedDiff.Row
+    var language: String = ""
+
+    var body: some View {
+        switch row.kind {
+        case .gap:
+            HStack(spacing: 8) {
+                Text(verbatim: "⋯").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                    .frame(width: 10, alignment: .leading)
+                    .accessibilityHidden(true)
+                (row.hidden == 1 ? Text("1 unchanged line") : Text("\(row.hidden) unchanged lines"))
+                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 3)
+        default:
+            HStack(alignment: .top, spacing: 8) {
+                Text(marker).font(Grok.mono(11, .bold))
+                    .foregroundStyle(row.kind == .removed ? Grok.danger : (row.kind == .added ? Grok.text : Grok.textFaint))
+                    .frame(width: 10, alignment: .leading)
+                    .accessibilityHidden(true)
+                Text(number).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+                    .monospacedDigit()
+                    .frame(width: 26, alignment: .trailing)
+                    .accessibilityHidden(true)
+                Text(styled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 2)
+            .background(background)
+            .accessibilityLabel(Text(spoken))
+        }
+    }
+
+    private var marker: String {
+        switch row.kind {
+        case .added: return "+"
+        case .removed: return "−"
+        default: return " "
+        }
+    }
+    /// Numbered against the file as it now stands, so context reads as one run:
+    /// only a removed line, which no longer exists, carries its old number.
+    private var number: String {
+        switch row.kind {
+        case .removed: return row.oldNumber.map(String.init) ?? ""
+        default: return row.newNumber.map(String.init) ?? ""
+        }
+    }
+    private var background: Color {
+        switch row.kind {
+        case .added: return Color.white.opacity(0.06)
+        case .removed: return Grok.danger.opacity(0.10)
+        default: return .clear
+        }
+    }
+    private var spoken: String {
+        switch row.kind {
+        case .added: return String(localized: "Added: \(row.text)")
+        case .removed: return String(localized: "Removed: \(row.text)")
+        default: return row.text
+        }
+    }
+
+    /// Syntax-highlighted where a grammar exists, tinted by the row's side, with the
+    /// changed span marked when the diff could pair the line one-for-one.
+    private var styled: AttributedString {
+        let text = row.text.isEmpty ? " " : row.text
+        var attributed: AttributedString
+        if !language.isEmpty, Syntax.supports(language), text.count < 600 {
+            attributed = Syntax.highlight(text, language: language, size: 11)
+            if row.kind == .removed {
+                // Red is the app's only non-white ink and here it means "gone", so it
+                // wins over the highlighter's ranking. The weights still carry across.
+                attributed.foregroundColor = Grok.danger.opacity(0.85)
+            }
+        } else {
+            attributed = AttributedString(text)
+            attributed.font = Grok.mono(11)
+            attributed.foregroundColor = row.kind == .removed ? Grok.danger.opacity(0.85)
+                                       : (row.kind == .context ? Grok.textDim : Grok.text)
+        }
+        if let emphasis = row.emphasis {
+            let characters = attributed.characters
+            let count = characters.count
+            let low = min(emphasis.lowerBound, count)
+            let high = min(emphasis.upperBound, count)
+            if low < high {
+                let lower = characters.index(characters.startIndex, offsetBy: low)
+                let upper = characters.index(characters.startIndex, offsetBy: high)
+                attributed[lower..<upper].backgroundColor = row.kind == .removed
+                    ? Grok.danger.opacity(0.28) : Color.white.opacity(0.18)
+            }
+        }
+        return attributed
     }
 }
 
@@ -1109,6 +1365,7 @@ struct DiffView: View {
 /// pills, reject as outline; once decided, the buttons collapse to the outcome.
 struct PermissionCard: View {
     let item: ChatItem
+    var highlight: String = ""
     let onDecide: (String?, Bool, String?) -> Void   // (optionId, alwaysAllow, denyReason)
 
     /// Denying on its own tells Grok "no" and nothing else, so it usually tries a
@@ -1116,8 +1373,13 @@ struct PermissionCard: View {
     @State private var explaining = false
     @State private var reason = ""
     @FocusState private var reasonFocused: Bool
+    /// "Always allow" on a card that deletes things is the one tap you cannot take
+    /// back, so it asks first.
+    @State private var confirmAlways = false
 
     private var denyOptions: [PermissionOption] { item.options.filter { !$0.isAllow } }
+    /// What this command does that is worth a second look. Computed once per card.
+    private var risk: CommandRisk? { CommandRisk.assess(item.text) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1128,10 +1390,13 @@ struct PermissionCard: View {
             }
             .foregroundStyle(Grok.accent)
 
-            Text(item.text)
+            if let risk { riskBanner(risk) }
+
+            Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
                 .font(Grok.mono(13))
                 .foregroundStyle(Grok.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
 
             if let decided = item.decided {
                 Text(outcomeLabel(decided))
@@ -1146,10 +1411,21 @@ struct PermissionCard: View {
                             Text(allow.name).lineLimit(2).multilineTextAlignment(.center)
                         }
                         .buttonStyle(PillButton(kind: .prominent))
-                        Button { onDecide(allow.optionId, true, nil) } label: {
+                        Button {
+                            // Destructive commands do not get a one-tap "and every
+                            // one after this, unattended".
+                            if risk?.level == .destructive { confirmAlways = true }
+                            else { onDecide(allow.optionId, true, nil) }
+                        } label: {
                             Label("Always allow", systemImage: "bolt.fill").lineLimit(1)
                         }
                         .buttonStyle(PillButton(kind: .subtle))
+                        .confirmationDialog("Approve everything from now on?", isPresented: $confirmAlways, titleVisibility: .visible) {
+                            Button("Always allow", role: .destructive) { onDecide(allow.optionId, true, nil) }
+                            Button("Cancel", role: .cancel) { }
+                        } message: {
+                            Text("This session will stop asking, including for commands like this one that delete or overwrite things.")
+                        }
                     }
                     ForEach(denyOptions) { opt in
                         Button { onDecide(opt.optionId, false, nil) } label: {
@@ -1174,6 +1450,34 @@ struct PermissionCard: View {
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// What this command does, said plainly, above the buttons. Not a blocker and not
+    /// a guess at intent — every card looks alike on a phone, and `rm -rf build` and
+    /// `rm -rf ~` are one character apart.
+    private func riskBanner(_ risk: CommandRisk) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: risk.icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.text)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(risk.label)
+                    .font(Grok.mono(9, .bold)).tracking(1.0)
+                    .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.text)
+                Text(risk.reason)
+                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 11).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(risk.level == .destructive ? Grok.danger.opacity(0.10) : Color.white.opacity(0.05))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(risk.level == .destructive ? Grok.danger.opacity(0.45) : Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .combine)
     }
 
     /// Deny, and say why in the same breath. The text is queued as the next message,
@@ -1483,6 +1787,12 @@ enum TranscriptExporter {
                 md += "*Permission: \(item.text) → \(item.decided ?? "pending")*\n\n"
             case .plan:
                 md += "**Plan:**\n\n\(item.text)\n\n*(\(item.decided ?? "pending"))*\n\n"
+            case .tasks:
+                md += "**Checklist** (\(item.planEntries.completedCount)/\(item.planEntries.count)):\n\n"
+                for entry in item.planEntries {
+                    md += "- [\(entry.isDone ? "x" : " ")] \(entry.content)\(entry.isActive ? "  ← in progress" : "")\n"
+                }
+                md += "\n"
             case .error:
                 md += "> ⚠️ \(item.text)\n\n"
             case .status:
@@ -1519,6 +1829,7 @@ struct UsageBar: View {
 /// Keep planning. Collapses to the outcome once decided.
 struct PlanCard: View {
     let item: ChatItem
+    var highlight: String = ""
     let onDecide: (Bool) -> Void
 
     var body: some View {
@@ -1530,7 +1841,7 @@ struct PlanCard: View {
             }
             .foregroundStyle(Grok.accent)
 
-            Text(ChatBubble.markdown(item.text))
+            Text(ChatBubble.marking(ChatBubble.markdown(item.text), query: highlight))
                 .font(Grok.sans(14))
                 .foregroundStyle(Grok.text)
                 .lineSpacing(3)

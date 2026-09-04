@@ -105,6 +105,12 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: diff engine
+        run: |
+          # The app has no test target; DiffModel.swift imports Foundation only so
+          # its alignment can be checked on its own, which is where the bugs would be.
+          swiftc -O -o "$RUNNER_TEMP/difftest" ios/tools/difftest.swift ios/GrokRemote/DiffModel.swift
+          "$RUNNER_TEMP/difftest"
       - name: build
         run: |
           xcodebuild -project ios/GrokRemote.xcodeproj -scheme GrokRemote \

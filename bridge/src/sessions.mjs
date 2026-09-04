@@ -70,6 +70,7 @@ class Session {
     this.createdAt = createdAt || new Date().toISOString();
     this.seedContext = seedContext || null;   // handoff summary from a compacted session; consumed by the first turn
     this.status = "idle";                // "idle" | "running"
+    this.runningSince = null;            // ISO timestamp of the turn in flight, if any
     this.turnCount = turnCount || 0;
     this.usage = normalizeUsage(usage);  // token/cost usage, accumulated + persisted
     // Follow-ups waiting for the running turn to finish. This lives on the BRIDGE,
@@ -127,6 +128,7 @@ class Session {
       autoApprove: this.autoApprove,     // kept for clients that predate approvalPolicy
       approvalPolicy: this.approvalPolicy,
       status: this.status,
+      runningSince: this.runningSince || undefined,
       // `status` stays "idle"/"running" for clients that predate this field.
       waiting: this.waitingOn ? { kind: this.waitingOn.kind, label: this.waitingOn.label || "", since: this.waitingOn.since } : undefined,
       turnCount: this.turnCount,
@@ -295,6 +297,9 @@ class Session {
   beginTurn() {
     if (this.status === "running") return null;
     this.status = "running";
+    // When this turn started, so the phone can say how long it has been going. A
+    // RUNNING badge alone is the same shape at four seconds and at forty minutes.
+    this.runningSince = new Date().toISOString();
     this.turnCount += 1;
     this._abort = new AbortController();
     return this._abort.signal;
@@ -302,6 +307,7 @@ class Session {
 
   endTurn() {
     this.status = "idle";
+    this.runningSince = null;
     this._abort = null;
   }
 

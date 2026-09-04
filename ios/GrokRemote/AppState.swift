@@ -438,25 +438,31 @@ final class AppState: ObservableObject {
         sessions = []
     }
 
-    func reloadSessions() async {
+    /// `quiet` is for the list's background poll: a phone that walks out of Wi-Fi
+    /// should not paint an error banner over a list that is still perfectly readable.
+    func reloadSessions(quiet: Bool = false) async {
         guard !demoMode else { return }
         guard let client else { return }
         do {
             sessions = try await client.listSessions()
             publishWidgetSnapshot()
         }
-        catch { errorMessage = friendly(error) }
+        catch { if !quiet { errorMessage = friendly(error) } }
     }
 
     /// Push a small status snapshot to the home-screen widget via the app group.
     private func publishWidgetSnapshot() {
         let running = sessions.filter { $0.isRunning }
+        let waiting = sessions.filter { $0.isWaitingOnYou }
         let active = running.first ?? sessions.first
         var snapshot = TethrXSnapshot()
         snapshot.computer = health?.host ?? (URL(string: normalizedBase)?.host ?? "")
         snapshot.sessionCount = sessions.count
         snapshot.runningCount = running.count
-        snapshot.activeName = active?.cwd.map { ($0 as NSString).lastPathComponent } ?? ""
+        snapshot.waitingCount = waiting.count
+        snapshot.waitingName = waiting.first?.displayName ?? ""
+        snapshot.waitingSessionId = waiting.first?.id ?? ""
+        snapshot.activeName = active?.displayName ?? ""
         snapshot.totalTokens = lastUsage?.totals.totalTokens ?? 0
         snapshot.costUSD = lastUsage?.costUSD ?? 0
         snapshot.updatedAt = Date()

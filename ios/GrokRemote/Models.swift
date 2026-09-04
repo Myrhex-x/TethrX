@@ -123,6 +123,9 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     /// meant opening each and scrolling to the bottom.
     var waiting: WaitingState?
     var turnCount: Int
+    /// When the turn in flight began, so the list can say how long it has been going.
+    /// Absent on bridges that predate it — the row then just says RUNNING, as before.
+    var runningSince: String?
     var createdAt: String
     var lastEventId: Int?
     var usage: SessionUsage?
@@ -252,11 +255,37 @@ enum Fmt {
         if s >= 60 { return String(format: "%.1f min", s / 60) }
         return String(format: "%.1fs", s)
     }
+
+    /// A stopwatch reading for something still going: 12s, 4m, 1h20m. Short enough to
+    /// sit inside a session row without pushing anything off the end.
+    static func elapsed(since date: Date, now: Date = Date()) -> String {
+        let seconds = Int(max(0, now.timeIntervalSince(date)))
+        if seconds < 60 { return "\(seconds)s" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        return rest == 0 ? "\(hours)h" : "\(hours)h\(rest)m"
+    }
+
+    /// The bridge speaks `Date.toISOString()`, which always carries milliseconds —
+    /// a formatter without `.withFractionalSeconds` silently returns nil for every
+    /// one of them.
+    static func date(fromISO text: String?) -> Date? {
+        guard let text, !text.isEmpty else { return nil }
+        return isoWithFraction.date(from: text) ?? isoPlain.date(from: text)
+    }
+    private static let isoWithFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoPlain = ISO8601DateFormatter()
 }
 
 /// How a rendered conversation line should look.
 enum ChatRole: Equatable {
-    case user, assistant, thought, tool, status, error, permission, plan
+    case user, assistant, thought, tool, status, error, permission, plan, tasks
 }
 
 /// One option grok offers for a permission request (e.g. "Yes, proceed" / "No…").
@@ -491,6 +520,10 @@ struct ChatItem: Identifiable, Equatable {
     var toolStatus: String? = nil        // "running" | "completed" | "failed"
     var toolOutput: String? = nil        // stdout/stderr the tool produced
     var diff: FileDiff? = nil            // for edit tools
+
+    // Grok's own checklist for the turn (ACP `plan` updates). Held on ONE item that
+    // is revised in place — every revision used to append another bullet dump.
+    var planEntries: [PlanEntry] = []
 
     // Permission request (ACP transport)
     var requestId: String? = nil

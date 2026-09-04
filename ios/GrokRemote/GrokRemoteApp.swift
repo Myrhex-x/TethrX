@@ -41,6 +41,30 @@ struct TethrXApp: App {
                 default: break
                 }
             }
+            // The widgets deep-link in here. Tapping "waiting for your approval" on the
+            // lock screen has to land on THAT session, not just on whatever the app was
+            // last showing — a widget you can only look at is a widget nobody keeps.
+            .onOpenURL { url in open(url) }
+        }
+    }
+
+    /// `tethrx://` links from the widgets (and from anywhere else that can open a URL).
+    ///   tethrx://session/<uuid>  open that conversation, switching computers if needed
+    ///   tethrx://new             start a session
+    /// Anything else is ignored rather than guessed at.
+    private func open(_ url: URL) {
+        guard url.scheme?.lowercased() == "tethrx" else { return }
+        switch url.host?.lowercased() {
+        case "session":
+            let id = url.pathComponents.first(where: { $0 != "/" }) ?? ""
+            guard !id.isEmpty else { return }
+            // `pendingOpenSessionId` is the same door the push notifications use, so
+            // this inherits the "look on the other paired computers" behaviour.
+            app.pendingOpenSessionId = id
+        case "new":
+            Task { if let fresh = await app.newSession() { app.pendingOpenSessionId = fresh.id } }
+        default:
+            break
         }
     }
 

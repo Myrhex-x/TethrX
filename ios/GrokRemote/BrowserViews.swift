@@ -343,6 +343,9 @@ struct FileViewerScreen: View {
 
     @State private var file: FileContent?
     @State private var errorText: String?
+    /// Tokenized once, after the file lands — reading someone else's source on a
+    /// phone is hard enough without every line looking identical.
+    @State private var rendered: AttributedString?
 
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
@@ -352,7 +355,7 @@ struct FileViewerScreen: View {
                         .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).padding(16)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(file.content ?? "")
+                        Text(rendered ?? AttributedString(file.content ?? ""))
                             .font(Grok.mono(12))
                             .foregroundStyle(Grok.text)
                             .lineSpacing(2)
@@ -392,6 +395,10 @@ struct FileViewerScreen: View {
         .task {
             do { file = try await client.fileContent(sessionId: sessionId, path: relPath) }
             catch { errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription }
+            let language = Syntax.language(forPath: relPath)
+            if let text = file?.content, file?.binary != true, Syntax.supports(language) {
+                rendered = Syntax.highlight(text, language: language, size: 12)
+            }
         }
     }
 }
