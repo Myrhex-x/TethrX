@@ -164,6 +164,7 @@ struct ChatView: View {
                 withAnimation(.easeOut(duration: 0.15)) { finding.toggle() }
                 if finding { findFocused = true } else { findQuery = "" }
             }
+            .keyboardShortcut("f", modifiers: .command)
             Spacer(minLength: 0)
             // Where grok is in its own checklist, without scrolling back to the card.
             if !vm.plan.isEmpty, vm.busy || !vm.plan.allDone {
@@ -227,6 +228,7 @@ struct ChatView: View {
                 Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Grok.textDim).frame(width: 36, height: 36).contentShape(Rectangle())
             }
+            .keyboardShortcut(.cancelAction)
             .accessibilityLabel(Text("Close find"))
         }
         .padding(.horizontal, 12)
@@ -327,10 +329,47 @@ struct ChatView: View {
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .center) }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if !atBottom { jumpButton(proxy) }
+                    if !atBottom {
+                        if let pending = pendingApproval {
+                            waitingPill(pending, proxy)
+                        } else {
+                            jumpButton(proxy)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// The approval grok is blocked on, if it has not been answered.
+    ///
+    /// A permission request ends the turn until you answer it, so it is always the
+    /// last thing in the transcript — which is exactly where you are not looking
+    /// when you have scrolled up to read what it did.
+    private var pendingApproval: ChatItem? {
+        vm.items.last { ($0.role == .permission || $0.role == .plan) && $0.decided == nil }
+    }
+
+    private func waitingPill(_ item: ChatItem, _ proxy: ScrollViewProxy) -> some View {
+        Button {
+            Haptics.tap()
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(item.id, anchor: .center) }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "hand.raised.fill").font(.system(size: 11, weight: .bold))
+                    .accessibilityHidden(true)
+                Text("Waiting for you").font(Grok.mono(12, .semibold))
+                Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold))
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(.black)
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(Grok.accent, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text("Scrolls to the approval"))
+        .padding(.trailing, 16).padding(.bottom, 12)
     }
 
     private func jumpButton(_ proxy: ScrollViewProxy) -> some View {
@@ -464,12 +503,14 @@ struct ChatView: View {
                     }
                 }
                 CircleIconButton(system: "stop.fill", danger: true, busy: vm.cancelling, a11y: "Stop the turn") { Task { await vm.cancel() } }
+                    .keyboardShortcut(".", modifiers: .command)
             }
         } else {
             let sendable = !isEmptyDraft || !attachments.isEmpty
             CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable, a11y: "Send") {
                 submit(draft)
             }
+            .keyboardShortcut(.return, modifiers: .command)
         }
     }
 

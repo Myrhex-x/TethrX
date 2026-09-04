@@ -33,6 +33,9 @@ struct TethrXApp: App {
                 // work belongs here.
                 push.refreshIfEnabled()            // re-register if the user enabled push before
                 observeLiveActivities()
+                // Activating early matters: a watch that asks for a snapshot wakes the
+                // phone in the background, and the session must already be listening.
+                WatchLink.shared.start()
             }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {

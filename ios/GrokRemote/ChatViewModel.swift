@@ -543,7 +543,11 @@ final class ChatViewModel: ObservableObject {
         case "permission_request":
             assistantIndex = nil
             thoughtIndex = nil
-            if !isReplay { liveActivity.update(phase: "waiting", detail: "Waiting for your approval") }
+            if !isReplay {
+                liveActivity.update(phase: "waiting", detail: "Waiting for your approval")
+                // The screen may be in a pocket, or the card may be below the fold.
+                Haptics.attention()
+            }
             var item = ChatItem(role: .permission,
                                 text: (event["command"] as? String) ?? (event["title"] as? String)
                                       ?? (event["tool"] as? String) ?? "Grok wants to run a tool")
@@ -566,7 +570,10 @@ final class ChatViewModel: ObservableObject {
         case "plan_review":
             assistantIndex = nil
             thoughtIndex = nil
-            if !isReplay { liveActivity.update(phase: "waiting", detail: "Plan ready to review") }
+            if !isReplay {
+                liveActivity.update(phase: "waiting", detail: "Plan ready to review")
+                Haptics.attention()
+            }
             var item = ChatItem(role: .plan, text: event["planContent"] as? String ?? "Grok drafted a plan.")
             item.requestId = event["requestId"] as? String
             items.append(item)

@@ -166,10 +166,14 @@ struct SessionListView: View {
                 }
             }
             Spacer()
+            // Shortcuts hang off the buttons that already exist, so an iPad keyboard
+            // is faster without inventing anything invisible.
             CircleIconButton(system: "gearshape", a11y: "Settings") { showSettings = true }
+                .keyboardShortcut(",", modifiers: .command)
             CircleIconButton(system: "plus", filled: true, busy: creating, a11y: "New session") {
                 Task { await startNew() }
             }
+            .keyboardShortcut("n", modifiers: .command)
         }
         .padding(.bottom, 4)
     }

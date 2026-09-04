@@ -130,7 +130,14 @@ class Session {
       status: this.status,
       runningSince: this.runningSince || undefined,
       // `status` stays "idle"/"running" for clients that predate this field.
-      waiting: this.waitingOn ? { kind: this.waitingOn.kind, label: this.waitingOn.label || "", since: this.waitingOn.since } : undefined,
+      waiting: this.waitingOn ? {
+        kind: this.waitingOn.kind,
+        label: this.waitingOn.label || "",
+        since: this.waitingOn.since,
+        requestId: this.waitingOn.requestId,
+        allow: this.waitingOn.allow,
+        deny: this.waitingOn.deny,
+      } : undefined,
       turnCount: this.turnCount,
       createdAt: this.createdAt,
       lastEventId: this._nextEventId,
@@ -142,9 +149,35 @@ class Session {
     };
   }
 
-  /** Note that grok is blocked on the user, and tell every listener. */
-  setWaiting(kind, label) {
-    this.waitingOn = { kind, label: String(label || "").slice(0, 120), since: new Date().toISOString() };
+  /**
+   * The most recent `n` recorded events, oldest first.
+   *
+   * Small clients (the watch) need the tail of a conversation without opening a
+   * stream and replaying the whole thing. Streamed prose arrives as hundreds of
+   * 4-character chunks, so the caller gets the raw records and folds them itself.
+   */
+  tail(n = 60) {
+    const count = Math.max(1, Math.min(500, Number(n) || 60));
+    return this._events.slice(-count);
+  }
+
+  /**
+   * Note that grok is blocked on the user, and tell every listener.
+   *
+   * `answer` carries what it takes to RESOLVE the block: the request id and the
+   * option ids for yes and no. That turns "waiting" from a label into something a
+   * client can act on with nothing else in hand, which is what lets a watch answer
+   * an approval from a pushed snapshot, with no live connection to anything.
+   */
+  setWaiting(kind, label, answer = null) {
+    this.waitingOn = {
+      kind,
+      label: String(label || "").slice(0, 120),
+      since: new Date().toISOString(),
+      requestId: answer?.requestId ? String(answer.requestId) : undefined,
+      allow: answer?.allow ? String(answer.allow) : undefined,
+      deny: answer?.deny ? String(answer.deny) : undefined,
+    };
     this.emit({ kind: "waiting", waiting: this.waitingOn });
   }
 

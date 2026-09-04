@@ -113,6 +113,18 @@ jobs:
           "$RUNNER_TEMP/difftest"
       - name: build
         run: |
+          # The GrokRemote scheme embeds the watchOS app, so this needs the watchOS
+          # platform installed on the runner as well as iOS.
           xcodebuild -project ios/GrokRemote.xcodeproj -scheme GrokRemote \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build | tail -5
+      - name: watch app is embedded
+        run: |
+          # A dropped embed phase is invisible until an archive fails to export, so
+          # check the bundle actually carries both the extensions and the watch app.
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -name GrokRemote.app -path '*-iphonesimulator/*' | head -1)
+          test -n "$APP" || { echo "no built app found"; exit 1; }
+          test -d "$APP/Watch/TethrXWatch.app" || { echo "watch app not embedded"; exit 1; }
+          test -d "$APP/PlugIns/TethrXWidget.appex" || { echo "widget not embedded"; exit 1; }
+          test -d "$APP/PlugIns/TethrXShare.appex" || { echo "share extension not embedded"; exit 1; }
+          echo "watch app, widget and share extension all embedded"

@@ -10,14 +10,14 @@ Your phone is only a control plane. Grok, its tools, and your code stay on your 
 **[Download on the App Store](https://apps.apple.com/app/tethrx/id6792520305)** — free, iPhone and iPad, iOS 17+. You still run the bridge yourself (below).
 
 ```
-┌────────────┐   HTTP + SSE    ┌─────────────────────┐   JSON-RPC (ACP)   ┌───────────┐
-│  iOS app   │  ────────────▶  │   bridge daemon     │  ───────────────▶  │  grok     │
-│ (SwiftUI)  │  ◀────────────  │  (Node, on your Mac)│  ◀───────────────  │  agent    │
-└────────────┘  token + push   └─────────────────────┘  tools/plans/asks  └───────────┘
+┌───────────┐  WatchConnectivity  ┌────────────┐   HTTP + SSE    ┌─────────────────────┐   JSON-RPC (ACP)   ┌───────────┐
+│ watchOS   │  ─────────────────▶ │  iOS app   │  ────────────▶  │   bridge daemon     │  ───────────────▶  │  grok     │
+│  app      │  ◀───────────────── │ (SwiftUI)  │  ◀────────────  │  (Node, on your Mac)│  ◀───────────────  │  agent    │
+└───────────┘  snapshot + answer  └────────────┘  token + push   └─────────────────────┘  tools/plans/asks  └───────────┘
 ```
 
 - **`bridge/`** — a zero-dependency Node daemon that wraps your installed `grok` and exposes it over an authenticated HTTP + SSE API. Two transports: **ACP** (default — streams tool calls, plans, and live approve/reject) and **headless** (simple text+thought).
-- **`ios/`** — a native SwiftUI app (xAI design language): pairing, session list, and a live console with tool activity and approval cards.
+- **`ios/`** — a native SwiftUI app (xAI design language): pairing, session list, and a live console with tool activity and approval cards. The same project builds the widgets, the share extension and the **watchOS app**, which talks only to the phone.
 
 Everything below is **built and tested** against a real `grok` install.
 
@@ -42,6 +42,7 @@ Everything below is **built and tested** against a real `grok` install.
 - **Voice dictation** and reusable prompt snippets.
 - **Sessions** — search across conversations, find inside one, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing. The list stays live, and a running or blocked session says how long it has been that way.
 - **Siri** — start a task or ask what Grok is doing without opening the app.
+- **Apple Watch** — the sessions on your wrist, the command Grok is blocked on with the same one-line reason the phone shows, and Approve / Deny. Dictate a follow-up too. The watch asks your iPhone, so the pairing token never leaves it; an answer given out of range is queued and delivered when the phone is back.
 - **Home-screen and lock-screen widgets**, plus a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+). A widget that says *needs you* opens the session that is asking.
 - **Usage** — context window, tokens, and cost per session, plus **day-by-day** totals across everything, and a push when a session's context runs low.
 - **Face ID lock**, since the bridge can run commands on your machine.

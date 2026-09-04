@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var pluginError: String?
     @State private var installSource = ""
     @State private var removingPlugin: GrokPlugin?
+    @ObservedObject private var watch = WatchLink.shared
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -49,6 +50,7 @@ struct SettingsView: View {
                         SchedulesSection()
                         pluginsSection.id("plugins")
                         notifications
+                        appleWatch.id("watch")
                         security
                         snippetsSection
                         about
@@ -233,6 +235,48 @@ struct SettingsView: View {
             }
             toggleRow("Plan mode", "Grok drafts a plan for you to approve before touching anything", $app.defaultPlanMode)
             toggleRow("Auto-approve tools", "Run commands and edits without asking each time — faster, less oversight", $app.defaultAutoApprove)
+        }
+    }
+
+    /// Says plainly whether the watch app is there and what it can do, so "is this
+    /// even installed?" is answered in the app rather than by hunting on the wrist.
+    private var appleWatch: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Eyebrow("APPLE WATCH")
+            HStack(spacing: 10) {
+                Image(systemName: watch.active ? "applewatch" : "applewatch.slash")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(watch.active ? Grok.text : Grok.textFaint)
+                    .accessibilityHidden(true)
+                watchStatusLabel
+                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 13)
+            .background(Grok.raised)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .combine)
+
+            watchExplanation
+                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder private var watchStatusLabel: some View {
+        if watch.active { Text("Installed") }
+        else if watch.paired { Text("Not installed") }
+        else { Text("No Apple Watch paired") }
+    }
+
+    @ViewBuilder private var watchExplanation: some View {
+        if watch.active {
+            Text("Answer approvals, read the last few lines and dictate a follow-up from your wrist. The watch asks this phone, so your pairing token never leaves it.")
+        } else if watch.paired {
+            Text("Install TethrX on your Apple Watch from the Watch app on this iPhone to answer approvals from your wrist.")
+        } else {
+            Text("Pair an Apple Watch with this iPhone, then install TethrX on it to answer approvals from your wrist.")
         }
     }
 

@@ -103,6 +103,11 @@ struct WaitingState: Codable, Hashable {
     var kind: String        // "permission" | "plan"
     var label: String?      // the command or title, for the chip
     var since: String?
+    /// What it takes to answer this without fetching anything else: the request and
+    /// the option ids for yes and no. Absent on bridges that predate it.
+    var requestId: String?
+    var allow: String?
+    var deny: String?
 }
 
 struct SessionInfo: Codable, Identifiable, Hashable {
@@ -501,6 +506,15 @@ struct FileDiff: Equatable {
         self.oldLines = oldText.isEmpty ? [] : oldText.components(separatedBy: "\n")
         self.newLines = newText.isEmpty ? [] : newText.components(separatedBy: "\n")
     }
+}
+
+/// The tail of a session's event log. Events stay as raw dictionaries: the folding
+/// rules differ per client (the phone builds a full transcript, the watch a dozen
+/// lines), and decoding a union of every event shape would help neither.
+struct TranscriptTail {
+    struct Record { var id: Int; var event: [String: Any] }
+    var events: [Record] = []
+    var status: String = "idle"
 }
 
 /// One rendered line in the conversation. Streaming text is appended into the

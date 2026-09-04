@@ -553,7 +553,9 @@
         }
       }
     },
-    "TETHRX" : {},
+    "TETHRX" : {
+
+    },
     "tokens" : {
       "localizations" : {
         "de" : {
@@ -601,6 +603,7 @@
       }
     },
     "Whether your computer's Grok is working, and what it's cost." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

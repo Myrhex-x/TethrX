@@ -361,6 +361,34 @@ check("a running turn reports when it started, and stops reporting when it ends"
   assert.equal(s.toJSON().runningSince, undefined, "an ended turn clears its start time");
 });
 
+// --- an answerable waiting state ----------------------------------------------
+
+check("waiting carries what it takes to answer it", () => {
+  const s = store.create({ cwd: dir });
+  s.setWaiting("permission", "rm -rf .build", { requestId: "req-1", allow: "yes", deny: "no" });
+  const w = s.toJSON().waiting;
+  assert.equal(w.kind, "permission");
+  assert.equal(w.label, "rm -rf .build");
+  // Without these three a small client can SEE the block and not answer it, which
+  // is the entire difference between a watch app and a notification.
+  assert.equal(w.requestId, "req-1");
+  assert.equal(w.allow, "yes");
+  assert.equal(w.deny, "no");
+  s.clearWaiting();
+  assert.equal(s.toJSON().waiting, undefined);
+});
+
+check("the transcript tail is bounded and ordered oldest first", () => {
+  const s = store.create({ cwd: dir });
+  for (let i = 0; i < 10; i++) s.emit({ kind: "text", text: `chunk ${i}` });
+  const tail = s.tail(3);
+  assert.equal(tail.length, 3);
+  assert.equal(tail[0].event.text, "chunk 7");
+  assert.equal(tail[2].event.text, "chunk 9");
+  // A client asking for everything must not be able to ask for more than the cap.
+  assert.ok(s.tail(100000).length <= 500);
+});
+
 rmSync(dir, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");

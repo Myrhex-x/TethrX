@@ -416,6 +416,20 @@ struct BridgeClient {
     }
 
     /// Grok's slash commands for this session — the "/" palette.
+    /// The last `count` recorded events for a session, plus its live status. Used by
+    /// the watch, which needs the tail of a conversation without holding a stream.
+    func tail(sessionId: String, count: Int = 60) async throws -> TranscriptTail {
+        let req = try getQuery("/api/sessions/\(sessionId)/tail", query: ["n": String(count)])
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        let records = (root["events"] as? [[String: Any]] ?? []).compactMap { record -> TranscriptTail.Record? in
+            guard let event = record["event"] as? [String: Any] else { return nil }
+            return TranscriptTail.Record(id: record["id"] as? Int ?? 0, event: event)
+        }
+        return TranscriptTail(events: records, status: root["status"] as? String ?? "idle")
+    }
+
     func commands(sessionId: String) async throws -> [SlashCommand] {
         let (data, resp) = try await session.data(for: try request("/api/sessions/\(sessionId)/commands"))
         try Self.check(resp)

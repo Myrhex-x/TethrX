@@ -467,6 +467,10 @@ final class AppState: ObservableObject {
         snapshot.costUSD = lastUsage?.costUSD ?? 0
         snapshot.updatedAt = Date()
         WidgetBridge.publish(snapshot)
+        // The watch is fed from the same moment: it is another glanceable view of
+        // exactly this state, and keeping one publish point means the two can never
+        // disagree about what is running.
+        WatchLink.shared.publish(WatchLink.snapshot(from: self))
     }
 
     func newSession() async -> SessionInfo? {
@@ -722,6 +726,16 @@ final class AppState: ObservableObject {
         }
         if args.contains("-demo") {
             enterDemo()
+        }
+        // `-pair <address> <token>` connects to a bridge without walking the wizard.
+        // Typing a 32-character token into a simulator keyboard is not a test, and
+        // the credentials live in the Keychain where a plist edit cannot reach them.
+        if let i = args.firstIndex(of: "-pair"), i + 2 < args.count {
+            baseURLString = args[i + 1]
+            token = args[i + 2]
+            pin = ""
+            userDisconnected = false
+            await connect()
         }
         if args.contains("-autoconnect") {
             await connect()

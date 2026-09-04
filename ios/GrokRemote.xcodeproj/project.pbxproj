@@ -26,6 +26,7 @@
 		ABCDEF0123456789ABCE0022 /* Pinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCE0004 /* Pinning.swift */; };
 		ABCDEF0123456789ABCE0030 /* TethrXShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCE0005 /* TethrXShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		ABCDEF0123456789ABCE0080 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCE0081 /* Localizable.xcstrings */; };
+		ABCDEF0123456789ABCF0031 /* TethrXWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCF0003 /* TethrXWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +44,13 @@
 			remoteGlobalIDString = ABCDEF0123456789ABCE0050;
 			remoteInfo = TethrXShare;
 		};
+		ABCDEF0123456789ABCF0040 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DEADBEEF0000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ABCDEF0123456789ABCF0010;
+			remoteInfo = TethrXWatch;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -55,6 +63,15 @@
 				ABCDEF0123456789ABCE0030 /* TethrXShare.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+		};
+		ABCDEF0123456789ABCF0030 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				ABCDEF0123456789ABCF0031 /* TethrXWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -75,6 +92,7 @@
 		ABCDEF0123456789ABCE0004 /* Pinning.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pinning.swift; sourceTree = "<group>"; };
 		ABCDEF0123456789ABCE0005 /* TethrXShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TethrXShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ABCDEF0123456789ABCE0081 /* Localizable.xcstrings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		ABCDEF0123456789ABCF0003 /* TethrXWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TethrXWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -85,6 +103,13 @@
 			);
 			target = DEADBEEF0000000000000005 /* GrokRemote */;
 		};
+		ABCDEF0123456789ABCF0002 /* Exceptions for "TethrXWatch" folder in "TethrXWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = ABCDEF0123456789ABCF0010 /* TethrXWatch */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -94,6 +119,14 @@
 				DEADBEEF0000000000000010 /* Exceptions for "GrokRemote" folder in "GrokRemote" target */,
 			);
 			path = GrokRemote;
+			sourceTree = "<group>";
+		};
+		ABCDEF0123456789ABCF0001 /* TethrXWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				ABCDEF0123456789ABCF0002 /* Exceptions for "TethrXWatch" folder in "TethrXWatch" target */,
+			);
+			path = TethrXWatch;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -111,6 +144,11 @@
 			);
 		};
 		ABCDEF0123456789ABCE0061 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		ABCDEF0123456789ABCF0012 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -156,6 +194,7 @@
 				9AE93B63BD577E4F0E44E3EC /* TethrXWidget */,
 				ABCDEF0123456789ABCE0040 /* TethrXShare */,
 				ABCDEF0123456789ABCE0041 /* Shared */,
+				ABCDEF0123456789ABCF0001 /* TethrXWatch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -165,6 +204,7 @@
 				DEADBEEF0000000000000006 /* GrokRemote.app */,
 				6589C5324A6E475E382F477D /* TethrXWidget.appex */,
 				ABCDEF0123456789ABCE0005 /* TethrXShare.appex */,
+				ABCDEF0123456789ABCF0003 /* TethrXWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -215,12 +255,14 @@
 				DEADBEEF0000000000000008 /* Frameworks */,
 				DEADBEEF0000000000000009 /* Resources */,
 				E69633B7E40A946D3938A446 /* Embed Foundation Extensions */,
+				ABCDEF0123456789ABCF0030 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				01312C879EC3DA4E268FE0E8 /* PBXTargetDependency */,
 				ABCDEF0123456789ABCE0052 /* PBXTargetDependency */,
+				ABCDEF0123456789ABCF0041 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DEADBEEF0000000000000004 /* GrokRemote */,
@@ -244,6 +286,26 @@
 			productName = TethrXShare;
 			productReference = ABCDEF0123456789ABCE0005 /* TethrXShare.appex */;
 			productType = "com.apple.product-type.app-extension";
+		};
+		ABCDEF0123456789ABCF0010 /* TethrXWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ABCDEF0123456789ABCF0022 /* Build configuration list for PBXNativeTarget "TethrXWatch" */;
+			buildPhases = (
+				ABCDEF0123456789ABCF0011 /* Sources */,
+				ABCDEF0123456789ABCF0012 /* Frameworks */,
+				ABCDEF0123456789ABCF0013 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				ABCDEF0123456789ABCF0001 /* TethrXWatch */,
+			);
+			name = TethrXWatch;
+			productName = TethrXWatch;
+			productReference = ABCDEF0123456789ABCF0003 /* TethrXWatch.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -284,6 +346,7 @@
 				DEADBEEF0000000000000005 /* GrokRemote */,
 				B4541D1E84208A07D5F3EEAA /* TethrXWidget */,
 				ABCDEF0123456789ABCE0050 /* TethrXShare */,
+				ABCDEF0123456789ABCF0010 /* TethrXWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -307,6 +370,11 @@
 			files = (
 				ABCDEF0123456789ABCE0080 /* Localizable.xcstrings in Resources */,
 				ABCDEF0123456789ABCE0082 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+		};
+		ABCDEF0123456789ABCF0013 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -338,6 +406,11 @@
 				ABCDEF0123456789ABCE0013 /* Pinning.swift in Sources */,
 			);
 		};
+		ABCDEF0123456789ABCF0011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -353,6 +426,12 @@
 			target = ABCDEF0123456789ABCE0050 /* TethrXShare */;
 			targetProxy = ABCDEF0123456789ABCE0051 /* PBXContainerItemProxy */;
 		};
+		ABCDEF0123456789ABCF0041 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TethrXWatch;
+			target = ABCDEF0123456789ABCF0010 /* TethrXWatch */;
+			targetProxy = ABCDEF0123456789ABCF0040 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -362,7 +441,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXWidget/TethrXWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -391,7 +470,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXWidget/TethrXWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -524,7 +603,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GrokRemote/GrokRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -551,7 +630,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = GrokRemote/GrokRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -577,7 +656,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXShare/TethrXShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TethrXShare/Info.plist;
@@ -604,7 +683,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = TethrXShare/TethrXShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				DEVELOPMENT_TEAM = KKRU446268;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TethrXShare/Info.plist;
@@ -622,6 +701,63 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		ABCDEF0123456789ABCF0020 /* Debug configuration for PBXNativeTarget "TethrXWatch" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 47;
+				DEVELOPMENT_TEAM = KKRU446268;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TethrXWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		ABCDEF0123456789ABCF0021 /* Release configuration for PBXNativeTarget "TethrXWatch" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 47;
+				DEVELOPMENT_TEAM = KKRU446268;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TethrXWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tethrx.app.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -658,6 +794,15 @@
 			buildConfigurations = (
 				ABCDEF0123456789ABCE0071 /* Debug */,
 				ABCDEF0123456789ABCE0072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ABCDEF0123456789ABCF0022 /* Build configuration list for PBXNativeTarget "TethrXWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ABCDEF0123456789ABCF0020 /* Debug */,
+				ABCDEF0123456789ABCF0021 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

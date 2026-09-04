@@ -912,7 +912,13 @@ async function ensureAcp(session) {
             return; // answered by policy — no card
           }
         }
-        session.setWaiting("permission", event.command || event.title || event.tool);
+        // Carry the ids a client needs to answer this without asking anything else.
+        const opts = event.options || [];
+        const allowOpt = opts.find((o) => /allow/i.test(o.kind || o.optionId || ""));
+        const denyOpt = opts.find((o) => !/allow/i.test(o.kind || o.optionId || ""));
+        session.setWaiting("permission", event.command || event.title || event.tool, {
+          requestId: event.requestId, allow: allowOpt?.optionId, deny: denyOpt?.optionId,
+        });
         notifyPermission(session, event);
         laWaiting(session, event.command || event.title);
       }
@@ -920,7 +926,7 @@ async function ensureAcp(session) {
         session.clearWaiting();
       }
       if (event.kind === "plan_review") {
-        session.setWaiting("plan", "Plan ready to review");
+        session.setWaiting("plan", "Plan ready to review", { requestId: event.requestId });
         pushNotify(session, { title: `${displayTitle(session)}: plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
         laWaiting(session, "Plan ready to review");
       }
@@ -1604,6 +1610,15 @@ async function handle(req, res) {
       const commands = (live?.length ? live : null) || (session.commands?.length ? session.commands : null)
         || loadGlobalCommands();
       return send(res, 200, { commands });
+    }
+
+    // The tail of the transcript, without opening a stream: what a watch (or any
+    // client too small to fold a full replay) needs to show the last few lines and
+    // the approval it is being asked about.
+    if (sub === "tail" && req.method === "GET") {
+      const n = Number(url.searchParams.get("n") || 60);
+      return send(res, 200, { events: session.tail(n), status: session.status,
+                              waiting: session.waitingOn || null });
     }
 
     if (sub === "queue" && req.method === "GET") {

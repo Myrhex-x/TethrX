@@ -203,4 +203,9 @@ enum Haptics {
     static func success() {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
+    /// Grok has stopped and is waiting on you. Deliberately not the light tap every
+    /// button uses: this one is meant to be felt without looking.
+    static func attention() {
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    }
 }
