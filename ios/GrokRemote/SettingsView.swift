@@ -164,10 +164,10 @@ struct SettingsView: View {
                     indexRow(.prompts, "text.badge.star", value: promptCountLabel)
                 }
                 indexGroup("This phone") {
-                    indexRow(.notifications, "bell", value: push.enabled ? "On" : "Off")
+                    indexRow(.notifications, "bell", value: String(loc: push.enabled ? "On" : "Off"))
                     indexRow(.watch, "applewatch", value: watchShortLabel)
                     indexRow(.language, "globe", value: language.currentLabel)
-                    indexRow(.security, "lock", value: lock.enabled ? "On" : "Off")
+                    indexRow(.security, "lock", value: String(loc: lock.enabled ? "On" : "Off"))
                 }
                 indexGroup(nil) { indexRow(.about, "info.circle") }
             }
@@ -443,24 +443,59 @@ struct SettingsView: View {
     /// even installed?" is answered in the app rather than by hunting on the wrist.
     private var appleWatch: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: watch.active ? "applewatch" : "applewatch.slash")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(watch.active ? Grok.text : Grok.textFaint)
-                    .accessibilityHidden(true)
-                watchStatusLabel
-                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: watch.active ? "applewatch" : "applewatch.slash")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(watch.active ? Grok.text : Grok.textFaint)
+                        .accessibilityHidden(true)
+                    watchStatusLabel
+                        .font(Grok.sans(15)).foregroundStyle(Grok.text)
+                    Spacer(minLength: 0)
+                }
+                if watch.active {
+                    // "Installed" answers a different question from the one someone
+                    // staring at a blank watch face is asking. Whether it is in range,
+                    // and when it last heard anything, is that question.
+                    Rectangle().fill(Grok.rule).frame(height: 1)
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(watch.reachable ? Grok.text : Grok.textFaint)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+                        (watch.reachable ? Text("In range") : Text("Out of range"))
+                            .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+                        Spacer(minLength: 8)
+                        if let sent = watch.lastDelivered {
+                            Text(verbatim: Fmt.ago(sent))
+                                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        } else {
+                            Text("Nothing sent yet")
+                                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
             }
             .padding(.horizontal, Grok.pad).padding(.vertical, 13)
             .background(Grok.raised)
             .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
-            .accessibilityElement(children: .combine)
 
             watchExplanation
                 .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if watch.active {
+                // The one thing worth being able to do by hand. Out of range, iOS
+                // holds the context and delivers it when the watch comes back, which
+                // is worth saying rather than leaving the button looking broken.
+                Button { Haptics.tap(); watch.republish() } label: {
+                    Label("Send the sessions again", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+            }
         }
     }
 

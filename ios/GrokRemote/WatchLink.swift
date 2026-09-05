@@ -92,6 +92,13 @@ final class WatchLink: NSObject, ObservableObject {
     /// problems with different fixes, and telling someone to install an app on a
     /// watch they do not own is the kind of advice that reads as broken.
     @Published private(set) var paired = false
+    /// Whether the watch is in range and awake right now. "Installed" answered a
+    /// different question from the one someone staring at a blank watch is asking,
+    /// and left them with nothing to check.
+    @Published private(set) var reachable = false
+    /// When the phone last got a snapshot through, so the settings page can say
+    /// whether the link is working or merely configured.
+    @Published private(set) var lastDelivered: Date?
 
     private var session: WCSession? { WCSession.isSupported() ? WCSession.default : nil }
     private var lastPushed: WatchSnapshot?
@@ -105,9 +112,21 @@ final class WatchLink: NSObject, ObservableObject {
     /// Push the current sessions to the watch. Cheap and idempotent: identical
     /// snapshots are dropped, since application context is latest-wins anyway and a
     /// redundant write still wakes the watch.
+    /// Push regardless of whether anything changed.
+    ///
+    /// The dedupe below is right for the steady state and wrong for every moment the
+    /// watch's own copy is gone: reinstall the watch app and the phone would compare
+    /// the new snapshot against one the watch never received, decide nothing had
+    /// changed, and leave it blank until something else moved.
+    func republish() {
+        lastPushed = nil
+        publish(Self.snapshot(from: AppState.shared))
+    }
+
     func publish(_ snapshot: WatchSnapshot) {
         guard let session, session.activationState == .activated,
               session.isPaired, session.isWatchAppInstalled else { return }
+        reachable = session.isReachable
         var next = snapshot
         next.updatedAt = Date()
         // Compare everything except the timestamp, which changes every call.
@@ -117,7 +136,14 @@ final class WatchLink: NSObject, ObservableObject {
         }
         lastPushed = next
         guard let data = try? JSONEncoder.watch.encode(next) else { return }
-        try? session.updateApplicationContext(["snapshot": data])
+        do {
+            try session.updateApplicationContext(["snapshot": data])
+            lastDelivered = next.updatedAt
+        } catch {
+            // Handed back so the next attempt is not deduped against a push that
+            // never left the phone.
+            lastPushed = nil
+        }
     }
 
     /// Build a snapshot from whatever the app currently knows.
@@ -166,10 +192,23 @@ extension WatchLink: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
         let usable = state == .activated && session.isPaired && session.isWatchAppInstalled
         let isPaired = session.isPaired
+        let canReach = session.isReachable
         Task { @MainActor in
             self.active = usable
             self.paired = isPaired
-            if usable { self.publish(Self.snapshot(from: AppState.shared)) }
+            self.reachable = canReach
+            // A fresh activation is exactly the case the dedupe must not apply to:
+            // whatever the watch holds, this phone has no idea what it is.
+            if usable { self.republish() }
+        }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let canReach = session.isReachable
+        Task { @MainActor in
+            self.reachable = canReach
+            // Coming back into range is the moment to catch the watch up.
+            if canReach, self.active { self.republish() }
         }
     }
 
@@ -185,7 +224,9 @@ extension WatchLink: WCSessionDelegate {
         Task { @MainActor in
             self.active = usable
             self.paired = isPaired
-            if usable { self.publish(Self.snapshot(from: AppState.shared)) }
+            // Installing or reinstalling the watch app leaves it with nothing, so
+            // this push must not be compared against what the last watch held.
+            if usable { self.republish() }
         }
     }
 

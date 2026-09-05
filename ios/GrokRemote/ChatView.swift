@@ -331,7 +331,8 @@ struct ChatView: View {
                         ForEach(vm.items) { item in
                             switch item.role {
                             case .permission:
-                                PermissionCard(item: item, highlight: finding ? findQuery : "") { optionId, always, reason in
+                                PermissionCard(item: item, folder: vm.session.cwd,
+                                               highlight: finding ? findQuery : "") { optionId, always, reason in
                                     Task { await vm.decide(item, optionId: optionId, always: always, reason: reason) }
                                 }.id(item.id)
                             case .plan:
@@ -1855,6 +1856,11 @@ struct DiffRowView: View {
 /// pills, reject as outline; once decided, the buttons collapse to the outcome.
 struct PermissionCard: View {
     let item: ChatItem
+    /// Where the command will run. "rm -rf .build" is a different decision in a
+    /// scratch folder and in the repository you have been working in all week, and
+    /// the card used to make you remember which session you were in to tell them
+    /// apart.
+    var folder: String? = nil
     var highlight: String = ""
     let onDecide: (String?, Bool, String?) -> Void   // (optionId, alwaysAllow, denyReason)
 
@@ -1871,6 +1877,16 @@ struct PermissionCard: View {
     @State private var expanded = false
 
     private var denyOptions: [PermissionOption] { item.options.filter { !$0.isAllow } }
+    private var folderName: String? {
+        guard let folder, !folder.isEmpty else { return nil }
+        return (folder as NSString).lastPathComponent
+    }
+    /// Whether the four-line clip is likely to be hiding something. A measured line
+    /// count would need a layout pass per card; the point is only to decide whether
+    /// to offer the control.
+    private var clippable: Bool {
+        item.text.contains("\n") || item.text.count > 150
+    }
     /// What this command does that is worth a second look. Computed once per card.
     private var risk: CommandRisk? { CommandRisk.assess(item.text) }
 
@@ -1889,6 +1905,15 @@ struct PermissionCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .onTapGesture { withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() } }
+
+            // Tapping the text worked and nothing said so, which on the one card in
+            // the app you must read in full is not a detail.
+            if clippable {
+                Button { withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() } } label: {
+                    (expanded ? Text("Show less") : Text("Show the whole command"))
+                }
+                .buttonStyle(QuietButton())
+            }
 
             // The reason a command is worth a second look reads as a line under it,
             // not as a boxed banner inside a boxed card.
@@ -1925,7 +1950,18 @@ struct PermissionCard: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Grok.textFaint)
                 .accessibilityHidden(true)
-            ListSectionLabel("Permission")
+            // The folder, when we know it: the card's shape already says this is a
+            // permission, and where it runs is the part you cannot see anywhere else.
+            if let folderName {
+                ListSectionLabel(verbatim: folderName)
+                    .lineLimit(1).truncationMode(.middle)
+                    .accessibilityLabel(Text("Permission, in \(folderName)"))
+            } else {
+                ListSectionLabel("Permission")
+            }
+            // How long it has been blocked. A card that has been waiting four seconds
+            // and one that has been waiting forty minutes look identical otherwise.
+            ElapsedLabel(since: item.startedAt)
             Spacer(minLength: 8)
             if let risk {
                 HStack(spacing: 5) {
@@ -2065,7 +2101,7 @@ struct PermissionCard: View {
         if let opt = item.options.first(where: { $0.optionId == optionId }) {
             return (opt.isAllow ? "✓ " : "✗ ") + opt.name
         }
-        return "✓ responded"
+        return String(loc: "✓ responded")
     }
 }
 
