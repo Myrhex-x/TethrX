@@ -40,7 +40,7 @@ struct AddComputerSheet: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                                            Text(bridge.name).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1)
                                             Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
                                         }
                                         Spacer(minLength: 0)
@@ -57,13 +57,13 @@ struct AddComputerSheet: View {
                                 .buttonStyle(.plain)
                             }
                             Text("Found on your network. Tap to fill the address — then enter that computer's token.")
-                                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                         }
                     }
 
                     HStack(spacing: 12) {
                         divider
-                        Text("or enter by hand").font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                        Text("or enter by hand").font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
                         divider
                     }
 
@@ -72,8 +72,8 @@ struct AddComputerSheet: View {
 
                     if let failure {
                         HStack(alignment: .top, spacing: 8) {
-                            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                            Text(failure).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+                            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
+                            Text(failure).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
                         }
                     }
 
@@ -88,7 +88,7 @@ struct AddComputerSheet: View {
                               || pairingToken.trimmingCharacters(in: .whitespaces).isEmpty)
 
                     Text("Adding a computer switches to it. Your other computers stay paired — swap between them any time.")
-                        .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(3)
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(3)
                 }
                 .padding(20)
             }
@@ -156,7 +156,7 @@ struct AddComputerSheet: View {
     }
 
     private func codeLine(_ s: String) -> some View {
-        Text(s).font(Grok.mono(13)).foregroundStyle(Grok.text)
+        Text(s).font(Grok.sans(16)).foregroundStyle(Grok.text)
             .lineLimit(1).minimumScaleFactor(0.6).textSelection(.enabled)
             .padding(.horizontal, 14).padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -177,7 +177,7 @@ struct AddComputerSheet: View {
                             .keyboardType(.URL)
                     }
                 }
-                .font(Grok.mono(15))
+                .font(Grok.sans(17))
                 .foregroundStyle(Grok.text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

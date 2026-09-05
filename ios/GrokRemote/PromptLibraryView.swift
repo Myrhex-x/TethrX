@@ -18,7 +18,7 @@ struct PromptLibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Write the tasks you want run, whenever they occur to you. They're kept on this phone, and you can tap one into any session later.")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
 
                     searchField
@@ -66,7 +66,7 @@ struct PromptLibraryView: View {
             HStack(spacing: 9) {
                 Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(Grok.textFaint)
                 TextField("", text: $query, prompt: Text("search prompts…").foregroundColor(Grok.textFaint))
-                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 if !query.isEmpty {
                     Button { query = "" } label: {
@@ -90,7 +90,7 @@ struct PromptLibraryView: View {
             Image(systemName: query.isEmpty ? "square.and.pencil" : "magnifyingglass")
                 .font(.system(size: 22)).foregroundStyle(Grok.textFaint)
             (query.isEmpty ? Text("No prompts yet.") : Text("Nothing matches that."))
-                .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             if query.isEmpty {
                 Button { creating = true } label: { Text("Write your first prompt") }
                     .buttonStyle(PillButton(kind: .subtle))
@@ -111,10 +111,10 @@ struct PromptRow: View {
             Image(systemName: "text.alignleft")
                 .font(.system(size: 11)).foregroundStyle(Grok.textFaint).padding(.top, 3)
             VStack(alignment: .leading, spacing: 4) {
-                Text(prompt.title).font(Grok.mono(13)).foregroundStyle(Grok.text)
+                Text(prompt.title).font(Grok.sans(16)).foregroundStyle(Grok.text)
                     .lineLimit(2).multilineTextAlignment(.leading)
                 if !prompt.body.isEmpty {
-                    Text(prompt.body).font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineLimit(1)
+                    Text(prompt.body).font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineLimit(1)
                 }
             }
             Spacer(minLength: 6)
@@ -153,7 +153,7 @@ struct PromptEditor: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
                 TextEditor(text: $text)
-                    .font(Grok.mono(14))
+                    .font(Grok.sans(17))
                     .foregroundStyle(Grok.text)
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
@@ -163,7 +163,7 @@ struct PromptEditor: View {
                     .overlay(alignment: .topLeading) {
                         if text.isEmpty {
                             Text("Run the tests and fix any failures…")
-                                .font(Grok.mono(14)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(17)).foregroundStyle(Grok.textFaint)
                                 .padding(.horizontal, 21).padding(.top, 20)
                                 .allowsHitTesting(false)
                         }

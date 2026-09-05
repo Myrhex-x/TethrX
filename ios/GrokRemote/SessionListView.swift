@@ -157,11 +157,11 @@ struct SessionListView: View {
         HStack(alignment: .center) {
             HStack(spacing: 10) {
                 TethrXMark(size: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("TETHRX").font(Grok.mono(13, .semibold)).tracking(1.2).foregroundStyle(Grok.text)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(verbatim: "TethrX").font(Grok.sans(20, .semibold)).foregroundStyle(Grok.text)
                     if let grok = app.health?.grok {
                         Text(grok.replacingOccurrences(of: "grok ", with: "v"))
-                            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineLimit(1)
+                            .font(Grok.sans(12)).foregroundStyle(Grok.textFaint).lineLimit(1)
                     }
                 }
             }
@@ -184,9 +184,9 @@ struct SessionListView: View {
     /// connected — a failed delete/rename/switch just silently did nothing.
     private func errorBanner(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
                 .accessibilityHidden(true)
-            Text(message).font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(2)
+            Text(message).font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Spacer(minLength: 0)
             Button { app.errorMessage = nil } label: {
                 Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
@@ -207,14 +207,14 @@ struct SessionListView: View {
 
     private var demoBanner: some View {
         HStack(spacing: 10) {
-            Text("TOUR").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
+            Text("TOUR").font(Grok.sans(11, .bold)).tracking(0.8).foregroundStyle(.black)
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Grok.accent).clipShape(Capsule())
             Text("Sample data — nothing is connected.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             Spacer(minLength: 0)
             Button { app.exitDemo() } label: {
-                Text("Exit").font(Grok.mono(11, .semibold)).foregroundStyle(Grok.text)
+                Text("Exit").font(Grok.sans(14, .semibold)).foregroundStyle(Grok.text)
             }
             .buttonStyle(.plain)
         }
@@ -244,7 +244,7 @@ struct SessionListView: View {
                             } label: {
                                 HStack(spacing: 7) {
                                     Circle().fill(Grok.accent).frame(width: 6, height: 6)
-                                    Text(session.displayName).font(Grok.mono(12, .medium)).lineLimit(1)
+                                    Text(session.displayName).font(Grok.sans(15, .medium)).lineLimit(1)
                                     ElapsedLabel(since: Fmt.date(fromISO: session.isWaitingOnYou
                                                                  ? session.waiting?.since : session.runningSince))
                                 }
@@ -273,11 +273,11 @@ struct SessionListView: View {
                 Text("Your bridge needs an update").font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
             }
             Text("This version of the app needs bridge \(AppState.wantedBridgeVersion) or newer. On your computer, run:")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Text("npm i -g tethrx-bridge")
-                    .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
                 Button {
@@ -295,7 +295,7 @@ struct SessionListView: View {
             .overlay(RoundedRectangle(cornerRadius: 9).stroke(Grok.hairline, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 9))
             Text("Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
@@ -322,7 +322,7 @@ struct SessionListView: View {
                         .accessibilityHidden(true)
                     if app.defaultCwd.isEmpty {
                         Text("Choose a folder — or leave it on the computer's default")
-                            .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                            .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                             .lineLimit(1)
                     } else {
                         Text(app.defaultCwd)
@@ -336,10 +336,9 @@ struct SessionListView: View {
                             .accessibilityHidden(true)
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 13)
+                .padding(.horizontal, 16).padding(.vertical, 15)
                 .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -355,7 +354,7 @@ struct SessionListView: View {
                 }
             }
             Text("New sessions start Grok in this folder — pick the project you want it to work on.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
         }
     }
 
@@ -369,12 +368,12 @@ struct SessionListView: View {
                 Button { Haptics.tap(); newFolderName = ""; creatingFolder = true } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "folder.badge.plus").font(.system(size: 12, weight: .medium))
-                        Text("New folder").font(Grok.mono(11))
+                        Text("New folder").font(Grok.sans(14))
                     }
                     .foregroundStyle(Grok.textDim)
                 }
                 .buttonStyle(.plain)
-                Text("\(app.sessions.count)").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                Text("\(app.sessions.count)").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
             }
             .padding(.bottom, 12)
 
@@ -385,19 +384,19 @@ struct SessionListView: View {
             if app.switching || (app.connecting && app.sessions.isEmpty) {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small).tint(.white)
-                    Text("loading sessions…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    Text("loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)
                 .accessibilityElement(children: .combine)
             } else if app.sessions.isEmpty {
                 Text("// no sessions yet — tap + to start")
-                    .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
             } else if filteredSessions.isEmpty {
                 Text("// nothing matches \u{201C}\(query)\u{201D}")
-                    .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
             } else {
@@ -411,7 +410,7 @@ struct SessionListView: View {
                     if !collapsed.contains(group.folder) {
                         if group.items.isEmpty {
                             Text("// empty — use ••• on a session to move it here")
-                                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                                 .padding(.vertical, 10)
                         }
                         ForEach(Array(group.items.enumerated()), id: \.element.id) { index, session in
@@ -445,7 +444,7 @@ struct SessionListView: View {
                                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
                                 if let snippet = hit.hits.first?.snippet {
                                     Text("…\(snippet)…")
-                                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                                        .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                                         .lineLimit(2).multilineTextAlignment(.leading)
                                 }
                             }
@@ -493,8 +492,8 @@ struct SessionListView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
-            TextField("", text: $query, prompt: Text("search sessions").foregroundColor(Grok.textFaint))
-                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+            TextField("", text: $query, prompt: Text("Search sessions").foregroundColor(Grok.textFaint))
+                .font(Grok.sans(16)).foregroundStyle(Grok.text)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             if !query.isEmpty {
                 Button { query = "" } label: {
@@ -505,10 +504,9 @@ struct SessionListView: View {
                 .accessibilityLabel(Text("Clear search"))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 12)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
     }
 
     private func folderHeader(_ name: String, key: String, count: Int) -> some View {
@@ -523,8 +521,8 @@ struct SessionListView: View {
                         .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint).frame(width: 10)
                     Image(systemName: key.isEmpty ? "tray" : "folder.fill")
                         .font(.system(size: 11)).foregroundStyle(Grok.textDim)
-                    Text(name).font(Grok.mono(12, .semibold)).tracking(0.5).foregroundStyle(Grok.textDim)
-                    Text("\(count)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    Text(name).font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
+                    Text(verbatim: "\(count)").font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
@@ -666,7 +664,7 @@ struct InlineAnswer: View {
                         .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
                         .accessibilityHidden(true)
                     Text(risk.reason)
-                        .font(Grok.mono(10))
+                        .font(Grok.sans(13))
                         .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -735,7 +733,7 @@ struct ElapsedLabel: View {
         if let since {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text(verbatim: "· \(Fmt.elapsed(since: since, now: context.date))")
-                    .font(Grok.mono(9)).monospacedDigit()
+                    .font(Grok.sans(11)).monospacedDigit()
                     .foregroundStyle(Grok.textFaint)
             }
             .accessibilityHidden(true)
@@ -753,13 +751,13 @@ struct SessionRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(session.id.prefix(8))
-                        .font(Grok.mono(11, .medium)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     // Blocked on you outranks running: it is the state that needs an
                     // action, and it used to be invisible.
                     if session.isWaitingOnYou {
                         HStack(spacing: 5) {
                             Image(systemName: "hand.raised.fill").font(.system(size: 8, weight: .bold))
-                            Text("WAITING FOR YOU").font(Grok.mono(9, .semibold)).tracking(0.8)
+                            Text("WAITING FOR YOU").font(Grok.sans(11, .semibold)).tracking(0.4)
                             ElapsedLabel(since: Fmt.date(fromISO: session.waiting?.since))
                         }
                         .foregroundStyle(Grok.text)
@@ -767,25 +765,26 @@ struct SessionRow: View {
                     } else if session.isRunning {
                         HStack(spacing: 5) {
                             Circle().fill(Grok.accent).frame(width: 6, height: 6)
-                            Text("RUNNING").font(Grok.mono(9, .semibold)).tracking(0.8).foregroundStyle(Grok.accent)
+                            Text("RUNNING").font(Grok.sans(11, .semibold)).tracking(0.4).foregroundStyle(Grok.accent)
                             ElapsedLabel(since: Fmt.date(fromISO: session.runningSince))
                         }
                     }
                 }
-                Text(name).font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                Text(name).font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
                 HStack(spacing: 8) {
                     if let cwd = session.cwd, !cwd.isEmpty {
-                        Text(cwd).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
-                            .lineLimit(1).truncationMode(.head)
+                        Text((cwd as NSString).lastPathComponent)
+                            .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                            .lineLimit(1)
                     }
                     Text("· \(session.turnCount) turn\(session.turnCount == 1 ? "" : "s")")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
                     // Only when nothing is happening: a live session already carries
                     // a stopwatch, and two clocks in one row is one too many.
                     if !session.isRunning, !session.isWaitingOnYou,
                        let touched = Fmt.date(fromISO: session.updatedAt) {
                         Text(verbatim: "· \(Fmt.ago(touched))")
-                            .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                            .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
                     }
                 }
             }

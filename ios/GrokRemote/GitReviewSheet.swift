@@ -32,7 +32,7 @@ struct GitReviewSheet: View {
                     if loading {
                         HStack(spacing: 10) {
                             ProgressView().controlSize(.small).tint(.white)
-                            Text("reading git…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                            Text("reading git…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                         }
                         .accessibilityElement(children: .combine)
                     } else if status?.repo == false {
@@ -57,12 +57,12 @@ struct GitReviewSheet: View {
                         discardButton
                     }
                     if let note {
-                        Text(note).font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                        Text(note).font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(2)
                     }
                     if let errorText {
                         HStack(alignment: .top, spacing: 8) {
                             Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                            Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+                            Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
                         }
                     }
                 }
@@ -110,7 +110,7 @@ struct GitReviewSheet: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "folder").font(.system(size: 11))
-                    (repoName.isEmpty ? Text("repository") : Text(repoName)).font(Grok.mono(12, .semibold))
+                    (repoName.isEmpty ? Text("repository") : Text(repoName)).font(Grok.sans(15, .semibold))
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold))
                 }
                 .foregroundStyle(Grok.text)
@@ -122,7 +122,7 @@ struct GitReviewSheet: View {
         } else if !repoName.isEmpty {
             HStack(spacing: 6) {
                 Image(systemName: "folder").font(.system(size: 11)).foregroundStyle(Grok.textDim)
-                Text(repoName).font(Grok.mono(12, .semibold)).foregroundStyle(Grok.textDim)
+                Text(repoName).font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)
         }

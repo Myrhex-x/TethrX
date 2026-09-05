@@ -166,7 +166,7 @@ struct PairingView: View {
                                 HStack(spacing: 10) {
                                     Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                                        Text(bridge.name).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1)
                                         Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
                                     }
                                     Spacer(minLength: 0)
@@ -186,7 +186,7 @@ struct PairingView: View {
 
                 HStack(spacing: 12) {
                     divider
-                    Text("or enter by hand").font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                    Text("or enter by hand").font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
                     divider
                 }
                 .padding(.vertical, 2)
@@ -232,7 +232,7 @@ struct PairingView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
     private func note(_ s: LocalizedStringKey) -> some View {
-        Text(s).font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
+        Text(s).font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
     }
     private func codeLine(_ s: String) -> some View { CopyableCode(text: s) }
@@ -243,7 +243,7 @@ struct PairingView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
-                    Text(sub).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text(sub).font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Grok.textFaint)
@@ -266,7 +266,7 @@ struct PairingView: View {
     }
     private var backButton: some View {
         Button { path = idx == firstTailIndex ? .undecided : path; idx = max(idx - 1, 0) } label: {
-            Label("back", systemImage: "chevron.left").font(Grok.mono(12))
+            Label("back", systemImage: "chevron.left").font(Grok.sans(15))
         }
         .buttonStyle(.plain).foregroundStyle(Grok.textFaint)
         .frame(maxWidth: .infinity)
@@ -274,13 +274,13 @@ struct PairingView: View {
 
     private func errorRow(_ err: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-            Text(err).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
+            Text(err).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
         }
     }
     private var footer: some View {
         Text("A client for Grok Build · independent, not affiliated with xAI")
-            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
@@ -295,7 +295,7 @@ struct PairingView: View {
                         TextField("", text: text, prompt: Text(placeholder).foregroundColor(Grok.textFaint))
                     }
                 }
-                .font(Grok.mono(15))
+                .font(Grok.sans(17))
                 .foregroundStyle(Grok.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -341,7 +341,7 @@ private struct CopyableCode: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(text).font(Grok.mono(13)).foregroundStyle(Grok.text)
+            Text(text).font(Grok.sans(16)).foregroundStyle(Grok.text)
                 .lineLimit(1).minimumScaleFactor(0.6).textSelection(.enabled)
             Spacer(minLength: 0)
             Button {

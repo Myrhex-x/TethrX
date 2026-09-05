@@ -105,7 +105,7 @@ struct SettingsView: View {
             row("Computer", DemoData.health.host ?? "demo")
             row("Mode", String(localized: "Tour — nothing is connected"))
             Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Button { dismiss(); app.exitDemo() } label: {
                 Text("Exit the tour").frame(maxWidth: .infinity)
             }
@@ -118,27 +118,27 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("CONNECTION")
             Text("The bridge is the small helper program running on your computer — this phone talks only to it, never to a cloud.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             row("Bridge", app.normalizedBase.isEmpty ? "·" : app.normalizedBase)
             HStack {
-                Text("Security").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Text("Security").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 Spacer()
                 HStack(spacing: 5) {
                     Image(systemName: pinned ? "lock.fill" : "lock.open")
                         .font(.system(size: 10, weight: .semibold))
                     (pinned ? Text("HTTPS · certificate pinned") : Text("HTTP"))
                 }
-                .font(Grok.mono(12)).foregroundStyle(pinned ? Grok.text : Grok.textDim)
+                .font(Grok.sans(15)).foregroundStyle(pinned ? Grok.text : Grok.textDim)
             }
             if !pinned {
                 Text("Update the bridge (npm i -g tethrx-bridge) and reconnect — the app upgrades to pinned HTTPS automatically.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
             HStack {
-                Text("Token").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Text("Token").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 Spacer()
                 Text(revealToken ? app.token : String(repeating: "•", count: min(max(app.token.count, 1), 18)))
-                    .font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
                 Button { revealToken.toggle() } label: {
                     Image(systemName: revealToken ? "eye.slash" : "eye").font(.caption)
                         .frame(width: 40, height: 40).contentShape(Rectangle())
@@ -188,16 +188,16 @@ struct SettingsView: View {
             } else if loadingUsage {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.mini).tint(.white)
-                    Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 }
                 .accessibilityElement(children: .combine)
             } else if app.connected {
                 // Connected but the call failed — saying "connect to the bridge"
                 // here sent people debugging a connection that was fine.
                 Text("Couldn't load usage — tap refresh to retry.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             } else {
-                Text("Connect to the bridge to see usage.").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                Text("Connect to the bridge to see usage.").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             }
 
             if app.client != nil {
@@ -209,7 +209,7 @@ struct SettingsView: View {
             }
 
             Text("Totals across every session on this computer. Cost is grok's own estimate, not billing data from your account.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
         }
         .sheet(isPresented: $showingUsageHistory) {
             if let client = app.client { UsageHistorySheet(client: client) }
@@ -220,14 +220,14 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             Eyebrow("NEW SESSION DEFAULTS")
             Text("How every new session starts. Nothing here is locked in — the same controls sit above the message box inside each session.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Reasoning effort").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                Text("Reasoning effort").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 Text("Higher thinks longer and costs more tokens. High is Grok's default.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                 HStack(spacing: 8) {
                     ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
-                        Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.mono(12, .medium)) }
+                        Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.sans(15, .medium)) }
                             .buttonStyle(SegPill(selected: effectiveEffort == pair.1))
                     }
                     Spacer(minLength: 0)
@@ -249,7 +249,7 @@ struct SettingsView: View {
                     .foregroundStyle(watch.active ? Grok.text : Grok.textFaint)
                     .accessibilityHidden(true)
                 watchStatusLabel
-                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14).padding(.vertical, 13)
@@ -259,7 +259,7 @@ struct SettingsView: View {
             .accessibilityElement(children: .combine)
 
             watchExplanation
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -299,13 +299,13 @@ struct SettingsView: View {
             }
             if app.savedBridges.isEmpty {
                 Text("Computers you pair show up here.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textDim)
             } else {
                 ForEach(app.savedBridges) { bridge in
                     computerRow(bridge)
                 }
                 Text("Tap to switch computers.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Button { Haptics.tap(); addingComputer = true } label: {
                 Label("Add another computer", systemImage: "plus.circle")
@@ -341,7 +341,7 @@ struct SettingsView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(isActive ? Grok.accent : Grok.textFaint)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(bridge.name).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1)
+                        Text(bridge.name).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1)
                         HStack(spacing: 5) {
                             if let reachable {
                                 Circle().fill(reachable ? Color.green.opacity(0.85) : Grok.textFaint)
@@ -349,7 +349,7 @@ struct SettingsView: View {
                                     .accessibilityHidden(true)
                             }
                             Text(statusLine(bridge, reachable: reachable))
-                                .font(Grok.mono(10))
+                                .font(Grok.sans(13))
                                 .foregroundStyle(reachable == false ? Grok.textDim : Grok.textFaint)
                                 .lineLimit(1).truncationMode(.middle)
                         }
@@ -419,27 +419,27 @@ struct SettingsView: View {
                 Eyebrow("GROK PLUGINS")
                 if let plugins, plugins.isEmpty {
                     Text("No plugins installed. Their skills appear in the \u{201C}/\u{201D} menu once you add some.")
-                        .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
                 } else if let plugins {
                     ForEach(plugins) { plugin in pluginRow(plugin) }
                 } else if pluginsFailed {
                     Text("Couldn't load plugins — check that grok is installed on the computer.")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 } else {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.mini).tint(.white)
-                        Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                        Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                     }
                     .accessibilityElement(children: .combine)
                 }
                 if let pluginError {
-                    Text(pluginError).font(Grok.mono(11)).foregroundStyle(Grok.danger).lineSpacing(2)
+                    Text(pluginError).font(Grok.sans(14)).foregroundStyle(Grok.danger).lineSpacing(2)
                 }
                 HStack(spacing: 8) {
                     FieldBox {
                         TextField("", text: $installSource,
                                   prompt: Text("git URL or owner/repo…").foregroundColor(Grok.textFaint))
-                            .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                            .font(Grok.sans(15)).foregroundStyle(Grok.text)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                             .keyboardType(.URL)
                     }
@@ -458,7 +458,7 @@ struct SettingsView: View {
                     .accessibilityLabel(Text("Install plugin"))
                 }
                 Text("Plugins bundle skills, agents, and tools for Grok — and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
             .task(id: pluginsReloadKey) { await loadPlugins() }
             .confirmationDialog(
@@ -489,17 +489,17 @@ struct SettingsView: View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(plugin.name).font(Grok.mono(12)).foregroundStyle(plugin.isDisabled ? Grok.textDim : Grok.text)
+                    Text(plugin.name).font(Grok.sans(15)).foregroundStyle(plugin.isDisabled ? Grok.textDim : Grok.text)
                         .lineLimit(1)
                     if let v = plugin.version, !v.isEmpty {
-                        Text("v\(v)").font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                        Text("v\(v)").font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                     }
                 }
                 if let d = plugin.description, !d.isEmpty {
-                    Text(d).font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineLimit(2)
+                    Text(d).font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineLimit(2)
                 }
                 if !plugin.sourceLabel.isEmpty {
-                    Text(plugin.sourceLabel).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+                    Text(plugin.sourceLabel).font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
                         .lineLimit(1).truncationMode(.middle)
                 }
             }
@@ -578,7 +578,7 @@ struct SettingsView: View {
                       "Get alerted when Grok finishes a turn or needs approval — even with the app closed",
                       Binding(get: { push.enabled }, set: { $0 ? push.enable() : push.disable() }))
             Text("Requires an APNs key configured on your bridge. Delivered to this phone when it isn't actively watching a session.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
         }
     }
 
@@ -586,13 +586,13 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("PROMPTS")
             Text("Reusable prompts you write on this phone. They need no computer, and appear above the composer in every session.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             Button { showingLibrary = true } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "text.alignleft").font(.system(size: 12)).foregroundStyle(Grok.textDim)
-                    Text("Prompt library").font(Grok.mono(12)).foregroundStyle(Grok.text)
+                    Text("Prompt library").font(Grok.sans(15)).foregroundStyle(Grok.text)
                     Spacer(minLength: 8)
-                    Text("\(snippets.items.count)").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    Text("\(snippets.items.count)").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                     Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 13)
@@ -616,10 +616,10 @@ struct SettingsView: View {
             }
             if bridgeOutdated {
                 Text("On your computer: npm i -g tethrx-bridge, then restart the bridge.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Text("A client for Grok Build · independent, not affiliated with xAI.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
         }
         .task(id: app.connected) { await loadGrokUpdate() }
     }
@@ -629,14 +629,14 @@ struct SettingsView: View {
     @ViewBuilder private var grokUpdateRows: some View {
         if let u = grokUpdate, u.updateAvailable, let latest = u.latest {
             HStack(spacing: 10) {
-                Text("Grok \(latest) is out").font(Grok.mono(11)).foregroundStyle(Grok.text)
+                Text("Grok \(latest) is out").font(Grok.sans(14)).foregroundStyle(Grok.text)
                 Spacer()
                 Button {
                     Task { await installGrokUpdate() }
                 } label: {
                     HStack(spacing: 6) {
                         if grokUpdating { ProgressView().controlSize(.mini).tint(.black) }
-                        (grokUpdating ? Text("Updating…") : Text("Update now")).font(Grok.mono(11, .semibold))
+                        (grokUpdating ? Text("Updating…") : Text("Update now")).font(Grok.sans(14, .semibold))
                     }
                     .padding(.horizontal, 10).padding(.vertical, 5)
                     .background(Capsule().fill(Color.white))
@@ -648,11 +648,11 @@ struct SettingsView: View {
             }
             if u.autoUpdate == true {
                 Text("The bridge also installs this on its own once no session is running.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
         }
         if let note = grokUpdateNote {
-            Text(note).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+            Text(note).font(Grok.sans(13)).foregroundStyle(Grok.textDim)
         }
     }
 
@@ -692,17 +692,17 @@ struct SettingsView: View {
 
     private func row(_ key: LocalizedStringKey, _ value: String) -> some View {
         HStack {
-            Text(key).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+            Text(key).font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             Spacer()
-            Text(value).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+            Text(value).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
         }
     }
 
     private func toggleRow(_ title: LocalizedStringKey, _ subtitle: LocalizedStringKey, _ binding: Binding<Bool>) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(Grok.mono(12)).foregroundStyle(Grok.text)
-                Text(subtitle).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                Text(title).font(Grok.sans(15)).foregroundStyle(Grok.text)
+                Text(subtitle).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Spacer()
             // The title inside the Toggle (visually hidden) is what names the switch

@@ -21,7 +21,7 @@ struct ScanSheet: View {
             case .denied, .restricted:
                 denied
             default:
-                Text("Requesting camera access…").font(Grok.mono(13)).foregroundStyle(.white.opacity(0.7))
+                Text("Requesting camera access…").font(Grok.sans(16)).foregroundStyle(.white.opacity(0.7))
             }
 
             VStack {
@@ -35,7 +35,7 @@ struct ScanSheet: View {
                 Spacer()
                 if status == .authorized {
                     Text("open  localhost:4180/pair  on your computer\nand point the camera at a code")
-                        .font(Grok.mono(13)).foregroundStyle(.white).multilineTextAlignment(.center).lineSpacing(3)
+                        .font(Grok.sans(16)).foregroundStyle(.white).multilineTextAlignment(.center).lineSpacing(3)
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
                         .padding(.bottom, 30)
@@ -56,7 +56,7 @@ struct ScanSheet: View {
             Image(systemName: "camera.fill").font(.system(size: 30)).foregroundStyle(.white.opacity(0.7))
             Text("Camera access is off").font(Grok.sans(17, .semibold)).foregroundStyle(.white)
             Text("Turn on the camera for TethrX in Settings to scan the pairing code — or just type the address and token by hand.")
-                .font(Grok.mono(12)).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center).lineSpacing(2)
+                .font(Grok.sans(15)).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center).lineSpacing(2)
             Button("Open Settings") {
                 if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
             }

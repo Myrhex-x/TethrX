@@ -71,7 +71,7 @@ struct TaskListCard: View {
                             .font(.system(size: 9, weight: .bold))
                             .accessibilityHidden(true)
                         (expanded ? Text("Show fewer steps") : Text("Show all \(entries.count) steps"))
-                            .font(Grok.mono(11, .medium))
+                            .font(Grok.sans(14, .medium))
                     }
                     .foregroundStyle(Grok.textDim)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -96,7 +96,7 @@ struct TaskListCard: View {
                 Eyebrow("PLAN", comment: false)
                 Spacer(minLength: 0)
                 Text(verbatim: "\(entries.completedCount)/\(entries.count)")
-                    .font(Grok.mono(11, .semibold)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(14, .semibold)).foregroundStyle(Grok.textDim)
                     .monospacedDigit()
             }
             UsageBar(fraction: entries.isEmpty ? 0 : Double(entries.completedCount) / Double(entries.count))
@@ -109,7 +109,7 @@ struct TaskListCard: View {
     private func row(_ entry: PlanEntry) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 9) {
             Text(glyph(entry))
-                .font(Grok.mono(11, .bold))
+                .font(Grok.sans(14, .bold))
                 .foregroundStyle(entry.isDone ? Grok.textFaint : Grok.accent)
                 .frame(width: 12, alignment: .leading)
                 .accessibilityHidden(true)
@@ -146,7 +146,7 @@ struct PlanProgressPill: View {
                 .accessibilityHidden(true)
             Text(verbatim: "\(entries.completedCount)/\(entries.count)").monospacedDigit()
         }
-        .font(Grok.mono(11, .medium))
+        .font(Grok.sans(14, .medium))
         .foregroundStyle(Grok.textDim)
         .padding(.horizontal, 10).padding(.vertical, 6)
         .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))

@@ -160,7 +160,7 @@ struct SplitRootView: View {
                     Grok.bg.ignoresSafeArea()
                     VStack(spacing: 14) {
                         TethrXMark(size: 34, color: .white.opacity(0.25))
-                        Text("Pick a session").font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                        Text("Pick a session").font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     }
                 }
             }
@@ -196,18 +196,18 @@ struct ReconnectSplash: View {
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small).tint(.white)
-                Text("Reconnecting…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Text("Reconnecting…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)
             if takingLong {
                 VStack(spacing: 10) {
                     Text("Still trying to reach your computer.")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     Button {
                         app.disconnect()          // stop waiting; land on pairing with saved details intact
                         app.bootstrapping = false
                     } label: {
-                        Text("Stop and set up manually").font(Grok.mono(12))
+                        Text("Stop and set up manually").font(Grok.sans(15))
                     }
                     .buttonStyle(PillButton(kind: .subtle))
                 }

@@ -25,9 +25,9 @@ struct UsageHistorySheet: View {
                 VStack(alignment: .leading, spacing: 26) {
                     rangePicker
                     if loading && days.isEmpty {
-                        Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                        Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     } else if let errorText {
-                        Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
+                        Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger)
                     } else if active.isEmpty {
                         empty
                     } else {
@@ -83,9 +83,9 @@ struct UsageHistorySheet: View {
 
     private func stat(_ value: String, _ caption: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value).font(Grok.mono(17, .semibold)).foregroundStyle(Grok.text)
+            Text(value).font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
                 .minimumScaleFactor(0.7).lineLimit(1)
-            Text(caption).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+            Text(caption).font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -116,9 +116,9 @@ struct UsageHistorySheet: View {
             // carries the per-day detail anyway.
             if let first = days.first, let last = days.last {
                 HStack {
-                    Text(first.weekdayLabel).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+                    Text(first.weekdayLabel).font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
                     Spacer()
-                    Text(last.weekdayLabel).font(Grok.mono(9)).foregroundStyle(Grok.textFaint)
+                    Text(last.weekdayLabel).font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
                 }
             }
         }
@@ -129,13 +129,13 @@ struct UsageHistorySheet: View {
             Eyebrow("BY DAY")
             ForEach(recent.filter { $0.turns > 0 }) { day in
                 HStack(spacing: 10) {
-                    Text(day.date).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text(day.date).font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                         .frame(width: 86, alignment: .leading)
-                    Text(Fmt.tokens(day.totalTokens)).font(Grok.mono(12, .semibold))
+                    Text(Fmt.tokens(day.totalTokens)).font(Grok.sans(15, .semibold))
                         .foregroundStyle(Grok.text)
                     Spacer(minLength: 6)
-                    Text(turnsLabel(day.turns)).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
-                    Text(Fmt.cost(day.costUSD)).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text(turnsLabel(day.turns)).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                    Text(Fmt.cost(day.costUSD)).font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                         .frame(width: 58, alignment: .trailing)
                 }
             }
@@ -144,15 +144,15 @@ struct UsageHistorySheet: View {
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Nothing yet in this range.").font(Grok.mono(13)).foregroundStyle(Grok.text)
+            Text("Nothing yet in this range.").font(Grok.sans(16)).foregroundStyle(Grok.text)
             Text("Usage is counted from the day your bridge was updated to record it.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(2)
         }
     }
 
     private var footnote: some View {
         Text("Counted on your computer, from what Grok reports for each turn. Cost is Grok's own estimate, not billing data from your xAI account.")
-            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
     }
 
     // MARK: Data

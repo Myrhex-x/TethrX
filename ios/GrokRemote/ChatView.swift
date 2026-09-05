@@ -59,7 +59,7 @@ struct ChatView: View {
                 VStack(spacing: 1) {
                     HStack(spacing: 7) {
                         TethrXMark(size: 15)
-                        Text(name).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                        Text(name).font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
                         Circle().fill(vm.live ? Grok.accent : Grok.textFaint).frame(width: 6, height: 6)
                             .accessibilityLabel(vm.live ? "Connected" : "Reconnecting")
                     }
@@ -70,7 +70,7 @@ struct ChatView: View {
                     HStack(spacing: 6) {
                         if let u = vm.usage, u.contextWindow > 0 {
                             Text("\(Int(u.contextFraction * 100))% ctx · \(Fmt.tokens(u.totalTokens)) tok")
-                                .font(Grok.mono(9))
+                                .font(Grok.sans(11))
                                 .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
                         }
                         if vm.busy, let started = vm.turnStartedAt {
@@ -235,7 +235,7 @@ struct ChatView: View {
                 }
                 .accessibilityLabel(Text("Next match"))
             } else if findQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
-                Text("none").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                Text("none").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
             }
             Button {
                 withAnimation(.easeOut(duration: 0.15)) { finding = false }
@@ -412,7 +412,6 @@ struct ChatView: View {
 
     private var composer: some View {
         VStack(spacing: 0) {
-            Rectangle().fill(Grok.hairline).frame(height: 1)
             queuedRow
             attachmentsRow
             filesRow
@@ -420,12 +419,11 @@ struct ChatView: View {
             chatControls
             commandPalette
             HStack(alignment: .bottom, spacing: 10) {
-                HStack(alignment: .top, spacing: 8) {
-                    Text(">").font(Grok.mono(15, .bold)).foregroundStyle(Grok.accent).padding(.top, 2)
+                HStack(alignment: .bottom, spacing: 10) {
                     TextField("", text: $draft,
-                              prompt: (vm.busy ? Text("queue a follow-up…") : Text("message grok…")).foregroundColor(Grok.textFaint),
+                              prompt: (vm.busy ? Text("Queue a follow-up") : Text("Ask Grok anything")).foregroundColor(Grok.textFaint),
                               axis: .vertical)
-                        .font(Grok.mono(14))
+                        .font(Grok.body())
                         .foregroundStyle(Grok.text)
                         .lineLimit(1...5)
                         .focused($composerFocused)
@@ -433,7 +431,7 @@ struct ChatView: View {
                     if !vm.busy {
                         PhotosPicker(selection: $pickedItems, maxSelectionCount: 3, matching: .images) {
                             Image(systemName: "photo.on.rectangle")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(attachments.isEmpty ? Grok.textDim : Grok.accent)
                         }
                         .padding(.top, 1)
@@ -442,7 +440,7 @@ struct ChatView: View {
                     if !vm.busy {
                         Button { importingFile = true } label: {
                             Image(systemName: "paperclip")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(files.isEmpty ? Grok.textDim : Grok.accent)
                         }
                         .padding(.top, 1)
@@ -451,7 +449,7 @@ struct ChatView: View {
                     if dictation.supported {
                         Button { dictation.toggle(base: draft) } label: {
                             Image(systemName: dictation.isRecording ? "waveform" : "mic")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
                                 .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
                         }
@@ -478,11 +476,11 @@ struct ChatView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 11)
+                .padding(.horizontal, 18).padding(.vertical, 13)
                 .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: 14)
-                    .stroke(dictation.isRecording ? Grok.accent.opacity(0.5) : Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
+                    .stroke(dictation.isRecording ? Color.white.opacity(0.35) : .clear, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
 
                 trailingButtons
             }
@@ -498,7 +496,7 @@ struct ChatView: View {
         if let message = vm.errorMessage {
             HStack(alignment: .top, spacing: 8) {
                 Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                Text(message).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+                Text(message).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
                 Spacer(minLength: 0)
                 Button { vm.errorMessage = nil } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
@@ -791,13 +789,13 @@ struct ChatView: View {
                 HStack(spacing: 6) {
                     Text(cmd.display).font(Grok.mono(13, .semibold)).foregroundStyle(Grok.accent)
                     if cmd.scope != "builtin" {
-                        Text("skill").font(Grok.mono(8, .bold)).tracking(0.5).foregroundStyle(Grok.textFaint)
+                        Text("skill").font(Grok.sans(8, .bold)).tracking(0.5).foregroundStyle(Grok.textFaint)
                             .padding(.horizontal, 4).padding(.vertical, 1)
                             .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
                     }
                 }
                 if !cmd.description.isEmpty {
-                    Text(cmd.description).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                    Text(cmd.description).font(Grok.sans(13)).foregroundStyle(Grok.textDim)
                         .lineLimit(2).multilineTextAlignment(.leading)
                 }
             }
@@ -971,7 +969,7 @@ struct HandoffCard: View {
                 Image(systemName: "arrow.triangle.merge")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.accent)
                     .accessibilityHidden(true)
-                Text("CARRIED OVER").font(Grok.mono(10, .bold)).tracking(1.2).foregroundStyle(Grok.text)
+                Text("CARRIED OVER").font(Grok.sans(13, .bold)).tracking(1.2).foregroundStyle(Grok.text)
             }
             Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message — nothing to paste.")
                 .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
@@ -1140,28 +1138,29 @@ struct ChatBubble: View {
                     }
                     if !item.text.isEmpty {
                         Text(marked(item.text))
-                            .font(Grok.sans(15))
+                            .font(Grok.body())
                             .foregroundStyle(Grok.text)
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(Grok.raised)
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .lineSpacing(2)
+                            .padding(.horizontal, 16).padding(.vertical, 11)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: Grok.R.bubble, style: .continuous))
                     }
                 }
             }
 
         case .assistant:
-            VStack(alignment: .leading, spacing: 10) {
-                Eyebrow("GROK")
+            // No bubble and no "GROK" label: the reply IS the page, which is how
+            // Grok's own app reads. Only what you said gets a container.
+            VStack(alignment: .leading, spacing: 12) {
                 // Index-keyed so streaming appends don't rebuild every segment.
                 ForEach(Array(Self.segments(item.text).enumerated()), id: \.offset) { _, seg in
                     if seg.isCode {
                         CodeBlock(code: seg.text, language: seg.language)
                     } else {
                         Text(Self.marking(Self.markdown(seg.text), query: highlight))
-                            .font(Grok.sans(15))
+                            .font(Grok.body())
                             .foregroundStyle(Grok.text)
-                            .lineSpacing(3)
+                            .lineSpacing(5)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1170,12 +1169,12 @@ struct ChatBubble: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .thought:
-            HStack(alignment: .top, spacing: 10) {
-                Rectangle().fill(Grok.hairlineStrong).frame(width: 2)
+            HStack(alignment: .top, spacing: 12) {
+                Capsule().fill(Grok.hairlineStrong).frame(width: 2)
                 Text(marked(item.text))
-                    .font(Grok.mono(12))
+                    .font(Grok.sans(15))
                     .foregroundStyle(Grok.textDim)
-                    .lineSpacing(2)
+                    .lineSpacing(4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1187,19 +1186,22 @@ struct ChatBubble: View {
 
         case .status:
             Text(item.text)
-                .font(Grok.mono(11)).tracking(0.5)
+                .font(Grok.sans(12))
                 .foregroundStyle(Grok.textFaint)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 2)
 
         case .error:
-            HStack(alignment: .top, spacing: 8) {
-                Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                Text(item.text).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 14)).foregroundStyle(Grok.danger)
+                    .accessibilityHidden(true)
+                Text(item.text).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(3)
             }
-            .padding(12)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.danger.opacity(0.4), lineWidth: 1))
+            .background(Grok.danger.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
         }
     }
 }
@@ -1295,7 +1297,7 @@ struct ToolLine: View {
                         withAnimation(.easeInOut(duration: 0.15)) { showOutput.toggle() }
                     } label: {
                         HStack(spacing: 4) {
-                            Text("output").font(Grok.mono(10))
+                            Text("output").font(Grok.sans(13))
                             Image(systemName: showOutput ? "chevron.up" : "chevron.down")
                                 .font(.system(size: 9, weight: .bold))
                         }
@@ -1759,7 +1761,7 @@ struct SessionDetailsSheet: View {
                 Text("Grok writes a handoff summary of this conversation, and a fresh session starts from it. This one stays untouched.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 if let compactError {
-                    Text(compactError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                    Text(compactError).font(Grok.sans(14)).foregroundStyle(Grok.danger)
                 }
             }
 
@@ -1776,7 +1778,7 @@ struct SessionDetailsSheet: View {
                 Text("Starts a second session that already knows everything this one knows — for trying another approach without losing this one.")
                     .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 if let branchError {
-                    Text(branchError).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                    Text(branchError).font(Grok.sans(14)).foregroundStyle(Grok.danger)
                 }
             }
 
@@ -1881,9 +1883,9 @@ struct SessionDetailsSheet: View {
 
     private func row(_ k: LocalizedStringKey, _ v: String) -> some View {
         HStack {
-            Text(k).font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+            Text(k).font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             Spacer()
-            Text(v).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+            Text(v).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
         }
     }
 }

@@ -18,20 +18,20 @@ struct SchedulesSection: View {
                 ForEach(schedules) { s in row(s) }
             } else if schedules != nil {
                 Text("Run a prompt automatically — every morning, weekdays, whenever.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             } else if loadFailed {
                 // "nil forever" looked like schedules had been deleted; say what happened.
                 Text("Couldn't load schedules — the bridge may need an update.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             } else if app.client != nil {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.mini).tint(.white)
-                    Text("Loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 }
                 .accessibilityElement(children: .combine)
             }
             if let errorText {
-                Text(errorText).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                Text(errorText).font(Grok.sans(14)).foregroundStyle(Grok.danger)
             }
 
             Button { Haptics.tap(); adding = true } label: {
@@ -41,10 +41,10 @@ struct SchedulesSection: View {
             .disabled(app.sessions.isEmpty)
             if app.sessions.isEmpty {
                 Text("Create a session first — a schedule runs inside one.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Text("Runs on your computer's clock, even with this phone off. You'll get a push when it finishes.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
         }
         .task { await load() }
         .sheet(isPresented: $adding, onDismiss: { Task { await load() } }) {
@@ -56,9 +56,9 @@ struct SchedulesSection: View {
         let sessionName = app.sessions.first(where: { $0.id == s.sessionId })?.displayName ?? "session"
         return HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(s.prompt).font(Grok.mono(12)).foregroundStyle(Grok.text).lineLimit(2)
+                Text(s.prompt).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(2)
                 Text("\(s.timeLabel) · \(s.daysLabel) · \(sessionName)")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Spacer(minLength: 8)
             Toggle(s.prompt, isOn: Binding(
@@ -138,7 +138,7 @@ struct ScheduleEditorSheet: View {
                         } label: {
                             HStack {
                                 Text(selectedSession?.displayName ?? "choose…")
-                                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
                                 Spacer()
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 11)).foregroundStyle(Grok.textFaint)
@@ -149,7 +149,7 @@ struct ScheduleEditorSheet: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
                         Text("The task runs in this session — its folder, effort, and approval settings apply.")
-                            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -158,7 +158,7 @@ struct ScheduleEditorSheet: View {
                             TextField("", text: $prompt,
                                       prompt: Text("pull main, run the tests, summarize failures…").foregroundColor(Grok.textFaint),
                                       axis: .vertical)
-                                .font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(2...5)
+                                .font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(2...5)
                         }
                     }
 
@@ -178,7 +178,7 @@ struct ScheduleEditorSheet: View {
                                     if weekdays.contains(d) { weekdays.remove(d) } else { weekdays.insert(d) }
                                 } label: {
                                     Text(daySymbols.indices.contains(d) ? daySymbols[d] : "?")
-                                        .font(Grok.mono(11, .semibold))
+                                        .font(Grok.sans(14, .semibold))
                                         .frame(width: 34, height: 34)
                                         .background(weekdays.contains(d) ? Color.white : Color.clear)
                                         .foregroundStyle(weekdays.contains(d) ? .black : Grok.textDim)
@@ -195,11 +195,11 @@ struct ScheduleEditorSheet: View {
                         (weekdays.isEmpty
                             ? Text("Every day")
                             : Text("Uses your computer's clock and time zone."))
-                            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                     }
 
                     if let errorText {
-                        Text(errorText).font(Grok.mono(11)).foregroundStyle(Grok.danger)
+                        Text(errorText).font(Grok.sans(14)).foregroundStyle(Grok.danger)
                     }
 
                     Button { Task { await save() } } label: {

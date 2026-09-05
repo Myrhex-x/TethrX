@@ -102,13 +102,13 @@ struct WelcomeView: View {
                         Text(snippets.items.isEmpty ? "Open" : "All \(snippets.items.count)")
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                     }
-                    .font(Grok.mono(11, .medium)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(14, .medium)).foregroundStyle(Grok.textDim)
                 }
                 .buttonStyle(.plain)
             }
 
             Text("Kept on this phone. Tap one into any session once a computer is connected.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
@@ -116,7 +116,7 @@ struct WelcomeView: View {
                     TextField("", text: $draft,
                               prompt: Text("write a task…").foregroundColor(Grok.textFaint),
                               axis: .vertical)
-                        .font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1...4)
+                        .font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1...4)
                         .focused($draftFocused)
                 }
                 CircleIconButton(system: "plus", filled: !isBlankDraft, enabled: !isBlankDraft,
@@ -138,7 +138,7 @@ struct WelcomeView: View {
                     Image(systemName: "square.and.pencil").font(.system(size: 12, weight: .medium))
                     Text("Write a longer prompt")
                 }
-                .font(Grok.mono(12, .medium)).foregroundStyle(Grok.textDim)
+                .font(Grok.sans(15, .medium)).foregroundStyle(Grok.textDim)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
                 .overlay(RoundedRectangle(cornerRadius: 11).stroke(Grok.hairline, lineWidth: 1))
@@ -166,7 +166,7 @@ struct WelcomeView: View {
                 Text("Welcome back").font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
             }
             Text("This phone is already paired with \(name).")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(3)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 draftFocused = false
@@ -196,14 +196,14 @@ struct WelcomeView: View {
 
     private func errorRow(_ err: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-            Text(err).font(Grok.mono(12)).foregroundStyle(Grok.danger).lineSpacing(2)
+            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
+            Text(err).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
         }
     }
 
     private var footer: some View {
         Text("A client for Grok Build · independent, not affiliated with xAI")
-            .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, 4)
     }

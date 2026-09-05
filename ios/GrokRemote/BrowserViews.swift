@@ -36,14 +36,14 @@ struct DirectoryPickerSheet: View {
                         } else if loading {
                             HStack(spacing: 10) {
                                 ProgressView().controlSize(.small).tint(.white)
-                                Text("reading folders…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                                Text("reading folders…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                             }
                             .accessibilityElement(children: .combine)
                         }
                         if let errorText {
                             HStack(alignment: .top, spacing: 8) {
                                 Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                                Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
+                                Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger)
                             }
                         }
                         if listing?.parent == nil, !recents.isEmpty { recentsSection }
@@ -139,7 +139,7 @@ struct DirectoryPickerSheet: View {
         } else if searching {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small).tint(.white)
-                Text("searching…").font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                Text("searching…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)
         }
@@ -285,7 +285,7 @@ struct FileFolderScreen: View {
             VStack(alignment: .leading, spacing: 0) {
                 if let entries {
                     if entries.isEmpty {
-                        Text("// empty folder").font(Grok.mono(12)).foregroundStyle(Grok.textFaint).padding(16)
+                        Text("// empty folder").font(Grok.sans(15)).foregroundStyle(Grok.textFaint).padding(16)
                     }
                     ForEach(entries) { e in
                         NavigationLink(value: BrowsePath(path: relPath.isEmpty ? e.name : relPath + "/" + e.name, isFile: !e.dir)) {
@@ -310,7 +310,7 @@ struct FileFolderScreen: View {
                 } else if let errorText {
                     HStack(alignment: .top, spacing: 8) {
                         Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
-                        Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
+                        Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger)
                     }
                     .padding(16)
                 } else {
@@ -369,7 +369,7 @@ struct FileViewerScreen: View {
                     }
                 }
             } else if let errorText {
-                Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger).padding(16)
+                Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger).padding(16)
             } else {
                 ProgressView().controlSize(.small).tint(.white).padding(20)
             }
