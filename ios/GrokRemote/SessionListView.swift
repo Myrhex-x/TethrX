@@ -27,16 +27,17 @@ struct SessionListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 22) {
                     header
                     if app.demoMode { demoBanner }
                     if let err = app.errorMessage, !app.demoMode { errorBanner(err) }
                     if app.bridgeNeedsUpdate { updateBanner }
-                    workingDir
-                    runningNow
+                    searchField
+                    needsYou
                     sessions
+                    projectFolderRow
                 }
-                .padding(20)
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 28)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -228,37 +229,83 @@ struct SessionListView: View {
 
     /// Sessions with a turn in flight, surfaced above the folders — with schedules
     /// and long tasks, the RUNNING badges alone are too easy to lose in the list.
-    @ViewBuilder private var runningNow: some View {
-        // A session blocked on an approval is the one you most need to find, so it
-        // belongs in this strip too, listed first.
-        let running = app.sessions.filter { $0.isRunning || $0.isWaitingOnYou }
-            .sorted { ($0.isWaitingOnYou ? 0 : 1) < ($1.isWaitingOnYou ? 0 : 1) }
-        if !running.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Eyebrow("RUNNING NOW")
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(running) { session in
-                            Button {
-                                if let onSelect { onSelect(session) } else if !path.contains(where: { $0.id == session.id }) { path.append(session) }
-                            } label: {
-                                HStack(spacing: 7) {
-                                    Circle().fill(Grok.accent).frame(width: 6, height: 6)
-                                    Text(session.displayName).font(Grok.sans(15, .medium)).lineLimit(1)
-                                    ElapsedLabel(since: Fmt.date(fromISO: session.isWaitingOnYou
-                                                                 ? session.waiting?.since : session.runningSince))
-                                }
-                                .foregroundStyle(Grok.text)
-                                .padding(.horizontal, 12).padding(.vertical, 8)
-                                .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
-                                .contentShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
+    /// What is happening right now, at the very top, with the answer in reach.
+    ///
+    /// A blocked session and a working one used to share one horizontal strip of
+    /// identical pills that you had to swipe through and then open. The thing you
+    /// came here to do is usually to answer something, so it is first and it is
+    /// answerable in place.
+    @ViewBuilder private var needsYou: some View {
+        let waiting = app.sessions.filter { $0.isWaitingOnYou }
+        let running = app.sessions.filter { $0.isRunning && !$0.isWaitingOnYou }
+        if !waiting.isEmpty || !running.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Eyebrow(waiting.isEmpty ? "WORKING" : "NEEDS YOU")
+                ForEach(waiting) { session in activeCard(session) }
+                if !running.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(running.enumerated()), id: \.element.id) { index, session in
+                            if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
+                            runningRow(session)
                         }
                     }
+                    .padding(.horizontal, 14)
+                    .background(Grok.raised)
+                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
                 }
             }
         }
+    }
+
+    /// A blocked session: its name, and the approval, together.
+    private func activeCard(_ session: SessionInfo) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                open(session)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "hand.raised.fill").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Grok.text)
+                        .accessibilityHidden(true)
+                    Text(session.displayName)
+                        .font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
+                    ElapsedLabel(since: Fmt.date(fromISO: session.waiting?.since))
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Grok.textFaint)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if session.waiting?.requestId != nil {
+                InlineAnswer(session: session).padding(.horizontal, 2)
+            }
+        }
+        .background(Grok.raised)
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+    }
+
+    private func runningRow(_ session: SessionInfo) -> some View {
+        Button { open(session) } label: {
+            HStack(spacing: 10) {
+                WorkingDot()
+                Text(session.displayName)
+                    .font(Grok.sans(16, .medium)).foregroundStyle(Grok.text).lineLimit(1)
+                ElapsedLabel(since: Fmt.date(fromISO: session.runningSince))
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Open a session, whichever layout this list is driving.
+    private func open(_ session: SessionInfo) {
+        if let onSelect { onSelect(session) }
+        else if !path.contains(where: { $0.id == session.id }) { path.append(session) }
     }
 
     // MARK: Bridge update banner
@@ -306,55 +353,50 @@ struct SessionListView: View {
 
     // MARK: Working directory
 
-    private var workingDir: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Eyebrow("PROJECT FOLDER")
-            // A tappable picker, not a Unix-path text field — browsing and searching
-            // the computer's folders beats typing /Users/… on a phone keyboard.
-            Button {
-                guard !app.demoMode else { return }
-                Haptics.tap()
-                pickingCwd = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "folder").font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Grok.textDim)
+    /// Where a NEW session starts. It is a default, not a thing you came here to
+    /// manage, so it sits at the bottom as one row instead of a card, a paragraph
+    /// and a heading at the top of everything.
+    private var projectFolderRow: some View {
+        Button {
+            guard !app.demoMode else { return }
+            Haptics.tap()
+            pickingCwd = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "folder").font(.system(size: 14))
+                    .foregroundStyle(Grok.textFaint)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("New sessions start in")
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                    Text(app.defaultCwd.isEmpty
+                         ? String(localized: "the computer's default folder")
+                         : (app.defaultCwd as NSString).lastPathComponent)
+                        .font(Grok.sans(15, .medium)).foregroundStyle(Grok.textDim).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if !app.demoMode {
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Grok.textFaint)
                         .accessibilityHidden(true)
-                    if app.defaultCwd.isEmpty {
-                        Text("Choose a folder — or leave it on the computer's default")
-                            .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
-                            .lineLimit(1)
-                    } else {
-                        Text(app.defaultCwd)
-                            .font(Grok.mono(13)).foregroundStyle(Grok.text)
-                            .lineLimit(1).truncationMode(.head)
-                    }
-                    Spacer(minLength: 0)
-                    if !app.demoMode {
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 15)
-                .background(Grok.raised)
-                .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(app.defaultCwd.isEmpty
-                                ? Text("Project folder: computer's default")
-                                : Text("Project folder: \(app.defaultCwd)"))
-            .accessibilityHint(Text("Opens the folder picker"))
-            .contextMenu {
-                if !app.defaultCwd.isEmpty {
-                    Button { app.defaultCwd = "" } label: {
-                        Label("Reset to the computer's default", systemImage: "arrow.uturn.backward")
-                    }
                 }
             }
-            Text("New sessions start Grok in this folder — pick the project you want it to work on.")
-                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .background(Grok.raised)
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(app.defaultCwd.isEmpty
+                            ? Text("New sessions start in the computer's default folder")
+                            : Text("New sessions start in \(app.defaultCwd)"))
+        .accessibilityHint(Text("Opens the folder picker"))
+        .contextMenu {
+            if !app.defaultCwd.isEmpty {
+                Button { app.defaultCwd = "" } label: {
+                    Label("Reset to the computer's default", systemImage: "arrow.uturn.backward")
+                }
+            }
         }
     }
 
@@ -362,63 +404,44 @@ struct SessionListView: View {
 
     private var sessions: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Eyebrow("SESSIONS")
-                Spacer()
-                Button { Haptics.tap(); newFolderName = ""; creatingFolder = true } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "folder.badge.plus").font(.system(size: 12, weight: .medium))
-                        Text("New folder").font(Grok.sans(14))
-                    }
-                    .foregroundStyle(Grok.textDim)
-                }
-                .buttonStyle(.plain)
-                Text("\(app.sessions.count)").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
-            }
-            .padding(.bottom, 12)
-
-            // `|| !query.isEmpty`: the field must not vanish (at ≤6 sessions) while
-            // its query still filters the list — that stranded an unclearable filter.
-            if app.sessions.count > 6 || !query.isEmpty { searchField.padding(.bottom, 14) }
-
             if app.switching || (app.connecting && app.sessions.isEmpty) {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small).tint(.white)
-                    Text("loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+                    Text("Loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)
                 .accessibilityElement(children: .combine)
             } else if app.sessions.isEmpty {
-                Text("// no sessions yet — tap + to start")
-                    .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 24)
+                emptyHistory
             } else if filteredSessions.isEmpty {
-                Text("// nothing matches \u{201C}\(query)\u{201D}")
+                Text("Nothing matches \u{201C}\(query)\u{201D}")
                     .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
             } else {
-                let groups = groupedSessions
-                let hasFolders = groups.contains { !$0.folder.isEmpty }
-                ForEach(groups, id: \.folder) { group in
-                    if !group.folder.isEmpty || hasFolders {
-                        folderHeader(group.folder.isEmpty ? String(localized: "Ungrouped") : group.folder,
-                                     key: group.folder, count: group.items.count)
-                    }
-                    if !collapsed.contains(group.folder) {
-                        if group.items.isEmpty {
-                            Text("// empty — use ••• on a session to move it here")
-                                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
-                                .padding(.vertical, 10)
+                ForEach(historySections, id: \.key) { section in
+                    sectionHeader(section)
+                    if !collapsed.contains(section.key) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(section.items.enumerated()), id: \.element.id) { index, session in
+                                if index > 0 {
+                                    Rectangle().fill(Grok.hairline).frame(height: 1)
+                                        .padding(.leading, 2)
+                                }
+                                sessionLink(session)
+                            }
+                            if section.items.isEmpty {
+                                Text("Empty — use ••• on a session to move it here")
+                                    .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
+                                    .padding(.vertical, 14)
+                            }
                         }
-                        ForEach(Array(group.items.enumerated()), id: \.element.id) { index, session in
-                            if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
-                            sessionLink(session)
-                        }
+                        .padding(.horizontal, 14)
+                        .background(Grok.raised)
+                        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
                     }
-                    if hasFolders { Color.clear.frame(height: 8) }
+                    Color.clear.frame(height: 16)
                 }
             }
 
@@ -472,9 +495,52 @@ struct SessionListView: View {
         }
     }
 
-    // Ungrouped sessions first, then folders alphabetically; order within a group preserved.
-    // Freshly-created (still empty) folders are shown too, so they're somewhere to drop
-    // sessions into — but they're hidden while searching, where they'd just be noise.
+    /// One section of the history list.
+    struct HistorySection {
+        /// Stable identity for collapse state; also the folder name when it is one.
+        var key: String
+        var title: String
+        var items: [SessionInfo]
+        var isFolder: Bool
+        var systemImage: String
+    }
+
+    /// Pinned first, then any folders you made, then everything else by when you last
+    /// touched it. Creation order buried the session you work in daily, and a flat
+    /// list of forty gave no way in at all.
+    private var historySections: [HistorySection] {
+        let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
+        var used = Set<String>()
+        var out: [HistorySection] = []
+
+        let pinned = filteredSessions.filter { app.pinned.contains($0.id) }
+        if !pinned.isEmpty {
+            out.append(HistorySection(key: "\u{1}pinned", title: String(localized: "Pinned"),
+                                      items: pinned, isFolder: false, systemImage: "pin.fill"))
+            used.formUnion(pinned.map(\.id))
+        }
+
+        for name in app.orderedFolders {
+            let items = filteredSessions.filter { $0.folder == name && !used.contains($0.id) }
+            // A folder you just made has nowhere to drop things if it vanishes, so it
+            // survives empty — but not while searching, where it is only noise.
+            if items.isEmpty && searching { continue }
+            out.append(HistorySection(key: name, title: name, items: items,
+                                      isFolder: true, systemImage: "folder.fill"))
+            used.formUnion(items.map(\.id))
+        }
+
+        let rest = filteredSessions.filter { !used.contains($0.id) }
+        for bucket in RecencyBucket.allCases {
+            let items = rest.filter { bucket.contains(Fmt.date(fromISO: $0.updatedAt)) }
+            guard !items.isEmpty else { continue }
+            out.append(HistorySection(key: "\u{1}" + bucket.rawValue, title: bucket.title,
+                                      items: items, isFolder: false, systemImage: "clock"))
+        }
+        return out
+    }
+
+    // Kept for the iPad sidebar's older call sites.
     private var groupedSessions: [(folder: String, items: [SessionInfo])] {
         let groups = Dictionary(grouping: filteredSessions) { ($0.folder?.isEmpty == false) ? $0.folder! : "" }
         let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
@@ -490,8 +556,24 @@ struct SessionListView: View {
     }
 
     private var searchField: some View {
+        HStack(spacing: 10) {
+            searchBox
+            Button { Haptics.tap(); newFolderName = ""; creatingFolder = true } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Grok.textDim)
+                    .frame(width: 44, height: 44)
+                    .background(Grok.raised, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("New folder"))
+        }
+    }
+
+    private var searchBox: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
+            Image(systemName: "magnifyingglass").font(.system(size: 14)).foregroundStyle(Grok.textFaint)
             TextField("", text: $query, prompt: Text("Search sessions").foregroundColor(Grok.textFaint))
                 .font(Grok.sans(16)).foregroundStyle(Grok.text)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -509,57 +591,73 @@ struct SessionListView: View {
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
     }
 
-    private func folderHeader(_ name: String, key: String, count: Int) -> some View {
-        HStack(spacing: 4) {
+    private func sectionHeader(_ section: HistorySection) -> some View {
+        HStack(spacing: 6) {
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
-                    if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
+                    if collapsed.contains(section.key) { collapsed.remove(section.key) }
+                    else { collapsed.insert(section.key) }
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: collapsed.contains(key) ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint).frame(width: 10)
-                    Image(systemName: key.isEmpty ? "tray" : "folder.fill")
-                        .font(.system(size: 11)).foregroundStyle(Grok.textDim)
-                    Text(name).font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
-                    Text(verbatim: "\(count)").font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                    Image(systemName: section.systemImage)
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Grok.textFaint)
+                        .accessibilityHidden(true)
+                    Text(section.title)
+                        .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
+                    Text(verbatim: "\(section.items.count)")
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                    Image(systemName: collapsed.contains(section.key) ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint)
+                        .accessibilityHidden(true)
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text("\(name), \(count) sessions"))
-            .accessibilityHint(Text(collapsed.contains(key) ? "Expands the folder" : "Collapses the folder"))
+            .accessibilityLabel(Text("\(section.title), \(section.items.count) sessions"))
+            .accessibilityHint(Text(collapsed.contains(section.key) ? "Expands the section" : "Collapses the section"))
 
-            // Visible, like the row menus — reordering shouldn't be a hidden gesture.
-            if !key.isEmpty {
+            // Only a folder you made can be reordered or deleted; a date is a fact.
+            if section.isFolder {
                 Menu {
-                    Button { app.moveFolder(key, by: -1) } label: { Label("Move up", systemImage: "arrow.up") }
-                    Button { app.moveFolder(key, by: 1) } label: { Label("Move down", systemImage: "arrow.down") }
-                    Button(role: .destructive) { Task { await app.deleteFolder(key) } } label: {
+                    Button { app.moveFolder(section.key, by: -1) } label: { Label("Move up", systemImage: "arrow.up") }
+                    Button { app.moveFolder(section.key, by: 1) } label: { Label("Move down", systemImage: "arrow.down") }
+                    Button(role: .destructive) { Task { await app.deleteFolder(section.key) } } label: {
                         Label("Delete folder", systemImage: "folder.badge.minus")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Grok.textFaint)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 44, height: 40)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel(Text("Folder options for \(name)"))
+                .accessibilityLabel(Text("Folder options for \(section.title)"))
             }
         }
-        .padding(.vertical, 10)
+        .padding(.bottom, 8)
+    }
+
+    /// Nothing here yet: say what to do, once, instead of a comment glyph.
+    private var emptyHistory: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No sessions yet").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
+            Text("Tap + to start one on your computer.")
+                .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 28)
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 2) {
                 if let onSelect {
-                    Button { onSelect(session) } label: { SessionRow(session: session) }
+                    Button { onSelect(session) } label: { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
                         .buttonStyle(.plain)
                 } else {
-                    NavigationLink(value: session) { SessionRow(session: session) }
+                    NavigationLink(value: session) { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
                         .buttonStyle(.plain)
                 }
                 // Visible affordance — the same actions used to be long-press only.
@@ -574,16 +672,19 @@ struct SessionListView: View {
                 }
                 .accessibilityLabel(Text("Session options for \(session.displayName)"))
             }
-            // Answering has to live OUTSIDE the navigation link: a button inside one
-            // is swallowed by the row's own tap.
-            if session.waiting?.requestId != nil {
-                InlineAnswer(session: session)
-            }
+            // The answer lives ONLY in the section at the top. A session still shows
+            // its WAITING badge down here, but two identical approval cards on one
+            // screen is a question asked twice.
         }
         .contextMenu { menuItems(session) }
     }
 
     @ViewBuilder private func menuItems(_ session: SessionInfo) -> some View {
+        Button { app.togglePin(session.id) } label: {
+            app.pinned.contains(session.id)
+                ? Label("Unpin", systemImage: "pin.slash")
+                : Label("Pin to the top", systemImage: "pin")
+        }
         Button { renameText = session.title; renaming = session } label: { Label("Rename", systemImage: "pencil") }
         moveMenu(session)
         // Branching a session with history costs a summary turn, so it stays out of
@@ -723,6 +824,20 @@ struct InlineAnswer: View {
     }
 }
 
+/// A slowly breathing dot: a session that is working should look like it is.
+struct WorkingDot: View {
+    @State private var on = false
+    var body: some View {
+        Circle()
+            .fill(Grok.accent)
+            .frame(width: 7, height: 7)
+            .opacity(on ? 1 : 0.35)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: on)
+            .onAppear { on = true }
+            .accessibilityHidden(true)
+    }
+}
+
 /// A ticking "· 4m" beside a RUNNING or WAITING badge. A badge alone is the same
 /// shape at four seconds and at forty minutes, which is the difference between
 /// "it's working" and "it's stuck".
@@ -741,8 +856,39 @@ struct ElapsedLabel: View {
     }
 }
 
+/// How the history is cut when it is not in a folder you made.
+enum RecencyBucket: String, CaseIterable {
+    case today, yesterday, week, month, older
+
+    var title: String {
+        switch self {
+        case .today:     return String(localized: "Today")
+        case .yesterday: return String(localized: "Yesterday")
+        case .week:      return String(localized: "Previous 7 days")
+        case .month:     return String(localized: "Previous 30 days")
+        case .older:     return String(localized: "Older")
+        }
+    }
+
+    /// A session the bridge never dated falls into `older` rather than vanishing.
+    func contains(_ date: Date?, now: Date = Date()) -> Bool {
+        guard let date else { return self == .older }
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return self == .today }
+        if cal.isDateInYesterday(date) { return self == .yesterday }
+        let days = cal.dateComponents([.day], from: date, to: now).day ?? 0
+        switch self {
+        case .week:  return days < 7
+        case .month: return days >= 7 && days < 30
+        case .older: return days >= 30
+        default:     return false
+        }
+    }
+}
+
 struct SessionRow: View {
     let session: SessionInfo
+    var pinned: Bool = false
 
     private var name: String { session.displayName }
 
@@ -750,8 +896,14 @@ struct SessionRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
+                    if pinned {
+                        Image(systemName: "pin.fill").font(.system(size: 9))
+                            .foregroundStyle(Grok.textFaint)
+                            .accessibilityLabel(Text("Pinned"))
+                    }
+                    // An id is an identifier, so it keeps the mono face.
                     Text(session.id.prefix(8))
-                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
                     // Blocked on you outranks running: it is the state that needs an
                     // action, and it used to be invisible.
                     if session.isWaitingOnYou {

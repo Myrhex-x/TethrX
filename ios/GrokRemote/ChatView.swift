@@ -432,7 +432,10 @@ struct ChatView: View {
             composerCard
                 .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
         }
-        .background(Grok.bg)
+        .background(
+            LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg, Grok.bg],
+                           startPoint: .top, endPoint: .bottom)
+        )
         .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
     }
 
@@ -456,9 +459,21 @@ struct ChatView: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(Grok.raised)
+        // A little glass, not a lot: a thin material with a faint tint over it, and a
+        // top-edge highlight so the card catches light along its rim the way a real
+        // pane would. Enough to lift it off the page; not enough to compete with what
+        // is written in it.
+        .background(.ultraThinMaterial)
+        .background(Color.white.opacity(0.04))
+        .overlay(
+            RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.05)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1)
+        )
         .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
-            .stroke(dictation.isRecording ? Color.white.opacity(0.35) : .clear, lineWidth: 1))
+            .stroke(dictation.isRecording ? Color.white.opacity(0.4) : .clear, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
     }
 

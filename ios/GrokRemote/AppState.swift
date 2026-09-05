@@ -86,6 +86,7 @@ final class AppState: ObservableObject {
         defaultAutoApprove = d.bool(forKey: "bridge.autoApprove")
         userDisconnected = d.bool(forKey: "bridge.userDisconnected")
         activeBridgeId = d.string(forKey: "bridge.activeId")
+        pinned = Set(d.stringArray(forKey: "bridge.pinned") ?? [])
         customFolders = d.stringArray(forKey: "bridge.folders") ?? []
         folderOrder = d.stringArray(forKey: "bridge.folderOrder") ?? []
         if let data = d.data(forKey: "bridge.saved"),
@@ -663,6 +664,17 @@ final class AppState: ObservableObject {
 
     /// Folders the user created that may not have any sessions in them yet. Merged
     /// with the folders implied by existing sessions.
+    /// Sessions kept at the top of the list, whatever else happens. Local to this
+    /// phone: it is a view preference, not something the computer needs to know.
+    @Published var pinned: Set<String> = [] {
+        didSet { UserDefaults.standard.set(Array(pinned), forKey: "bridge.pinned") }
+    }
+
+    func togglePin(_ id: String) {
+        if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
+        Haptics.tap()
+    }
+
     @Published var customFolders: [String] = [] {
         didSet { UserDefaults.standard.set(customFolders, forKey: "bridge.folders") }
     }
