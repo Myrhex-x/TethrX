@@ -133,6 +133,26 @@ extension String {
     }
 }
 
+/// The quiet grey heading that names a run of rows in a list.
+///
+/// Not the tracked uppercase `SectionLabel`: that one is an instrument label and it
+/// earns its shout on a dense technical panel. A list of conversations is not dense,
+/// and shouting "PINNED" over two entries is louder than the entries. This is what
+/// Grok's own sidebar uses, and it is the reason that screen reads calm.
+struct ListSectionLabel: View {
+    let text: String
+    init(_ key: LocalizedStringResource) { self.text = String(localized: key) }
+    init(verbatim: String) { self.text = verbatim }
+
+    var body: some View {
+        Text(text)
+            .font(Grok.sans(13, .medium))
+            .foregroundStyle(Grok.textFaint)
+            .lineLimit(1)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 /// A number worth reading as an instrument: tabular figures, a tracked caption.
 struct Readout: View {
     let value: String

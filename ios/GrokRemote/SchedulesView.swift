@@ -3,7 +3,40 @@ import SwiftUI
 /// Settings section for bridge-side scheduled tasks ("weekdays at 9: run the
 /// tests"). They fire on the computer's clock and behave like any other turn —
 /// completion push, approval pushes if grok asks.
+/// The same section as its own screen. Schedules used to be reachable only by
+/// scrolling Settings, which is a strange place to keep the thing that runs your
+/// work while you are asleep.
+struct SchedulesSheet: View {
+    @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                SchedulesSection(showsHeading: false)
+                    .environmentObject(app)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
+            }
+            .background(Grok.bg)
+            .scrollIndicators(.hidden)
+            .navigationTitle(Text("Schedules"))
+            .navigationBarTitleDisplayMode(.inline)
+            .grokBar()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.font(Grok.sans(16, .semibold)).tint(.white)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 struct SchedulesSection: View {
+    /// False when the screen presenting this already carries the name, so the section
+    /// does not say it twice.
+    var showsHeading = true
     @EnvironmentObject var app: AppState
     @State private var schedules: [BridgeSchedule]?
     @State private var adding = false
@@ -12,7 +45,7 @@ struct SchedulesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("SCHEDULED TASKS")
+            if showsHeading { Eyebrow("SCHEDULED TASKS") }
 
             if let schedules, !schedules.isEmpty {
                 ForEach(schedules) { s in row(s) }

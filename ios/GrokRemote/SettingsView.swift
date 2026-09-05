@@ -2,6 +2,9 @@ import SwiftUI
 
 /// App settings: connection info, defaults for new sessions, and about.
 struct SettingsView: View {
+    /// Section to scroll to on open, matching the `.id` on that section.
+    var anchor: String? = nil
+
     @EnvironmentObject var app: AppState
     @EnvironmentObject var lock: AppLock
     @EnvironmentObject var snippets: SnippetStore
@@ -44,7 +47,7 @@ struct SettingsView: View {
                         about
                     } else {
                         connection
-                        computers
+                        computers.id("computers")
                         usage
                         defaults
                         SchedulesSection()
@@ -66,6 +69,12 @@ struct SettingsView: View {
                         proxy.scrollTo(args[i + 1], anchor: .top)
                     }
                     #endif
+                    // No animation: arriving already scrolled reads as "this sheet is
+                    // about computers", where a scroll on open reads as a glitch.
+                    if let anchor {
+                        try? await Task.sleep(nanoseconds: 120_000_000)
+                        proxy.scrollTo(anchor, anchor: .top)
+                    }
                 }
                 }
             }

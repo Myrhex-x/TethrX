@@ -160,6 +160,21 @@ struct DirectoryPickerSheet: View {
                 Label("Use this folder", systemImage: "checkmark").frame(maxWidth: .infinity)
             }
             .buttonStyle(PillButton(kind: .prominent))
+
+            // Picking a folder used to be a one-way door: the only control that could
+            // hand the choice back to the computer was a long press on a card that no
+            // longer exists. This is the discoverable place for it.
+            if !app.defaultCwd.isEmpty {
+                Button {
+                    app.defaultCwd = ""
+                    Haptics.success()
+                    dismiss()
+                } label: {
+                    Label("Reset to the computer's default", systemImage: "arrow.uturn.backward")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillButton(kind: .subtle))
+            }
         }
 
         VStack(alignment: .leading, spacing: 0) {
