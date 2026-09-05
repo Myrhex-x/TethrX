@@ -20,6 +20,20 @@ enabled; the share extension additionally needs the matching **Keychain group**.
 Building the watch app at all requires the **watchOS platform** installed in Xcode
 (Settings → Components), or the GrokRemote scheme fails before it compiles anything.
 
+> ⚠️ **A brand-new bundle id has to be registered before any automated build can
+> export.** Xcode Cloud (and a local `exportArchive` run with `--authenticationKey`)
+> signs through an API-key session, which is not allowed to create identifiers:
+>
+> ```
+> error: exportArchive Automatic signing cannot register bundle identifier "com.tethrx.app.watchkitapp".
+> error: exportArchive No profiles for 'com.tethrx.app.watchkitapp' were found
+> ```
+>
+> The archive itself succeeds; only the export fails. Register the id once — open the
+> project in Xcode, select the target, Signing & Capabilities, pick the team, and let
+> automatic signing create it — or add it at developer.apple.com. After that every
+> later build signs itself.
+
 ---
 
 ## 1. Signing (Xcode)
