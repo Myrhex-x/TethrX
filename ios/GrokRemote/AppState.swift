@@ -502,6 +502,47 @@ final class AppState: ObservableObject {
         } catch { errorMessage = friendly(error) }
     }
 
+    /// Answer what a session is blocked on, straight from the list.
+    ///
+    /// The bridge now sends the request and option ids with the waiting state, so
+    /// this needs nothing from the transcript. Opening a conversation, scrolling to
+    /// the bottom and tapping there was three steps for a yes/no.
+    func answerWaiting(_ session: SessionInfo, allow: Bool) async -> Bool {
+        guard let waiting = session.waiting, let requestId = waiting.requestId else { return false }
+        if demoMode {
+            // The tour has no computer; clearing the block is the whole visible effect.
+            if let i = sessions.firstIndex(where: { $0.id == session.id }) {
+                sessions[i].waiting = nil
+                sessions[i].status = "idle"
+            }
+            Haptics.success()
+            return true
+        }
+        guard let client else { return false }
+        do {
+            if waiting.kind == "plan" {
+                try await client.resolvePlan(sessionId: session.id, requestId: requestId, approved: allow)
+            } else {
+                let optionId = allow ? waiting.allow : waiting.deny
+                try await client.resolvePermission(sessionId: session.id, requestId: requestId,
+                                                   optionId: optionId, always: false, reason: nil)
+            }
+            Haptics.success()
+            await reloadSessions(quiet: true)
+            return true
+        } catch {
+            // 409 means it stopped being pending while you were looking at it, which
+            // is worth saying rather than leaving the row unchanged and unexplained.
+            if case .badStatus(409) = (error as? BridgeError) ?? .badURL {
+                errorMessage = String(localized: "That approval was no longer pending — grok isn't waiting on it.")
+                await reloadSessions(quiet: true)
+            } else {
+                errorMessage = friendly(error)
+            }
+            return false
+        }
+    }
+
     func renameSession(_ id: String, title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

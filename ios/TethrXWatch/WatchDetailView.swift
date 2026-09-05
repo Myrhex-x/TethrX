@@ -91,6 +91,16 @@ struct WatchDetailView: View {
                 }
                 .buttonStyle(WatchPill(kind: .danger))
                 .disabled(working)
+
+                // A bare refusal makes Grok try a near-identical thing next. Saying
+                // why, out loud, is one action here rather than two.
+                TextFieldLink(prompt: Text("Why not?")) {
+                    Label("Deny & explain", systemImage: "text.bubble")
+                } onSubmit: { reason in
+                    Task { await decide(approval.denyOptionId, on: approval, reason: reason) }
+                }
+                .buttonStyle(WatchPill(kind: .subtle))
+                .disabled(working)
             }
         }
         .padding(11)
@@ -194,10 +204,11 @@ struct WatchDetailView: View {
 
     /// Answer, then refresh: the card has to disappear, or it looks like the tap
     /// did nothing.
-    private func decide(_ optionId: String?, on approval: WatchApproval) async {
+    private func decide(_ optionId: String?, on approval: WatchApproval, reason: String? = nil) async {
         working = true
         defer { working = false }
-        let ok = await store.decide(sessionId: session.id, requestId: approval.requestId, optionId: optionId)
+        let ok = await store.decide(sessionId: session.id, requestId: approval.requestId,
+                                    optionId: optionId, reason: reason)
         if ok {
             detail?.approval = nil
             await store.refresh()

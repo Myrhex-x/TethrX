@@ -18,6 +18,11 @@ struct ChatView: View {
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var attachments: [Data] = []
     @State private var attachmentThumbs: [UIImage] = []
+    // Text files picked from Files/iCloud. Grok can read anything on the COMPUTER,
+    // so a log or a config that only exists on the phone has to travel in the prompt.
+    @State private var files: [TextAttachment] = []
+    @State private var importingFile = false
+    @State private var fileError: String?
     /// A command that costs a full expensive turn, held until the user confirms.
     @State private var pendingCostlyCommand: String?
     // Find in this conversation. The session list searches ACROSS conversations; this
@@ -135,6 +140,17 @@ struct ChatView: View {
         .onChange(of: pickedItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await loadPicked(items) }
+        }
+        .fileImporter(isPresented: $importingFile,
+                      allowedContentTypes: [.plainText, .sourceCode, .json, .yaml, .xml, .commaSeparatedText, .log, .data],
+                      allowsMultipleSelection: true) { result in
+            importFiles(result)
+        }
+        .alert("Couldn't attach that file", isPresented: Binding(
+            get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
+            Button("OK", role: .cancel) { fileError = nil }
+        } message: {
+            Text(fileError ?? "")
         }
         .alert("Microphone access needed", isPresented: $dictation.denied) {
             Button("Open Settings") {
@@ -399,6 +415,7 @@ struct ChatView: View {
             Rectangle().fill(Grok.hairline).frame(height: 1)
             queuedRow
             attachmentsRow
+            filesRow
             snippetsRow
             chatControls
             commandPalette
@@ -421,6 +438,15 @@ struct ChatView: View {
                         }
                         .padding(.top, 1)
                         .accessibilityLabel("Attach images")
+                    }
+                    if !vm.busy {
+                        Button { importingFile = true } label: {
+                            Image(systemName: "paperclip")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(files.isEmpty ? Grok.textDim : Grok.accent)
+                        }
+                        .padding(.top, 1)
+                        .accessibilityLabel("Attach a file")
                     }
                     if dictation.supported {
                         Button { dictation.toggle(base: draft) } label: {
@@ -506,7 +532,7 @@ struct ChatView: View {
                     .keyboardShortcut(".", modifiers: .command)
             }
         } else {
-            let sendable = !isEmptyDraft || !attachments.isEmpty
+            let sendable = !isEmptyDraft || !attachments.isEmpty || !files.isEmpty
             CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable, a11y: "Send") {
                 submit(draft)
             }
@@ -544,6 +570,68 @@ struct ChatView: View {
                 .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 2)
             }
         }
+    }
+
+    /// Files attached to the draft, shown as removable chips beside the thumbnails.
+    @ViewBuilder private var filesRow: some View {
+        if !files.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(files) { file in
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.text").font(.system(size: 10, weight: .medium))
+                                .accessibilityHidden(true)
+                            Text(file.name).lineLimit(1)
+                            Text(file.sizeLabel).foregroundStyle(Grok.textFaint)
+                            Button {
+                                files.removeAll { $0.id == file.id }
+                            } label: {
+                                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                                    .frame(width: 26, height: 26)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel(Text("Remove attachment"))
+                        }
+                        .font(Grok.mono(11, .medium))
+                        .foregroundStyle(Grok.textDim)
+                        .padding(.leading, 10)
+                        .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
+                    }
+                }
+                .padding(.horizontal, 14).padding(.top, 10)
+            }
+        }
+    }
+
+    /// Read the picked files as text. Grok reads files on the computer itself, so
+    /// anything that only exists on the phone has to be carried in the prompt, which
+    /// is why this is capped and why binaries are refused rather than mangled.
+    private func importFiles(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else {
+            if case .failure(let error) = result { fileError = error.localizedDescription }
+            return
+        }
+        for url in urls.prefix(3) {
+            // Files from other apps come as security-scoped URLs; reading one without
+            // this is a silent permission failure.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else {
+                fileError = String(localized: "That file couldn't be read.")
+                continue
+            }
+            guard data.count <= TextAttachment.limit else {
+                fileError = String(localized: "That file is too large to send. The limit is 64 KB.")
+                continue
+            }
+            guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1),
+                  !text.contains("\u{0}") else {
+                fileError = String(localized: "That looks like a binary file. Only text can be sent.")
+                continue
+            }
+            files.append(TextAttachment(name: url.lastPathComponent, text: text, bytes: data.count))
+        }
+        if !files.isEmpty { Haptics.tap() }
     }
 
     /// Downscale + JPEG-compress the picked photos so a 12MP shot doesn't ship
@@ -740,8 +828,23 @@ struct ChatView: View {
     /// handled here, and the inert ones say so instead of silently doing nothing.
     private func submit(_ raw: String) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty || !attachments.isEmpty else { return }
+        guard !text.isEmpty || !attachments.isEmpty || !files.isEmpty else { return }
         if dictation.isRecording { dictation.stop() }
+
+        // Attached text rides along as fenced blocks, named, so grok can see what it
+        // is looking at. This is a normal prompt from here on.
+        if !files.isEmpty {
+            let body = files.map(\.fenced).joined(separator: "\n\n")
+            let images = attachments, thumbs = attachmentThumbs
+            let prompt = text.isEmpty ? String(localized: "Here is a file:") + "\n\n" + body
+                                      : text + "\n\n" + body
+            files = []
+            attachments = []
+            attachmentThumbs = []
+            draft = ""
+            Task { await vm.send(prompt, images: images, thumbnails: thumbs) }
+            return
+        }
 
         // With images attached this is a normal prompt, never a slash command.
         if !attachments.isEmpty {

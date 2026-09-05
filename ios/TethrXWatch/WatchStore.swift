@@ -1,6 +1,7 @@
 import Foundation
 import WatchConnectivity
 import WatchKit
+import WidgetKit
 
 /// Everything the watch knows, and the one way it asks for more.
 ///
@@ -39,7 +40,7 @@ final class WatchStore: NSObject, ObservableObject {
         // and captured without a phone, a bridge or a grok. Never compiled into a
         // release build.
         if ProcessInfo.processInfo.arguments.contains("-fixture") {
-            snapshot = Self.fixture
+            adopt(Self.fixture)   // through adopt, so the complication is filled too
             return
         }
         #endif
@@ -104,9 +105,12 @@ final class WatchStore: NSObject, ObservableObject {
     /// Returns true when the phone confirmed it. When the phone is out of reach the
     /// answer is queued instead and this returns false with `queuedAnswers` marked,
     /// which the card shows as "sent" rather than as a failure: the queue is durable.
-    func decide(sessionId: String, requestId: String, optionId: String?) async -> Bool {
+    func decide(sessionId: String, requestId: String, optionId: String?, reason: String? = nil) async -> Bool {
         var message: [String: Any] = ["cmd": "decide", "sessionId": sessionId, "requestId": requestId]
         if let optionId { message["optionId"] = optionId }
+        // Refusing on its own tells Grok "no" and nothing else, so it tries a
+        // near-identical thing next. The reason is queued as the next message.
+        if let reason, !reason.isEmpty { message["reason"] = reason }
         let reply = await send(message, queueIfUnreachable: true)
         let ok = reply?["ok"] as? Bool == true
         if !ok, phoneUnreachable { queuedAnswers.insert(requestId) }
@@ -199,6 +203,25 @@ final class WatchStore: NSObject, ObservableObject {
         snapshot = fresh
         errorText = nil
         phoneUnreachable = false
+        publishComplication(fresh)
+    }
+
+    /// Hand the face complication what it needs. It reads this and nothing else, so
+    /// it works with the app closed and with no phone in range.
+    private func publishComplication(_ snapshot: WatchSnapshot) {
+        let waiting = snapshot.sessions.first(where: \.isWaitingOnYou)
+        let state = ComplicationState(
+            waitingCount: snapshot.waitingCount,
+            runningCount: snapshot.runningCount,
+            sessionCount: snapshot.sessions.count,
+            waitingName: waiting?.name ?? "",
+            waitingSessionId: waiting?.id ?? "",
+            updatedAt: Date()
+        )
+        guard let defaults = UserDefaults(suiteName: ComplicationState.suiteName),
+              let data = try? JSONEncoder().encode(state) else { return }
+        defaults.set(data, forKey: ComplicationState.key)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 

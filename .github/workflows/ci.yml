@@ -125,6 +125,8 @@ jobs:
           APP=$(find ~/Library/Developer/Xcode/DerivedData -name GrokRemote.app -path '*-iphonesimulator/*' | head -1)
           test -n "$APP" || { echo "no built app found"; exit 1; }
           test -d "$APP/Watch/TethrXWatch.app" || { echo "watch app not embedded"; exit 1; }
+          test -d "$APP/Watch/TethrXWatch.app/PlugIns/TethrXWatchWidget.appex" \
+            || { echo "watch complication not embedded"; exit 1; }
           test -d "$APP/PlugIns/TethrXWidget.appex" || { echo "widget not embedded"; exit 1; }
           test -d "$APP/PlugIns/TethrXShare.appex" || { echo "share extension not embedded"; exit 1; }
-          echo "watch app, widget and share extension all embedded"
+          echo "watch app, its complication, the widget and the share extension are all embedded"

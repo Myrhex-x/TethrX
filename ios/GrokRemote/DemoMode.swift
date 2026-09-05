@@ -41,7 +41,7 @@ enum DemoData {
             SessionInfo(id: "demo-settings-dark", title: "Dark mode for settings", folder: "Acme app",
                         cwd: "/Users/you/acme-app", model: nil, transport: "acp",
                         planMode: false, effort: "", autoApprove: false,
-                        status: "idle", turnCount: 6, createdAt: "2026-07-21T09:12:00Z",
+                        status: "idle", turnCount: 6, createdAt: "2026-07-21T09:12:00Z", updatedAt: ago(2700),
                         lastEventId: 40, usage: richUsage),
             // Deliberately blocked on an approval, not merely running: "waiting for you"
             // is the state the app exists to surface, so the tour has to show it.
@@ -50,13 +50,14 @@ enum DemoData {
                         planMode: false, effort: "high", autoApprove: false,
                         approvalPolicy: "reads",
                         status: "running",
-                        waiting: WaitingState(kind: "permission", label: "rm -rf .build", since: ago(74)),
-                        turnCount: 3, runningSince: ago(212), createdAt: "2026-07-21T08:03:00Z",
+                        waiting: WaitingState(kind: "permission", label: "rm -rf .build", since: ago(74),
+                                             requestId: "demo-p2", allow: "allow", deny: "reject"),
+                        turnCount: 3, runningSince: ago(212), createdAt: "2026-07-21T08:03:00Z", updatedAt: ago(74),
                         lastEventId: 21, usage: lightUsage),
             SessionInfo(id: "demo-landing", title: "New session", folder: nil,
                         cwd: "/Users/you/landing-page", model: nil, transport: "acp",
                         planMode: true, effort: "", autoApprove: false,
-                        status: "idle", turnCount: 1, createdAt: "2026-07-20T17:40:00Z",
+                        status: "idle", turnCount: 1, createdAt: "2026-07-20T17:40:00Z", updatedAt: ago(93_600),
                         lastEventId: 8, usage: lightUsage),
         ]
     }

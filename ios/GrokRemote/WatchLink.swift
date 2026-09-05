@@ -230,9 +230,11 @@ extension WatchLink: WCSessionDelegate {
                   let id = message["sessionId"] as? String,
                   let requestId = message["requestId"] as? String else { return ["error": "not connected"] }
             let optionId = message["optionId"] as? String
+            let reason = (message["reason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
                 try await client.resolvePermission(sessionId: id, requestId: requestId,
-                                                   optionId: optionId, always: false, reason: nil)
+                                                   optionId: optionId, always: false,
+                                                   reason: (reason?.isEmpty == false) ? reason : nil)
                 await app.reloadSessions(quiet: true)
                 publish(Self.snapshot(from: app))
                 return ["ok": true]

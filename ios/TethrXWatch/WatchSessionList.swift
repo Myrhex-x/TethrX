@@ -4,6 +4,8 @@ import SwiftUI
 struct WatchSessionList: View {
     @EnvironmentObject var store: WatchStore
     @State private var path: [WatchSession] = []
+    /// A session a complication asked for, held until it appears in the snapshot.
+    @State private var pendingOpenId: String?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -35,7 +37,30 @@ struct WatchSessionList: View {
             await store.refresh()
             openDebugSession()
         }
-        .onChange(of: store.snapshot) { _, _ in openDebugSession() }
+        .onChange(of: store.snapshot) { _, _ in
+            openDebugSession()
+            openPending()
+        }
+        // The complication reports a block; tapping it has to land on THAT session,
+        // not on the list with the answer still a scroll away.
+        .onOpenURL { url in open(url) }
+    }
+
+    private func open(_ url: URL) {
+        guard url.scheme?.lowercased() == "tethrx", url.host?.lowercased() == "session" else { return }
+        let id = url.pathComponents.first { $0 != "/" } ?? ""
+        guard !id.isEmpty else { return }
+        pendingOpenId = id
+        openPending()
+    }
+
+    /// The complication can be tapped before the snapshot has arrived, so the request
+    /// is held until the session it names actually exists.
+    private func openPending() {
+        guard let id = pendingOpenId,
+              let session = store.snapshot.sessions.first(where: { $0.id == id }) else { return }
+        pendingOpenId = nil
+        if path.last?.id != session.id { path = [session] }
     }
 
     /// `-openSession <id>` on launch, so a screen deeper than the list can be

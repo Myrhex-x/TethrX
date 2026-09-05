@@ -50,7 +50,7 @@ function normalizeUsage(u) {
 const EDITED_PATHS_LIMIT = 200;
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, turnCount, grokSessionId, planMode, autoApprove, approvalPolicy, usage, folder, seedContext, queue, editedPaths, commands }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, updatedAt, turnCount, grokSessionId, planMode, autoApprove, approvalPolicy, usage, folder, seedContext, queue, editedPaths, commands }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
@@ -71,6 +71,9 @@ class Session {
     this.seedContext = seedContext || null;   // handoff summary from a compacted session; consumed by the first turn
     this.status = "idle";                // "idle" | "running"
     this.runningSince = null;            // ISO timestamp of the turn in flight, if any
+    // When anything last happened here. The list is ordered by this: after a few
+    // weeks, "newest first" buries the session you actually work in every day.
+    this.updatedAt = updatedAt || this.createdAt;
     this.turnCount = turnCount || 0;
     this.usage = normalizeUsage(usage);  // token/cost usage, accumulated + persisted
     // Follow-ups waiting for the running turn to finish. This lives on the BRIDGE,
@@ -140,6 +143,7 @@ class Session {
       } : undefined,
       turnCount: this.turnCount,
       createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
       lastEventId: this._nextEventId,
       usage: this.usage,
       queue: this.queue,
@@ -244,7 +248,7 @@ class Session {
       id: this.id, cwd: this.cwd, model: this.model, effort: this.effort,
       transport: this.transport, title: this.title, folder: this.folder || "", planMode: this.planMode,
       autoApprove: this.autoApprove, approvalPolicy: this.approvalPolicy, grokSessionId: this.grokSessionId,
-      createdAt: this.createdAt, turnCount: this.turnCount, usage: this.usage,
+      createdAt: this.createdAt, updatedAt: this.updatedAt, turnCount: this.turnCount, usage: this.usage,
       seedContext: this.seedContext, queue: this.queue,
       editedPaths: this.editedPaths, commands: this.commands,
     };
@@ -277,6 +281,7 @@ class Session {
 
   emit(event) {
     if (this.dead) return 0;   // the session is gone; a turn still unwinding must not resurrect it
+    this.updatedAt = new Date().toISOString();
     // Every edit flows through here as a tool_update with a diff — the one reliable
     // signal of where grok actually worked, whatever the session's nominal cwd is.
     if (event?.kind === "tool_update" && event.diff?.path) this.noteEdit(event.diff.path);
@@ -385,7 +390,9 @@ export class SessionStore {
 
   list() {
     return [...this._byId.values()]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      // Most recently active first. Creation order is a fact about the past; what a
+      // person is looking for is the thing they touched last.
+      .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))
       .map((s) => s.toJSON());
   }
 

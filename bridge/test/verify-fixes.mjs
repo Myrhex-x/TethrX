@@ -389,6 +389,20 @@ check("the transcript tail is bounded and ordered oldest first", () => {
   assert.ok(s.tail(100000).length <= 500);
 });
 
+check("the list is ordered by what happened last, not by creation", () => {
+  const older = store.create({ cwd: dir, title: "older" });
+  const newer = store.create({ cwd: dir, title: "newer" });
+  // After weeks of use, "newest first" buries the session worked in every day.
+  older.updatedAt = new Date(Date.now() + 60_000).toISOString();
+  const ids = store.list().map((s) => s.id);
+  assert.ok(ids.indexOf(older.id) < ids.indexOf(newer.id), "activity sorts a session to the top");
+  // And every event is what maintains it.
+  const before = newer.updatedAt;
+  newer.emit({ kind: "text", text: "someone came back to this one" });
+  assert.ok(newer.updatedAt >= before, "emit touches updatedAt");
+  assert.ok(newer.toJSON().updatedAt, "and clients can see it");
+});
+
 rmSync(dir, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");

@@ -132,6 +132,9 @@ struct SessionInfo: Codable, Identifiable, Hashable {
     /// Absent on bridges that predate it — the row then just says RUNNING, as before.
     var runningSince: String?
     var createdAt: String
+    /// When anything last happened here. The bridge orders the list by it, and an
+    /// idle row shows it, so "which of these did I touch this morning" is readable.
+    var updatedAt: String?
     var lastEventId: Int?
     var usage: SessionUsage?
     /// Follow-ups the bridge will run when the current turn ends.
@@ -259,6 +262,18 @@ enum Fmt {
         let s = ms / 1000
         if s >= 60 { return String(format: "%.1f min", s / 60) }
         return String(format: "%.1fs", s)
+    }
+
+    /// How long ago something happened, for a row that is not doing anything now:
+    /// just now, 12m ago, 3h ago, 2d ago.
+    static func ago(_ date: Date, now: Date = Date()) -> String {
+        let seconds = Int(max(0, now.timeIntervalSince(date)))
+        if seconds < 90 { return String(localized: "just now") }
+        let minutes = seconds / 60
+        if minutes < 60 { return String(localized: "\(minutes)m ago") }
+        let hours = minutes / 60
+        if hours < 24 { return String(localized: "\(hours)h ago") }
+        return String(localized: "\(hours / 24)d ago")
     }
 
     /// A stopwatch reading for something still going: 12s, 4m, 1h20m. Short enough to
@@ -543,4 +558,28 @@ struct ChatItem: Identifiable, Equatable {
     var requestId: String? = nil
     var options: [PermissionOption] = []
     var decided: String? = nil           // chosen optionId, or "cancelled"
+}
+
+/// A text file picked from Files, waiting in the composer.
+///
+/// Grok reads files on the computer itself; anything that exists only on the phone
+/// has to travel inside the prompt, so this is deliberately small and text-only.
+struct TextAttachment: Identifiable, Equatable {
+    let id = UUID()
+    var name: String
+    var text: String
+    var bytes: Int
+
+    /// Past this, a "file" is really a paste that would eat the context window.
+    static let limit = 64 * 1024
+
+    var sizeLabel: String {
+        bytes >= 1024 ? "\(bytes / 1024)k" : "\(bytes)b"
+    }
+
+    /// Named and fenced, so grok can see what it is looking at.
+    var fenced: String {
+        let ext = (name as NSString).pathExtension
+        return "`\(name)`:\n\n```\(ext)\n\(text)\n```"
+    }
 }

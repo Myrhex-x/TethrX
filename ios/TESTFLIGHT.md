@@ -5,6 +5,21 @@ mostly clicking through Xcode + App Store Connect. ~20 minutes the first time.
 
 Bundle id: **`com.tethrx.app`** · Display name: **TethrX** · internal target: `GrokRemote`.
 
+The app ships four more bundles, each of which needs its own App ID the first time
+you upload (Xcode's automatic signing registers them for you):
+
+| Bundle id | What it is |
+| --- | --- |
+| `com.tethrx.app.TethrXWidget` | home and lock screen widgets |
+| `com.tethrx.app.TethrXShare` | the share extension |
+| `com.tethrx.app.watchkitapp` | the Apple Watch app |
+| `com.tethrx.app.watchkitapp.widget` | the watch face complication |
+
+All of them except the share extension need the **App Group `group.com.tethrx.app`**
+enabled; the share extension additionally needs the matching **Keychain group**.
+Building the watch app at all requires the **watchOS platform** installed in Xcode
+(Settings → Components), or the GrokRemote scheme fails before it compiles anything.
+
 ---
 
 ## 1. Signing (Xcode)

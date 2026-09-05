@@ -28,11 +28,11 @@ Everything below is **built and tested** against a real `grok` install.
 - **Live console** — Grok's reasoning, tool calls, **command output**, and file diffs as they happen, with code rendered as real blocks you can scroll and copy, syntax highlighted.
 - **Watch the plan** — Grok keeps a checklist while it works; the app shows it as one card that updates in place, so you can see which step it is on and how many are left.
 - **Real diffs** — before and after are interleaved into a unified diff, untouched lines are folded away, and on a one-for-one change the characters that actually changed are marked.
-- **Approvals** — nothing runs until you tap. Commands that delete, overwrite, publish or touch credentials say so on the card, in a line about *that* command. Also answerable straight from the notification — including **Deny & explain**, which refuses and tells Grok what to do instead in one step.
+- **Approvals** — nothing runs until you tap, and you can answer **straight from the session list** without opening the conversation. Commands that delete, overwrite, publish or touch credentials say so on the card, in a line about *that* command. Also answerable straight from the notification — including **Deny & explain**, which refuses and tells Grok what to do instead in one step.
 - **Plan mode** — read the plan before Grok builds it.
 - **Review the work** — changed files, per-file diffs, and **commit or discard** from the phone.
 - **Browse the project** — the session's file tree and any text file, read-only, from the phone.
-- **Attach images** — send a screenshot or mockup; the bridge saves it and Grok views the file with its vision-capable read tool.
+- **Attach images** — send a screenshot or mockup; the bridge saves it and Grok views the file with its vision-capable read tool. **Text files** from Files or iCloud ride along in the prompt, named and fenced, for the log or config that only exists on your phone.
 - **Scheduled tasks** — "weekdays at 9: pull main and run the tests", fired on your computer's clock, results pushed to your phone.
 - **Slash commands** — grok's skills, plus the built-ins the app can honor.
 - **Queued follow-ups** — line up the next instructions and put your phone away. The queue lives on your computer, so it survives closing the app, and picks up again after a reboot.
@@ -40,9 +40,9 @@ Everything below is **built and tested** against a real `grok` install.
 - **Share into a session** — send a link, some text, or a screenshot from any app straight to Grok via the share sheet.
 - **Branch a session** — fork the conversation so a second one starts knowing everything the first one knows, for trying another approach without losing this one.
 - **Voice dictation** and reusable prompt snippets.
-- **Sessions** — search across conversations, find inside one, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing. The list stays live, and a running or blocked session says how long it has been that way.
+- **Sessions** — search across conversations, find inside one, folders, transcript export, and several paired computers you can switch between; nearby bridges appear automatically (Bonjour) when pairing. The list is ordered by what happened last, stays live on its own, and a running or blocked session says how long it has been that way.
 - **Siri** — start a task or ask what Grok is doing without opening the app.
-- **Apple Watch** — the sessions on your wrist, the command Grok is blocked on with the same one-line reason the phone shows, and Approve / Deny. Dictate a follow-up too. The watch asks your iPhone, so the pairing token never leaves it; an answer given out of range is queued and delivered when the phone is back.
+- **Apple Watch** — the sessions on your wrist, the command Grok is blocked on with the same one-line reason the phone shows, and Approve / Deny / **Deny & explain**. Dictate a follow-up too. A **face complication** says whether Grok is working or waiting on you, so the usual answer needs no app at all. The watch asks your iPhone, so the pairing token never leaves it; an answer given out of range is queued and delivered when the phone is back.
 - **Home-screen and lock-screen widgets**, plus a **Live Activity** on the lock screen / Dynamic Island — pushed by the bridge, so it keeps moving with the app closed (iOS 17.2+). A widget that says *needs you* opens the session that is asking.
 - **Usage** — context window, tokens, and cost per session, plus **day-by-day** totals across everything, and a push when a session's context runs low.
 - **Face ID lock**, since the bridge can run commands on your machine.

@@ -555,25 +555,32 @@ struct SessionListView: View {
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
-        HStack(spacing: 2) {
-            if let onSelect {
-                Button { onSelect(session) } label: { SessionRow(session: session) }
-                    .buttonStyle(.plain)
-            } else {
-                NavigationLink(value: session) { SessionRow(session: session) }
-                    .buttonStyle(.plain)
+        VStack(spacing: 0) {
+            HStack(spacing: 2) {
+                if let onSelect {
+                    Button { onSelect(session) } label: { SessionRow(session: session) }
+                        .buttonStyle(.plain)
+                } else {
+                    NavigationLink(value: session) { SessionRow(session: session) }
+                        .buttonStyle(.plain)
+                }
+                // Visible affordance — the same actions used to be long-press only.
+                Menu {
+                    menuItems(session)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Grok.textDim)
+                        .frame(width: 44, height: 48)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Session options for \(session.displayName)"))
             }
-            // Visible affordance — the same actions used to be long-press only.
-            Menu {
-                menuItems(session)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Grok.textDim)
-                    .frame(width: 44, height: 48)
-                    .contentShape(Rectangle())
+            // Answering has to live OUTSIDE the navigation link: a button inside one
+            // is swallowed by the row's own tap.
+            if session.waiting?.requestId != nil {
+                InlineAnswer(session: session)
             }
-            .accessibilityLabel(Text("Session options for \(session.displayName)"))
         }
         .contextMenu { menuItems(session) }
     }
@@ -626,6 +633,95 @@ struct SessionListView: View {
         defer { creating = false }
         guard let session = await app.newSession() else { return }
         if let onSelect { onSelect(session) } else { path.append(session) }
+    }
+}
+
+/// Answer what a session is blocked on without opening it.
+///
+/// The bridge sends the request and option ids with the waiting state, so the list
+/// has everything it needs. Opening the conversation, scrolling to the bottom and
+/// tapping there was three steps for a yes or a no, and the yes/no is most of what
+/// this app is for.
+struct InlineAnswer: View {
+    let session: SessionInfo
+    @EnvironmentObject var app: AppState
+    @State private var working = false
+    @State private var confirmDestructive = false
+
+    private var isPlan: Bool { session.waiting?.kind == "plan" }
+    private var command: String { session.waiting?.label ?? "" }
+    private var risk: CommandRisk? { isPlan ? nil : CommandRisk.assess(command) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            if !command.isEmpty, !isPlan {
+                Text(command)
+                    .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let risk {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: risk.icon).font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
+                        .accessibilityHidden(true)
+                    Text(risk.reason)
+                        .font(Grok.mono(10))
+                        .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            HStack(spacing: 8) {
+                Button {
+                    // Approving a deletion from a list row, without having read the
+                    // conversation, is the one tap worth interrupting.
+                    if risk?.level == .destructive { confirmDestructive = true } else { answer(true) }
+                } label: {
+                    HStack(spacing: 6) {
+                        if working { ProgressView().controlSize(.mini).tint(.black) }
+                        (isPlan ? Text("Approve & build") : Text("Approve")).lineLimit(1)
+                    }
+                    .font(Grok.sans(13, .semibold))
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity).padding(.vertical, 9)
+                    .background(Grok.accent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(working)
+
+                Button { answer(false) } label: {
+                    (isPlan ? Text("Keep planning") : Text("Deny")).lineLimit(1)
+                        .font(Grok.sans(13, .semibold))
+                        .foregroundStyle(Grok.textDim)
+                        .frame(maxWidth: .infinity).padding(.vertical, 9)
+                        .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(working)
+            }
+        }
+        .padding(12)
+        .background(risk?.level == .destructive ? Grok.danger.opacity(0.08) : Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.4) : Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.bottom, 12)
+        .confirmationDialog(Text("Run \u{201C}\(command)\u{201D}?"), isPresented: $confirmDestructive,
+                            titleVisibility: .visible) {
+            Button("Approve", role: .destructive) { answer(true) }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            if let risk { Text(risk.reason) }
+        }
+    }
+
+    private func answer(_ allow: Bool) {
+        working = true
+        Task {
+            _ = await app.answerWaiting(session, allow: allow)
+            working = false
+        }
     }
 }
 
@@ -684,6 +780,13 @@ struct SessionRow: View {
                     }
                     Text("· \(session.turnCount) turn\(session.turnCount == 1 ? "" : "s")")
                         .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                    // Only when nothing is happening: a live session already carries
+                    // a stopwatch, and two clocks in one row is one too many.
+                    if !session.isRunning, !session.isWaitingOnYou,
+                       let touched = Fmt.date(fromISO: session.updatedAt) {
+                        Text(verbatim: "· \(Fmt.ago(touched))")
+                            .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).fixedSize()
+                    }
                 }
             }
             Spacer(minLength: 0)
