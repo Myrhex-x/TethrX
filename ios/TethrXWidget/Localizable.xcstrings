@@ -512,7 +512,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sitzungen"
+            "value" : "Sessions"
           }
         },
         "es" : {
@@ -554,7 +554,8 @@
       }
     },
     "TETHRX" : {
-
+      "comment" : "Product name. Never translated.",
+      "shouldTranslate" : false
     },
     "tokens" : {
       "localizations" : {

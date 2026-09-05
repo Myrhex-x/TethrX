@@ -29,6 +29,20 @@ enum Grok {
         static let small: CGFloat = 12
     }
 
+    // MARK: Measure
+    /// Screen edge to the edge of any block: card, row, banner, header, composer.
+    /// One value, everywhere, or the eye reads the drift as sloppiness long before
+    /// it can name it.
+    static let gutter: CGFloat = 16
+    /// A block's own edge to the content inside it. `gutter + pad` is therefore the
+    /// left edge of every piece of reading matter in the app, whether or not the
+    /// thing it sits in draws a background.
+    static let pad: CGFloat = 14
+    /// Between two blocks in a stack.
+    static let gap: CGFloat = 10
+    /// Between two groups of blocks.
+    static let groupGap: CGFloat = 22
+
     /// A single hairline. Structure here is drawn with rules and space rather than
     /// with filled boxes stacked on filled boxes.
     static let rule = Color.white.opacity(0.09)
@@ -77,9 +91,26 @@ struct SectionLabel: View {
     var body: some View {
         Text(text)
             .font(Grok.sans(11, .semibold))
-            .tracking(1.7)
+            // Letter-spacing is a Latin device. Applied to Japanese or Chinese it
+            // only pulls a word apart, and uppercasing does nothing there at all, so
+            // in those languages this is simply a small dim label.
+            .tracking(text.isCJK ? 0 : 1.7)
             .foregroundStyle(Grok.textFaint)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+extension String {
+    /// True when the string carries Han, Kana or Hangul, i.e. when Latin
+    /// micro-typography (tracking, small caps, uppercasing) should be left alone.
+    var isCJK: Bool {
+        unicodeScalars.contains { scalar in
+            (0x3040...0x30FF).contains(scalar.value)      // kana
+            || (0x3400...0x4DBF).contains(scalar.value)   // CJK ext A
+            || (0x4E00...0x9FFF).contains(scalar.value)   // CJK unified
+            || (0xF900...0xFAFF).contains(scalar.value)   // compatibility ideographs
+            || (0xAC00...0xD7AF).contains(scalar.value)   // hangul
+        }
     }
 }
 
@@ -116,7 +147,10 @@ struct Eyebrow: View {
     var body: some View {
         Text(text)
             .font(Grok.sans(11, .semibold))
-            .tracking(1.7)
+            // Letter-spacing is a Latin device. Applied to Japanese or Chinese it
+            // only pulls a word apart, and uppercasing does nothing there at all, so
+            // in those languages this is simply a small dim label.
+            .tracking(text.isCJK ? 0 : 1.7)
             .foregroundStyle(Grok.textFaint)
             .accessibilityAddTraits(.isHeader)
     }
@@ -127,6 +161,10 @@ struct Eyebrow: View {
 struct PillButton: ButtonStyle {
     enum Kind { case prominent, subtle }
     var kind: Kind = .prominent
+    /// Tighter geometry for buttons that share a row rather than owning one. A
+    /// stack of full-height pills is how a card gets tall enough to need scrolling
+    /// before you have read what you are approving.
+    var compact = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
@@ -134,15 +172,34 @@ struct PillButton: ButtonStyle {
         // actions read. The old outline-on-black version made every button look
         // equally optional.
         return configuration.label
-            .font(Grok.sans(16, .semibold))
+            .font(Grok.sans(compact ? 15 : 16, .semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
             .foregroundStyle(kind == .prominent ? Color.black : Grok.text)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 15)
+            .padding(.horizontal, 10)
+            .padding(.vertical, compact ? 12 : 15)
             .background(kind == .prominent
                         ? Color.white.opacity(pressed ? 0.85 : 1.0)
                         : Color.white.opacity(pressed ? 0.16 : 0.08))
             .clipShape(Capsule())
             .contentShape(Capsule())
+    }
+}
+
+// MARK: - Quiet tertiary action
+
+/// Text alone, no capsule. For the actions a card offers but does not recommend,
+/// where a third and fourth pill would make the card taller than the thing it is
+/// asking about.
+struct QuietButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Grok.sans(13, .medium))
+            .foregroundStyle(configuration.isPressed ? Grok.text : Grok.textDim)
+            .lineLimit(1)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
     }
 }
 
@@ -174,7 +231,7 @@ extension View {
         self
             .font(Grok.sans(13, .medium))
             .foregroundStyle(on ? Color.black : Grok.textDim)
-            .padding(.horizontal, 13).padding(.vertical, 8)
+            .padding(.horizontal, 10).padding(.vertical, 8)
             .background(on ? Color.white : Color.white.opacity(0.08))
             .clipShape(Capsule())
     }

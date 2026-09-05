@@ -7,6 +7,241 @@
     "!" : {
       "shouldTranslate" : false
     },
+    "Ask" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demander"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiedi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perguntar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "询问"
+          }
+        }
+      }
+    },
+    "Empty. Use ••• on a session to move it here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leer. Über ••• bei einer Session verschieben Sie sie hierher."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vacío. Usa ••• en una sesión para moverla aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vide. Utilisez ••• sur une session pour l'y déplacer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuota. Usa ••• su una sessione per spostarla qui."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空です。セッションの ••• から移動できます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vazio. Use ••• em uma sessão para movê-la para cá."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空的。用会话上的 ••• 把它移到这里。"
+          }
+        }
+      }
+    },
+    "Other answers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere Antworten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otras respuestas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autres réponses"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altre risposte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他の回答"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outras respostas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他回答"
+          }
+        }
+      }
+    },
+    "Reads" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lesen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecturas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecture"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letture"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leituras"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取"
+          }
+        }
+      }
+    },
+    "Saved prompts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeicherte Prompts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompts guardados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompts enregistrés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt salvati"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存したプロンプト"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompts salvos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的提示词"
+          }
+        }
+      }
+    },
     "… truncated — the full file is %lld bytes" : {
       "localizations" : {
         "de" : {
@@ -1937,7 +2172,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine zweite Sitzung öffnet sich mit demselben Ordner und denselben Einstellungen."
+            "value" : "Eine zweite Session öffnet sich mit demselben Ordner und denselben Einstellungen."
           }
         },
         "es" : {
@@ -1983,7 +2218,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "einer Sitzung"
+            "value" : "einer Session"
           }
         },
         "es" : {
@@ -3696,7 +3931,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung verzweigen"
+            "value" : "Diese Session verzweigen"
           }
         },
         "es" : {
@@ -3742,7 +3977,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung verzweigen?"
+            "value" : "Diese Session verzweigen?"
           }
         },
         "es" : {
@@ -6443,7 +6678,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung konnte nicht verzweigt werden."
+            "value" : "Diese Session konnte nicht verzweigt werden."
           }
         },
         "es" : {
@@ -6489,7 +6724,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung konnte nicht verzweigt werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."
+            "value" : "Diese Session konnte nicht verzweigt werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."
           }
         },
         "en" : {
@@ -6588,7 +6823,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plugins konnten nicht geladen werden. Prüfe, ob grok auf dem Computer installiert ist."
+            "value" : "Plugins konnten nicht geladen werden. Prüfen Sie, ob grok auf dem Computer installiert ist."
           }
         },
         "en" : {
@@ -8987,7 +9222,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leer. Über ••• bei einer Sitzung verschieben Sie sie hierher."
+            "value" : "Leer. Über ••• bei einer Session verschieben Sie sie hierher."
           }
         },
         "es" : {
@@ -10712,7 +10947,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grok entwirft einen Plan, den du freigibst, bevor etwas angefasst wird"
+            "value" : "Grok entwirft einen Plan, den Sie freigeben, bevor etwas angefasst wird"
           }
         },
         "es" : {
@@ -10904,7 +11139,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grok arbeitet gerade nicht. Du hast %lld Sitzungen."
+            "value" : "Grok arbeitet gerade nicht. Sie haben %lld Sessions."
           }
         },
         "es" : {
@@ -10950,7 +11185,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grok arbeitet gerade nicht. Du hast 1 Sitzung."
+            "value" : "Grok arbeitet gerade nicht. Sie haben 1 Session."
           }
         },
         "es" : {
@@ -11334,7 +11569,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grok fasst diese Unterhaltung zusammen (verbraucht Tokens), damit die neue Sitzung denselben Kontext hat. Diese Sitzung läuft unverändert weiter."
+            "value" : "Grok fasst diese Unterhaltung zusammen (verbraucht Tokens), damit die neue Session denselben Kontext hat. Diese Session läuft unverändert weiter."
           }
         },
         "es" : {
@@ -11759,7 +11994,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "So startet jede neue Sitzung. Nichts davon ist endgültig: dieselben Regler sitzen in jeder Sitzung im Nachrichtenfeld."
+            "value" : "So startet jede neue Session. Nichts davon ist endgültig: dieselben Regler sitzen in jeder Session im Nachrichtenfeld."
           }
         },
         "es" : {
@@ -12093,7 +12328,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Installation fehlgeschlagen. Prüfe die URL und ob der Computer sie erreichen kann."
+            "value" : "Installation fehlgeschlagen. Prüfen Sie die URL und ob der Computer sie erreichen kann."
           }
         },
         "en" : {
@@ -12653,7 +12888,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bleiben auf diesem Telefon. Sobald ein Computer verbunden ist, tippen Sie einen in eine beliebige Sitzung."
+            "value" : "Bleiben auf diesem Telefon. Sobald ein Computer verbunden ist, tippen Sie einen in eine beliebige Session."
           }
         },
         "es" : {
@@ -12793,7 +13028,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sitzungen werden geladen…"
+            "value" : "Sessions werden geladen…"
           }
         },
         "es" : {
@@ -14046,7 +14281,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Sessions starten Grok in diesem Ordner. Wähle das Projekt, an dem er arbeiten soll."
+            "value" : "Neue Sessions starten Grok in diesem Ordner. Wählen Sie das Projekt, an dem er arbeiten soll."
           }
         },
         "en" : {
@@ -14098,7 +14333,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Sitzungen starten in"
+            "value" : "Neue Sessions starten in"
           }
         },
         "es" : {
@@ -14144,7 +14379,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Sitzungen starten in %@"
+            "value" : "Neue Sessions starten in %@"
           }
         },
         "es" : {
@@ -14190,7 +14425,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Sitzungen starten im Standardordner des Computers."
+            "value" : "Neue Sessions starten im Standardordner des Computers."
           }
         },
         "es" : {
@@ -14375,7 +14610,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keine Plugins installiert. Ihre Skills erscheinen im „/“-Menü, sobald du welche hinzufügst."
+            "value" : "Keine Plugins installiert. Ihre Skills erscheinen im „/“-Menü, sobald Sie welche hinzufügen."
           }
         },
         "es" : {
@@ -14519,7 +14754,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Sitzungen"
+            "value" : "Noch keine Sessions"
           }
         },
         "es" : {
@@ -14751,7 +14986,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nicht autorisiert. Prüfe deinen Kopplungs-Token."
+            "value" : "Nicht autorisiert. Prüfen Sie Ihren Kopplungs-Token."
           }
         },
         "es" : {
@@ -15957,7 +16192,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öffnet eine Sitzung auf einem anderen Rechner."
+            "value" : "Öffnet eine Session auf einem anderen Rechner."
           }
         },
         "es" : {
@@ -16845,7 +17080,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plugins bündeln Skills, Agents und Tools für Grok, und können Code auf deinem Computer ausführen, wenn Grok sie nutzt. Installiere nur vertrauenswürdige Quellen. Den Marketplace erreichst du mit /plugins im Grok-Terminal."
+            "value" : "Plugins bündeln Skills, Agents und Tools für Grok, und können Code auf Ihrem Computer ausführen, wenn Grok sie nutzt. Installieren Sie nur vertrauenswürdige Quellen. Den Marketplace erreichen Sie mit /plugins im Grok-Terminal."
           }
         },
         "en" : {
@@ -19582,7 +19817,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung neu starten"
+            "value" : "Diese Session neu starten"
           }
         },
         "es" : {
@@ -19675,7 +19910,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wiederverwendbare Prompts, die Sie auf diesem Telefon schreiben. Sie brauchen keinen Computer und erscheinen in jeder Sitzung über dem Eingabefeld."
+            "value" : "Wiederverwendbare Prompts, die Sie auf diesem Telefon schreiben. Sie brauchen keinen Computer und erscheinen in jeder Session über dem Eingabefeld."
           }
         },
         "es" : {
@@ -19860,7 +20095,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prüfe deine Änderungen auf Fehler."
+            "value" : "Prüfen Sie Ihre Änderungen auf Fehler."
           }
         },
         "es" : {
@@ -19872,7 +20107,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relis tes modifications à la recherche de bugs."
+            "value" : "Relisez vos modifications à la recherche de bugs."
           }
         },
         "it" : {
@@ -21215,7 +21450,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sitzungen durchsuchen"
+            "value" : "Sessions durchsuchen"
           }
         },
         "es" : {
@@ -22646,7 +22881,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spracherkennung ist aus oder für diese Sprache nicht unterstützt. Prüfe Siri & Diktat in den Einstellungen."
+            "value" : "Spracherkennung ist aus oder für diese Sprache nicht unterstützt. Prüfen Sie Siri & Diktat in den Einstellungen."
           }
         },
         "es" : {
@@ -22738,7 +22973,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Startet eine zweite Sitzung, die alles weiß, was diese weiß, um einen anderen Weg zu versuchen, ohne diesen hier zu verlieren."
+            "value" : "Startet eine zweite Session, die alles weiß, was diese weiß, um einen anderen Weg zu versuchen, ohne diesen hier zu verlieren."
           }
         },
         "en" : {
@@ -22837,7 +23072,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dein Computer wird weiterhin gesucht."
+            "value" : "Ihr Computer wird weiterhin gesucht."
           }
         },
         "es" : {
@@ -23877,7 +24112,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Entscheidung hat deinen Computer nicht erreicht. Öffne die Sitzung und antworte dort."
+            "value" : "Diese Entscheidung hat Ihren Computer nicht erreicht. Öffnen Sie die Session und antworten Sie dort."
           }
         },
         "es" : {
@@ -24206,7 +24441,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung existiert auf deinem Computer nicht mehr."
+            "value" : "Diese Session existiert auf Ihrem Computer nicht mehr."
           }
         },
         "es" : {
@@ -24346,7 +24581,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Bridge ist das kleine Hilfsprogramm auf deinem Computer. Dieses Telefon spricht nur mit ihr, nie mit einer Cloud."
+            "value" : "Die Bridge ist das kleine Hilfsprogramm auf Ihrem Computer. Dieses Telefon spricht nur mit ihr, nie mit einer Cloud."
           }
         },
         "en" : {
@@ -24542,7 +24777,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die laufende Aufgabe wird beendet. Die Unterhaltung bleibt erhalten, und deine nächste Nachricht knüpft daran an."
+            "value" : "Die laufende Aufgabe wird beendet. Die Unterhaltung bleibt erhalten, und Ihre nächste Nachricht knüpft daran an."
           }
         },
         "es" : {
@@ -25154,7 +25389,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Session startet mit einer Zusammenfassung des vorherigen Gesprächs. Grok erhält sie automatisch mit deiner ersten Nachricht. Nichts einzufügen."
+            "value" : "Diese Session startet mit einer Zusammenfassung des vorherigen Gesprächs. Grok erhält sie automatisch mit Ihrer ersten Nachricht. Nichts einzufügen."
           }
         },
         "en" : {
@@ -25206,7 +25441,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Sitzung fragt dann nicht mehr nach, auch nicht bei Befehlen wie diesem, die etwas löschen oder überschreiben."
+            "value" : "Diese Session fragt dann nicht mehr nach, auch nicht bei Befehlen wie diesem, die etwas löschen oder überschreiben."
           }
         },
         "es" : {
@@ -26652,7 +26887,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TethrX entsperren. Die App kann Befehle auf deinem Computer ausführen."
+            "value" : "TethrX entsperren. Die App kann Befehle auf Ihrem Computer ausführen."
           }
         },
         "es" : {
@@ -27504,7 +27739,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "WARTET AUF DICH"
+            "value" : "WARTET AUF SIE"
           }
         },
         "es" : {
@@ -27550,7 +27785,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wartet auf deine Freigabe"
+            "value" : "Wartet auf Ihre Freigabe"
           }
         },
         "es" : {
@@ -28333,7 +28568,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Schreiben Sie Aufgaben auf, sobald sie Ihnen einfallen. Sie bleiben auf diesem Telefon, und später tippen Sie eine davon in eine beliebige Sitzung."
+            "value" : "Schreiben Sie Aufgaben auf, sobald sie Ihnen einfallen. Sie bleiben auf diesem Telefon, und später tippen Sie eine davon in eine beliebige Session."
           }
         },
         "es" : {
@@ -28886,7 +29121,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dein Computer hat einen Fehler gemeldet (Status %lld)."
+            "value" : "Ihr Computer hat einen Fehler gemeldet (Status %lld)."
           }
         },
         "es" : {
@@ -28932,7 +29167,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dein Computer bietet keine sichere Verbindung mehr an. Koppele erneut über seine Kopplungsseite, um fortzufahren."
+            "value" : "Ihr Computer bietet keine sichere Verbindung mehr an. Koppeln Sie erneut über seine Kopplungsseite, um fortzufahren."
           }
         },
         "es" : {
@@ -28978,7 +29213,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Sicherheitszertifikat deines Computers hat sich geändert. Koppele erneut über seine Kopplungsseite, um fortzufahren."
+            "value" : "Das Sicherheitszertifikat Ihres Computers hat sich geändert. Koppeln Sie erneut über seine Kopplungsseite, um fortzufahren."
           }
         },
         "es" : {
@@ -29070,7 +29305,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "deiner Sitzung"
+            "value" : "Ihrer Session"
           }
         },
         "es" : {

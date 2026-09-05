@@ -6,7 +6,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Sitzungen"
+            "value" : "%lld Sessions"
           }
         },
         "es" : {
@@ -52,7 +52,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Sitzungen laufen"
+            "value" : "%lld Sessions laufen"
           }
         },
         "es" : {
@@ -98,7 +98,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 Sitzung"
+            "value" : "1 Session"
           }
         },
         "es" : {
@@ -144,7 +144,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 Sitzung läuft"
+            "value" : "1 Session läuft"
           }
         },
         "es" : {

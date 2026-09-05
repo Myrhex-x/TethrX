@@ -104,7 +104,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sitzungen werden gesucht…"
+            "value" : "Sessions werden gesucht…"
           }
         },
         "es" : {
@@ -151,7 +151,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neue Sitzung"
+            "value" : "Neue Session"
           }
         },
         "es" : {

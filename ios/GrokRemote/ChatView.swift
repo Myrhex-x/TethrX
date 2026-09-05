@@ -13,6 +13,16 @@ struct ChatView: View {
     @State private var showFiles = false
     @State private var atBottom = true
     @FocusState private var composerFocused: Bool
+    /// Whether the composer's chip row is wider than the space it has. Only then is
+    /// a fade at its trailing edge telling the truth.
+    @State private var chipsContentWidth: CGFloat = 0
+    @State private var chipsViewportWidth: CGFloat = 0
+    private var chipsScroll: Bool { chipsContentWidth > chipsViewportWidth + 1 }
+    /// A fixed 18pt of fade, expressed as the fraction of the row it happens to be.
+    private var chipsFadeStart: CGFloat {
+        guard chipsViewportWidth > 40 else { return 0.9 }
+        return 1 - min(0.4, 18 / chipsViewportWidth)
+    }
 
     // Image attachments waiting in the composer (JPEG data + display thumbnails).
     @State private var pickedItems: [PhotosPickerItem] = []
@@ -193,7 +203,7 @@ struct ChatView: View {
                     .background(Grok.accent).clipShape(Capsule())
             }
         }
-        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+        .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 4)
     }
 
     // MARK: Find in this conversation
@@ -248,12 +258,13 @@ struct ChatView: View {
             .keyboardShortcut(.cancelAction)
             .accessibilityLabel(Text("Close find"))
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Grok.pad)
         .padding(.vertical, 2)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 14).padding(.bottom, 6)
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
+            .stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+        .padding(.horizontal, Grok.gutter).padding(.bottom, 6)
         .onChange(of: findQuery) { _, _ in
             findCursor = 0
             if let first = findMatches.first { scrollTarget = first.id }
@@ -331,7 +342,7 @@ struct ChatView: View {
                                                        value: g.frame(in: .named("transcript")).minY)
                             })
                     }
-                    .padding(18)
+                    .padding(.horizontal, Grok.gutter).padding(.vertical, 18)
                 }
                 .coordinateSpace(name: "transcript")
                 .defaultScrollAnchor(.bottom)
@@ -430,7 +441,7 @@ struct ChatView: View {
             snippetsRow
             commandPalette
             composerCard
-                .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
+                .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 10)
         }
         .background(
             LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg, Grok.bg],
@@ -451,11 +462,31 @@ struct ChatView: View {
                 .focused($composerFocused)
 
             HStack(spacing: 8) {
+                // No `scrollClipDisabled` here. It let the chips paint outside the
+                // card and straight over the send button: fine in English, where
+                // "Reads only" is short, and a mess in French, where the same chip
+                // reads "Lectures seules" and the row is wider than the card.
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) { attachMenu; controlChips }
+                        .background(GeometryReader { c in
+                            Color.clear.preference(key: ChipsWidthKey.self, value: c.size.width)
+                        })
                 }
-                .scrollClipDisabled()
+                .background(GeometryReader { v in
+                    Color.clear.preference(key: ChipsViewportKey.self, value: v.size.width)
+                })
+                .onPreferenceChange(ChipsWidthKey.self) { chipsContentWidth = $0 }
+                .onPreferenceChange(ChipsViewportKey.self) { chipsViewportWidth = $0 }
+                // The fade says "there is more, scroll". Applied unconditionally it
+                // said it even when there wasn't, dimming the last chip for no reason.
+                .mask(chipsScroll
+                      ? AnyView(LinearGradient(stops: [.init(color: .black, location: 0),
+                                                       .init(color: .black, location: chipsFadeStart),
+                                                       .init(color: .clear, location: 1)],
+                                               startPoint: .leading, endPoint: .trailing))
+                      : AnyView(Color.black))
                 trailingButtons
+                    .layoutPriority(1)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
@@ -483,6 +514,21 @@ struct ChatView: View {
             Menu {
                 Button { importingFile = true } label: { Label("Attach a file", systemImage: "doc") }
                 Button { showPhotoPicker = true } label: { Label("Attach images", systemImage: "photo") }
+                // Where the saved prompts go once the conversation has started and
+                // they no longer earn a row of their own above the composer.
+                if !snippets.items.isEmpty {
+                    Section("Saved prompts") {
+                        ForEach(snippets.items) { prompt in
+                            Button {
+                                Haptics.tap()
+                                draft = prompt.text
+                                composerFocused = true
+                            } label: {
+                                Label(prompt.title, systemImage: "sparkle")
+                            }
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 15, weight: .semibold))
@@ -506,7 +552,7 @@ struct ChatView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
                     .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
@@ -558,7 +604,11 @@ struct ChatView: View {
     @ViewBuilder private var trailingButtons: some View {
         if vm.busy {
             HStack(spacing: 8) {
-                if isEmptyDraft { micButton }
+                // No mic while a turn runs. It cost 52pt beside the stop button, which
+                // was exactly enough to push the control chips out of the card in
+                // Spanish, German and French; and while Grok is working, stop is the
+                // button that has to be unmistakable. Dictation is back the moment the
+                // turn ends.
                 if !isEmptyDraft {
                     CircleIconButton(system: "arrow.up", a11y: "Queue follow-up") {
                         // Must stop dictation here too, or the recogniser's next partial
@@ -593,8 +643,8 @@ struct ChatView: View {
                             Image(uiImage: img)
                                 .resizable().scaledToFill()
                                 .frame(width: 64, height: 64)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairlineStrong, lineWidth: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+                                .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
                             Button {
                                 if attachments.indices.contains(i) { attachments.remove(at: i) }
                                 if attachmentThumbs.indices.contains(i) { attachmentThumbs.remove(at: i) }
@@ -610,7 +660,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 2)
+                .padding(.horizontal, Grok.gutter).padding(.top, 12).padding(.bottom, 2)
             }
         }
     }
@@ -641,7 +691,7 @@ struct ChatView: View {
                         .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
                     }
                 }
-                .padding(.horizontal, 14).padding(.top, 10)
+                .padding(.horizontal, Grok.gutter).padding(.top, 10)
             }
         }
     }
@@ -775,12 +825,13 @@ struct ChatView: View {
         }
     }
 
-    // Tappable reusable prompts, shown above the composer while the draft is empty.
-    /// Your reusable prompts, stacked above the composer the way Grok stacks its
-    /// suggestions: full pills, left-aligned, one per line, readable at a glance
-    /// rather than a horizontal strip you have to swipe.
+    // Tappable reusable prompts, offered only at the start of a session.
+    /// A starter prompt is worth the space on an empty session, where the question is
+    /// "what do I ask it". It is not worth the space after every answer, where you
+    /// already know what you want to say and three pills are simply in the way of the
+    /// box you are reaching for. Mid-conversation they live under the `+` instead.
     @ViewBuilder private var snippetsRow: some View {
-        if isEmptyDraft && !snippets.items.isEmpty && !vm.busy {
+        if isEmptyDraft && !snippets.items.isEmpty && !vm.busy && vm.items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(snippets.items.prefix(3)) { prompt in
                     Button {
@@ -806,7 +857,7 @@ struct ChatView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.bottom, 4)
+            .padding(.horizontal, Grok.gutter).padding(.bottom, 4)
         }
     }
 
@@ -828,9 +879,9 @@ struct ChatView: View {
             }
             .frame(maxHeight: 190)
             .background(Grok.raised)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 14)
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+            .padding(.horizontal, Grok.gutter)
             .padding(.top, 10)
         }
     }
@@ -969,11 +1020,14 @@ struct ChatView: View {
         }
     }
 
+    /// One word. The menu behind the chip spells the policy out in full; the chip
+    /// only has to say which of the three you are on, and "Auto-approve" became
+    /// "Automatisch genehmigen" in German, which is wider than the composer.
     private var approvalLabel: LocalizedStringKey {
         switch vm.approvalPolicy {
-        case "all":   return "Auto-approve"
-        case "reads": return "Reads only"
-        default:      return "Ask each"
+        case "all":   return "Auto"
+        case "reads": return "Reads"
+        default:      return "Ask"
         }
     }
     private var approvalIcon: String {
@@ -1047,16 +1101,16 @@ struct HandoffCard: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Grok.bg)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 14).padding(.top, 12)
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+        .padding(.horizontal, Grok.gutter).padding(.top, 12)
     }
 }
 
@@ -1238,8 +1292,8 @@ struct ChatBubble: View {
                                 Image(uiImage: img)
                                     .resizable().scaledToFill()
                                     .frame(width: 110, height: 110)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
+                                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+                                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
                             }
                         }
                     } else if item.imageCount > 0 {
@@ -1363,8 +1417,8 @@ struct CodeBlock: View {
             }
         }
         .background(Grok.bg)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: code) {
             guard Syntax.supports(language) else { rendered = nil; return }
@@ -1445,8 +1499,8 @@ struct ToolLine: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
     }
 }
 
@@ -1632,27 +1686,39 @@ struct PermissionCard: View {
     /// "Always allow" on a card that deletes things is the one tap you cannot take
     /// back, so it asks first.
     @State private var confirmAlways = false
+    /// A long command is clipped to four lines so the buttons stay on screen; tap the
+    /// command to see all of it.
+    @State private var expanded = false
 
     private var denyOptions: [PermissionOption] { item.options.filter { !$0.isAllow } }
     /// What this command does that is worth a second look. Computed once per card.
     private var risk: CommandRisk? { CommandRisk.assess(item.text) }
 
+    /// The whole card is one decision, so it is laid out as one: what is being asked,
+    /// then yes or no on a single line, then the two rarer answers as plain text.
+    /// It used to stack four full-height pills, which made the buttons taller than the
+    /// command they were about.
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "lock.shield.fill").font(.system(size: 13, weight: .semibold))
-                Eyebrow("PERMISSION", comment: false)
-                Spacer()
-            }
-            .foregroundStyle(Grok.accent)
-
-            if let risk { riskBanner(risk) }
+        VStack(alignment: .leading, spacing: 10) {
+            header
 
             Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
                 .font(Grok.mono(13))
                 .foregroundStyle(Grok.text)
+                .lineLimit(expanded ? nil : 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() } }
+
+            // The reason a command is worth a second look reads as a line under it,
+            // not as a boxed banner inside a boxed card.
+            if let risk {
+                Text(risk.reason)
+                    .font(Grok.sans(13))
+                    .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let decided = item.decided {
                 Text(outcomeLabel(decided))
@@ -1661,79 +1727,111 @@ struct PermissionCard: View {
             } else if explaining, let deny = denyOptions.first {
                 explainBox(deny)
             } else {
-                VStack(spacing: 8) {
-                    if let allow = item.options.first(where: { $0.isAllow }) {
-                        Button { onDecide(allow.optionId, false, nil) } label: {
-                            Text(allow.name).lineLimit(2).multilineTextAlignment(.center)
-                        }
-                        .buttonStyle(PillButton(kind: .prominent))
-                        Button {
-                            // Destructive commands do not get a one-tap "and every
-                            // one after this, unattended".
-                            if risk?.level == .destructive { confirmAlways = true }
-                            else { onDecide(allow.optionId, true, nil) }
-                        } label: {
-                            Label("Always allow", systemImage: "bolt.fill").lineLimit(1)
-                        }
-                        .buttonStyle(PillButton(kind: .subtle))
-                        .confirmationDialog("Approve everything from now on?", isPresented: $confirmAlways, titleVisibility: .visible) {
-                            Button("Always allow", role: .destructive) { onDecide(allow.optionId, true, nil) }
-                            Button("Cancel", role: .cancel) { }
-                        } message: {
-                            Text("This session will stop asking, including for commands like this one that delete or overwrite things.")
-                        }
-                    }
-                    ForEach(denyOptions) { opt in
-                        Button { onDecide(opt.optionId, false, nil) } label: {
-                            Text(opt.name).lineLimit(2).multilineTextAlignment(.center)
-                        }
-                        .buttonStyle(PillButton(kind: .subtle))
-                    }
-                    if !denyOptions.isEmpty {
-                        Button {
-                            explaining = true
-                            reasonFocused = true
-                        } label: {
-                            Label("Deny & explain", systemImage: "text.bubble").lineLimit(1)
-                        }
-                        .buttonStyle(PillButton(kind: .subtle))
-                    }
-                }
+                actions
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.40) : Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
-    /// What this command does, said plainly, above the buttons. Not a blocker and not
-    /// a guess at intent — every card looks alike on a phone, and `rm -rf build` and
-    /// `rm -rf ~` are one character apart.
-    private func riskBanner(_ risk: CommandRisk) -> some View {
-        HStack(alignment: .top, spacing: 9) {
-            Image(systemName: risk.icon)
+    /// One line: what kind of thing this is, and what about it is worth noticing.
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.shield.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.text)
+                .foregroundStyle(Grok.textFaint)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(risk.label)
-                    .font(Grok.sans(11, .bold)).tracking(0.5)
-                    .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.text)
-                Text(risk.reason)
-                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
+            SectionLabel("PERMISSION")
+            Spacer(minLength: 8)
+            if let risk {
+                HStack(spacing: 5) {
+                    Image(systemName: risk.icon).font(.system(size: 10, weight: .semibold))
+                    Text(risk.label)
+                        .font(Grok.sans(10, .bold)).tracking(0.6)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background((risk.level == .destructive ? Grok.danger : Color.white).opacity(0.12))
+                .clipShape(Capsule())
+                .accessibilityElement(children: .combine)
             }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 11).padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(risk.level == .destructive ? Grok.danger.opacity(0.10) : Color.white.opacity(0.05))
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .stroke(risk.level == .destructive ? Grok.danger.opacity(0.45) : Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .accessibilityElement(children: .combine)
+    }
+
+    /// Yes and no share a row; the two answers you reach for less often sit under it
+    /// as text. `ViewThatFits` keeps that honest in German and at large type sizes,
+    /// where the same two labels need two lines.
+    @ViewBuilder private var actions: some View {
+        let allow = item.options.first(where: { $0.isAllow })
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                if let deny = denyOptions.first {
+                    Button { onDecide(deny.optionId, false, nil) } label: { Text(deny.name) }
+                        .buttonStyle(PillButton(kind: .subtle, compact: true))
+                }
+                if let allow {
+                    Button { onDecide(allow.optionId, false, nil) } label: { Text(allow.name) }
+                        .buttonStyle(PillButton(kind: .prominent, compact: true))
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) { alwaysAllowButton(allow); Spacer(minLength: 12); explainButton }
+                VStack(alignment: .leading, spacing: 0) { alwaysAllowButton(allow); explainButton }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // A request can carry more than the usual two answers. The extras belong
+            // behind one control rather than as two more pills nobody reads.
+            if denyOptions.count > 1 {
+                Menu {
+                    ForEach(denyOptions.dropFirst()) { opt in
+                        Button(opt.name) { onDecide(opt.optionId, false, nil) }
+                    }
+                } label: {
+                    Text("Other answers").font(Grok.sans(13, .medium)).foregroundStyle(Grok.textDim)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    @ViewBuilder private func alwaysAllowButton(_ allow: PermissionOption?) -> some View {
+        if let allow {
+            Button {
+                // Destructive commands do not get a one-tap "and every one after
+                // this, unattended".
+                if risk?.level == .destructive { confirmAlways = true }
+                else { onDecide(allow.optionId, true, nil) }
+            } label: {
+                Label("Always allow", systemImage: "bolt.fill")
+            }
+            .buttonStyle(QuietButton())
+            .confirmationDialog("Approve everything from now on?", isPresented: $confirmAlways, titleVisibility: .visible) {
+                Button("Always allow", role: .destructive) { onDecide(allow.optionId, true, nil) }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This session will stop asking, including for commands like this one that delete or overwrite things.")
+            }
+        }
+    }
+
+    @ViewBuilder private var explainButton: some View {
+        if !denyOptions.isEmpty {
+            Button {
+                explaining = true
+                reasonFocused = true
+            } label: {
+                Label("Deny & explain", systemImage: "text.bubble")
+            }
+            .buttonStyle(QuietButton())
+        }
     }
 
     /// Deny, and say why in the same breath. The text is queued as the next message,
@@ -1750,8 +1848,8 @@ struct PermissionCard: View {
                 .focused($reasonFocused)
                 .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(Grok.bg)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
                 .accessibilityLabel("Reason for denying")
 
             HStack(spacing: 8) {
@@ -2132,7 +2230,23 @@ struct PlanCard: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card))
+    }
+}
+
+/// Widths of the composer's chip row and of the space it is given, so the row can
+/// tell whether it actually needs a scroll affordance.
+private struct ChipsWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct ChipsViewportKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

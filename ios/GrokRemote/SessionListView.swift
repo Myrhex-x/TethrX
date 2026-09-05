@@ -27,7 +27,7 @@ struct SessionListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: Grok.groupGap) {
                     header
                     if app.demoMode { demoBanner }
                     if let err = app.errorMessage, !app.demoMode { errorBanner(err) }
@@ -37,7 +37,7 @@ struct SessionListView: View {
                     sessions
                     projectFolderRow
                 }
-                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 28)
+                .padding(.horizontal, Grok.gutter).padding(.top, 8).padding(.bottom, 28)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -175,6 +175,7 @@ struct SessionListView: View {
             }
             .keyboardShortcut("n", modifiers: .command)
         }
+        .padding(.horizontal, Grok.pad)
         .padding(.bottom, 4)
     }
 
@@ -211,10 +212,11 @@ struct SessionListView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Dismiss error"))
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 11)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.danger.opacity(0.35), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.danger.opacity(0.35), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Demo banner
@@ -232,10 +234,11 @@ struct SessionListView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 12)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Running now
@@ -254,6 +257,7 @@ struct SessionListView: View {
         if !waiting.isEmpty || !running.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Eyebrow(waiting.isEmpty ? "WORKING" : "NEEDS YOU")
+                    .padding(.horizontal, Grok.pad)
                 ForEach(waiting) { session in activeCard(session) }
                 if !running.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
@@ -262,6 +266,7 @@ struct SessionListView: View {
                             runningRow(session)
                         }
                     }
+                    .padding(.horizontal, Grok.pad)
                 }
             }
         }
@@ -285,12 +290,16 @@ struct SessionListView: View {
                         .foregroundStyle(Grok.textFaint)
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 10)
+                .padding(.horizontal, Grok.pad).padding(.top, Grok.pad).padding(.bottom, 10)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if session.waiting?.requestId != nil {
-                InlineAnswer(session: session).padding(.horizontal, 2)
+                // Sharing the card's own edge and background. It used to draw a second
+                // translucent panel 2pt inside the first, so the approval sat 12pt to
+                // the left of the session name directly above it.
+                Rectangle().fill(Grok.rule).frame(height: 1)
+                InlineAnswer(session: session, nested: true)
             }
         }
         .background(Grok.raised)
@@ -349,16 +358,18 @@ struct SessionListView: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
             .background(Grok.bg)
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Grok.hairline, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
+                .stroke(Grok.hairline, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             Text("Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(14)
+        .padding(Grok.pad)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Working directory
@@ -391,7 +402,7 @@ struct SessionListView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 14)
+            .padding(.horizontal, Grok.pad).padding(.vertical, Grok.pad)
             .background(Grok.raised)
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
             .contentShape(Rectangle())
@@ -420,7 +431,7 @@ struct SessionListView: View {
                     Text("Loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 24)
+                .padding(.horizontal, Grok.pad).padding(.vertical, 24)
                 .accessibilityElement(children: .combine)
             } else if app.sessions.isEmpty {
                 emptyHistory
@@ -428,7 +439,7 @@ struct SessionListView: View {
                 Text("Nothing matches \u{201C}\(query)\u{201D}")
                     .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 24)
+                    .padding(.horizontal, Grok.pad).padding(.vertical, 24)
             } else {
                 ForEach(historySections, id: \.key) { section in
                     sectionHeader(section)
@@ -439,11 +450,12 @@ struct SessionListView: View {
                                 sessionLink(session)
                             }
                             if section.items.isEmpty {
-                                Text("Empty — use ••• on a session to move it here")
+                                Text("Empty. Use ••• on a session to move it here.")
                                     .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                                     .padding(.vertical, 14)
                             }
                         }
+                        .padding(.horizontal, Grok.pad)
                     }
                     Color.clear.frame(height: 16)
                 }
@@ -484,6 +496,7 @@ struct SessionListView: View {
                     }
                 }
             }
+            .padding(.horizontal, Grok.pad)
         }
     }
 
@@ -590,7 +603,7 @@ struct SessionListView: View {
                 .accessibilityLabel(Text("Clear search"))
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 12)
         .background(Grok.raised)
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
     }
@@ -640,6 +653,7 @@ struct SessionListView: View {
                 .accessibilityLabel(Text("Folder options for \(section.title)"))
             }
         }
+        .padding(.horizontal, Grok.pad)
         .padding(.bottom, 8)
     }
 
@@ -651,7 +665,7 @@ struct SessionListView: View {
                 .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 28)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 28)
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
@@ -747,6 +761,9 @@ struct SessionListView: View {
 /// this app is for.
 struct InlineAnswer: View {
     let session: SessionInfo
+    /// Inside a card that already draws a surface, this draws none of its own: one
+    /// background, one border, one left edge.
+    var nested = false
     @EnvironmentObject var app: AppState
     @State private var working = false
     @State private var confirmDestructive = false
@@ -804,12 +821,14 @@ struct InlineAnswer: View {
                 .disabled(working)
             }
         }
-        .padding(12)
-        .background(risk?.level == .destructive ? Grok.danger.opacity(0.08) : Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12)
+        .padding(.horizontal, nested ? Grok.pad : 12)
+        .padding(.vertical, nested ? 12 : 12)
+        .background(risk?.level == .destructive ? Grok.danger.opacity(0.08)
+                    : (nested ? Color.clear : Grok.raised))
+        .overlay(nested ? nil : RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
             .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.4) : Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.bottom, 12)
+        .clipShape(RoundedRectangle(cornerRadius: nested ? 0 : Grok.R.small, style: .continuous))
+        .padding(.bottom, nested ? 0 : 12)
         .confirmationDialog(Text("Run \u{201C}\(command)\u{201D}?"), isPresented: $confirmDestructive,
                             titleVisibility: .visible) {
             Button("Approve", role: .destructive) { answer(true) }

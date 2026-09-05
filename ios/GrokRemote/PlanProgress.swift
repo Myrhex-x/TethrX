@@ -114,7 +114,9 @@ struct TaskListCard: View {
                 .frame(width: 12, alignment: .leading)
                 .accessibilityHidden(true)
             Text(ChatBubble.marking(AttributedString(entry.content), query: highlight))
-                .font(Grok.mono(12, entry.isActive ? .semibold : .regular))
+                // A plan step is a sentence someone wrote, not a command. Setting it
+                // in the code face made the card read as terminal output.
+                .font(Grok.sans(14, entry.isActive ? .semibold : .regular))
                 .foregroundStyle(entry.isDone ? Grok.textFaint : (entry.isActive ? Grok.text : Grok.textDim))
                 .strikethrough(entry.isDone, color: Grok.textFaint)
                 .lineSpacing(2)

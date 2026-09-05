@@ -370,6 +370,7 @@
       }
     },
     "Couldn't reach your iPhone. Keep it nearby and unlocked." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -554,6 +555,7 @@
       }
     },
     "Keep it nearby, and open TethrX on it once." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -742,7 +744,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Sitzungen"
+            "value" : "Noch keine Sessions"
           }
         },
         "es" : {
@@ -784,6 +786,7 @@
       }
     },
     "Not connected to your iPhone." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -828,6 +831,53 @@
           }
         }
       }
+    },
+    "Not live. Open TethrX on your iPhone to refresh." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht aktuell. Öffnen Sie TethrX auf dem iPhone, um zu aktualisieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No está en vivo. Abre TethrX en tu iPhone para actualizar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas à jour. Ouvrez TethrX sur votre iPhone pour actualiser."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non aggiornato. Apri TethrX sul tuo iPhone per aggiornare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新ではありません。iPhone で TethrX を開いて更新してください。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desatualizado. Abra o TethrX no seu iPhone para atualizar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是最新的。在 iPhone 上打开 TethrX 以刷新。"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "Nothing said yet." : {
       "localizations" : {
@@ -874,6 +924,100 @@
           }
         }
       }
+    },
+    "Open TethrX on your iPhone once, and keep it nearby." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen Sie TethrX einmal auf dem iPhone und behalten Sie es in der Nähe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre TethrX una vez en tu iPhone y mantenlo cerca."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez TethrX une fois sur votre iPhone, et gardez-le à proximité."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri TethrX una volta sul tuo iPhone e tienilo vicino."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone で TethrX を一度開き、近くに置いておいてください。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra o TethrX uma vez no seu iPhone e mantenha-o por perto."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 上打开一次 TethrX，并把它放在附近。"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "Open TethrX on your iPhone to read the conversation." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen Sie TethrX auf dem iPhone, um das Gespräch zu lesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre TethrX en tu iPhone para leer la conversación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez TethrX sur votre iPhone pour lire la conversation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri TethrX sul tuo iPhone per leggere la conversazione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話を読むには iPhone で TethrX を開いてください。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra o TethrX no seu iPhone para ler a conversa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 上打开 TethrX 以阅读对话。"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "Pair one in TethrX on your iPhone." : {
       "localizations" : {
