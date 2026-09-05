@@ -113,3 +113,16 @@ avoids passwords; generate it in App Store Connect → Users and Access → Inte
 - **Icon rejected** → must be 1024² with **no alpha** (yours is already correct).
 - **Missing privacy manifest** → `PrivacyInfo.xcprivacy` is included (declares UserDefaults, no tracking).
 - **Build number already used** → bump `CURRENT_PROJECT_VERSION`.
+- **Nothing built at all, no checks on the commit** → the skip marker `[ci skip]`
+  is matched anywhere in the commit message, body included, by both GitHub Actions
+  and Xcode Cloud. A commit that only *mentions* it in prose, as this one nearly
+  did, silently skips the build you were trying to trigger. Keep the marker out of
+  the message entirely when you want a build; it is safe inside a file like this
+  one, because only the message is scanned.
+- **Xcode Cloud archives, then "Exporting for App Store Distribution failed"** →
+  a bundle id in the app has never been registered. Xcode Cloud signs through an
+  API-key session, which cannot create identifiers. Run the
+  `-allowProvisioningUpdates` command at the top of this file once from a Mac
+  signed in to the account; the profiles land on the account and every later cloud
+  build signs itself. This is what took out builds 47 and 48 when the watch app
+  arrived.
