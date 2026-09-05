@@ -29,10 +29,22 @@ Building the watch app at all requires the **watchOS platform** installed in Xco
 > error: exportArchive No profiles for 'com.tethrx.app.watchkitapp' were found
 > ```
 >
-> The archive itself succeeds; only the export fails. Register the id once — open the
-> project in Xcode, select the target, Signing & Capabilities, pick the team, and let
-> automatic signing create it — or add it at developer.apple.com. After that every
-> later build signs itself.
+> The archive itself succeeds; only the export fails. Registering the identifier is
+> not enough on its own: the error then becomes `cannot **update** bundle identifier`,
+> because the App Group still has to be associated with it, and the API has no
+> app-group endpoints at all (`/v1/appGroups` is a 404).
+>
+> The fix that works, once, from a Mac where Xcode is signed in to the account:
+>
+> ```bash
+> xcodebuild -project ios/GrokRemote.xcodeproj -scheme TethrXWatch \
+>   -destination 'generic/platform=watchOS' -allowProvisioningUpdates build
+> ```
+>
+> That session IS allowed to create and configure identifiers, so it registers what is
+> missing and associates the group. The change lives on the account, so every later
+> Xcode Cloud build signs itself. The same command with `-scheme GrokRemote` covers
+> every target at once.
 
 ---
 
