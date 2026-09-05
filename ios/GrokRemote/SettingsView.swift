@@ -32,7 +32,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 ScrollViewReader { proxy in
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: Grok.groupGap) {
                     if app.demoMode {
                         // Anything that needs a real computer is left out entirely
                         // rather than shown empty or, worse, filled from the machine
@@ -56,7 +56,7 @@ struct SettingsView: View {
                         about
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
                 .task {
                     #if DEBUG
                     // Headless screenshots: `-settingsAnchor plugins` opens scrolled there.
@@ -141,7 +141,7 @@ struct SettingsView: View {
                     .font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
                 Button { revealToken.toggle() } label: {
                     Image(systemName: revealToken ? "eye.slash" : "eye").font(.caption)
-                        .frame(width: 40, height: 40).contentShape(Rectangle())
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .foregroundStyle(Grok.textDim)
                 .accessibilityLabel(Text(revealToken ? "Hide token" : "Reveal token"))
@@ -169,7 +169,7 @@ struct SettingsView: View {
                 Spacer()
                 Button { Task { await loadUsage() } } label: {
                     Image(systemName: "arrow.clockwise").font(.caption)
-                        .frame(width: 40, height: 40).contentShape(Rectangle())
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .foregroundStyle(Grok.textDim)
                 .accessibilityLabel(Text("Refresh usage"))
@@ -227,7 +227,9 @@ struct SettingsView: View {
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                 HStack(spacing: 8) {
                     ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
-                        Button { app.defaultEffort = pair.1 } label: { Text(pair.0).font(Grok.sans(15, .medium)) }
+                        // No font here: a font on the Text itself beats the one
+                        // SegPill sets, and the selected pill loses its weight step.
+                        Button { app.defaultEffort = pair.1 } label: { Text(pair.0) }
                             .buttonStyle(SegPill(selected: effectiveEffort == pair.1))
                     }
                     Spacer(minLength: 0)
@@ -249,13 +251,13 @@ struct SettingsView: View {
                     .foregroundStyle(watch.active ? Grok.text : Grok.textFaint)
                     .accessibilityHidden(true)
                 watchStatusLabel
-                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14).padding(.vertical, 13)
+            .padding(.horizontal, Grok.pad).padding(.vertical, 13)
             .background(Grok.raised)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             .accessibilityElement(children: .combine)
 
             watchExplanation
@@ -283,7 +285,11 @@ struct SettingsView: View {
     private var security: some View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("SECURITY")
-            toggleRow("Require \(lock.biometryName)", "Lock the app on open — it can run commands on your computer", $lock.enabled)
+            // A device with no biometry gets its own whole sentence: "Require %@"
+            // translates verb-first in half the languages, so a bare noun in the
+            // slot came out ungrammatical.
+            toggleRow(lock.biometryName.isEmpty ? "Require a passcode" : "Require \(lock.biometryName)",
+                      "Lock the app on open — it can run commands on your computer", $lock.enabled)
         }
     }
 
@@ -344,7 +350,10 @@ struct SettingsView: View {
                         Text(bridge.name).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1)
                         HStack(spacing: 5) {
                             if let reachable {
-                                Circle().fill(reachable ? Color.green.opacity(0.85) : Grok.textFaint)
+                                // Filled against faint, not green against grey: the
+                                // canvas is monochrome and the one tinted ink is
+                                // reserved for errors.
+                                Circle().fill(reachable ? Grok.text : Grok.textFaint)
                                     .frame(width: 5, height: 5)
                                     .accessibilityHidden(true)
                             }
@@ -356,6 +365,9 @@ struct SettingsView: View {
                     }
                     Spacer(minLength: 0)
                 }
+                // Two lines of text come to 36pt; the row is already 44 tall next to
+                // the trash button, so this only widens the target, never the row.
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -370,7 +382,10 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text("Forget \(bridge.name)?"))   // same key as the dialog title
+            // A button is named by what it does, not by the question the dialog it
+            // opens will ask. The computer's name moves to the value.
+            .accessibilityLabel(Text("Forget this computer"))
+            .accessibilityValue(Text(bridge.name))
         }
         .contextMenu {
             Button(role: .destructive) { forgetting = bridge } label: {
@@ -518,13 +533,14 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Grok.textDim)
                 .padding(.top, -6)
-                .accessibilityLabel(Text("Remove \(plugin.name)?"))   // same key as the dialog title
+                .accessibilityLabel(Text("Remove plugin"))
+                .accessibilityValue(Text(plugin.name))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 13)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     private func loadPlugins() async {
@@ -595,11 +611,11 @@ struct SettingsView: View {
                     Text("\(snippets.items.count)").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                     Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 13)
+                .padding(.horizontal, Grok.pad).padding(.vertical, 13)
                 .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .contentShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -612,7 +628,7 @@ struct SettingsView: View {
             row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "·")
             grokUpdateRows
             if let v = app.health?.version, !v.isEmpty {
-                row("Bridge", "v\(v)" + (bridgeOutdated ? " · update available" : ""))
+                row("Bridge", bridgeOutdated ? String(localized: "v\(v) · update available") : "v\(v)")
             }
             if bridgeOutdated {
                 Text("On your computer: npm i -g tethrx-bridge, then restart the bridge.")
@@ -638,9 +654,13 @@ struct SettingsView: View {
                         if grokUpdating { ProgressView().controlSize(.mini).tint(.black) }
                         (grokUpdating ? Text("Updating…") : Text("Update now")).font(Grok.sans(14, .semibold))
                     }
-                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .padding(.horizontal, 10).padding(.vertical, 12)
                     .background(Capsule().fill(Color.white))
                     .foregroundStyle(.black)
+                    // The capsule itself is shorter than a finger; the plain style
+                    // hands over exactly the shape it is given, so ask for 44.
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(grokUpdating)

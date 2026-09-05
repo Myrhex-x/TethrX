@@ -75,16 +75,21 @@ struct TaskListCard: View {
                     }
                     .foregroundStyle(Grok.textDim)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // A thumb tall to press, then the growth comes back out of the
+                    // layout so the card keeps its 12pt rhythm.
+                    .padding(.vertical, 12)
                     .contentShape(Rectangle())
+                    .padding(.vertical, -12)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(14)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     private var header: some View {

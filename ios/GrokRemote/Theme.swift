@@ -78,6 +78,25 @@ enum Grok {
     static func display(_ size: CGFloat = 28) -> Font { sans(size, .semibold) }
 }
 
+extension Grok {
+    /// Whether the app is currently running in a language whose script has no use for
+    /// letter-spacing. Resolved once from the bundle's chosen localization rather than
+    /// per string, because in a Japanese UI every label is Japanese.
+    static let cjkLocale: Bool = {
+        let code = Bundle.main.preferredLocalizations.first?.prefix(2).lowercased() ?? "en"
+        return code == "ja" || code == "zh" || code == "ko"
+    }()
+}
+
+extension Text {
+    /// Tracking is Latin micro-typography. Opened out it pulls a Japanese word apart,
+    /// and the negative values the display face uses make the glyphs collide, so in
+    /// those languages this is simply no tracking at all.
+    func latinTracking(_ amount: CGFloat) -> Text {
+        tracking(Grok.cjkLocale ? 0 : amount)
+    }
+}
+
 // MARK: - Section label
 
 /// The wide-tracked uppercase micro-label that runs through everything xAI and
@@ -218,7 +237,11 @@ struct SegPill: ButtonStyle {
             .background(selected ? Color.white.opacity(0.10) : .clear)
             .overlay(Capsule().stroke(selected ? Grok.hairlineStrong : .clear, lineWidth: 1))
             .clipShape(Capsule())
-            .contentShape(Capsule())
+            // The pill reads best at about 34pt tall, which is not a target. The extra
+            // padding is transparent and sits outside the capsule, so the shape is
+            // unchanged and the thing you tap is 44pt.
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
     }
 }
 

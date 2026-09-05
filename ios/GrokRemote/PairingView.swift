@@ -38,7 +38,7 @@ struct PairingView: View {
                 if let err = app.errorMessage { errorRow(err) }
                 footer
             }
-            .padding(24)
+            .padding(.horizontal, Grok.gutter).padding(.vertical, 24)
             .padding(.top, 8)
             .animation(.easeInOut(duration: 0.22), value: idx)
             .animation(.easeInOut(duration: 0.22), value: path)
@@ -175,8 +175,10 @@ struct PairingView: View {
                                     }
                                 }
                                 .padding(12)
-                                .overlay(RoundedRectangle(cornerRadius: 11).stroke(Grok.hairlineStrong, lineWidth: 1))
-                                .contentShape(RoundedRectangle(cornerRadius: 11))
+                                .background(Grok.raised)
+                                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -201,7 +203,7 @@ struct PairingView: View {
                 Button { focus = nil; Task { await app.connect() } } label: {
                     HStack(spacing: 10) {
                         if app.connecting { ProgressView().controlSize(.small).tint(.white) }
-                        (app.connecting ? Text("CONNECTING") : Text("CONNECT")).tracking(1.5)
+                        (app.connecting ? Text("CONNECTING") : Text("CONNECT")).latinTracking(1.5)
                     }
                 }
                 .buttonStyle(PillButton(kind: .prominent)).disabled(app.connecting)
@@ -216,15 +218,15 @@ struct PairingView: View {
     private func cardShell<C: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Eyebrow("STEP \(idx + 1) / \(steps.count)")
-            Text(title).font(Grok.sans(23, .semibold)).tracking(-0.4)
+            Text(title).font(Grok.sans(23, .semibold)).latinTracking(-0.4)
                 .foregroundStyle(Grok.text).fixedSize(horizontal: false, vertical: true)
             content()
         }
-        .padding(20)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     private func para(_ s: LocalizedStringKey) -> some View {
@@ -248,10 +250,10 @@ struct PairingView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Grok.textFaint)
             }
-            .padding(16)
+            .padding(Grok.pad)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(RoundedRectangle(cornerRadius: 13).stroke(Grok.hairlineStrong, lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -267,9 +269,13 @@ struct PairingView: View {
     private var backButton: some View {
         Button { path = idx == firstTailIndex ? .undecided : path; idx = max(idx - 1, 0) } label: {
             Label("back", systemImage: "chevron.left").font(Grok.sans(15))
+                // A bare label is one line of 15pt type tall, well under the 44pt
+                // a finger needs; the height lives in the label so the whole width
+                // of the card is the target.
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain).foregroundStyle(Grok.textFaint)
-        .frame(maxWidth: .infinity)
     }
 
     private func errorRow(_ err: String) -> some View {
@@ -341,8 +347,8 @@ private struct CopyableCode: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(text).font(Grok.sans(16)).foregroundStyle(Grok.text)
-                .lineLimit(1).minimumScaleFactor(0.6).textSelection(.enabled)
+            Text(text).font(Grok.mono(14)).foregroundStyle(Grok.text)
+                .lineLimit(2).minimumScaleFactor(0.7).textSelection(.enabled)
             Spacer(minLength: 0)
             Button {
                 UIPasteboard.general.string = text
@@ -355,14 +361,14 @@ private struct CopyableCode: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(copied ? Grok.accent : Grok.textDim)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(Text(copied ? "Copied" : "Copy"))
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 12)
         .background(Grok.bg)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 }

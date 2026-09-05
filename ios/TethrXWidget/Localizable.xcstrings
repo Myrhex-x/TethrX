@@ -380,13 +380,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "sin emparejar"
+            "value" : "sin enlazar"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "non couplé"
+            "value" : "non appairé"
           }
         },
         "it" : {
@@ -426,7 +426,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sin emparejar"
+            "value" : "Sin enlazar"
           }
         },
         "fr" : {
@@ -713,13 +713,13 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "au travail"
+            "value" : "en cours"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "al lavoro"
+            "value" : "in corso"
           }
         },
         "ja" : {

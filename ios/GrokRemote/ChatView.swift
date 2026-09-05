@@ -182,25 +182,35 @@ struct ChatView: View {
     // language — Files (project tree), Changes (git), Session (usage/details).
     private var actionStrip: some View {
         HStack(spacing: 8) {
-            if !vm.isDemo {   // these need a real computer behind them
-                stripButton("Files") { showFiles = true }
-                stripButton("Changes") { showGit = true }
+            // The same scroller the composer's chip row uses, for the same reason: the
+            // four labels are as wide as their translation makes them, and "Dateien
+            // Änderungen Session Suchen" beside the plan pill is wider than the strip.
+            // A bare row answers that by wrapping the words inside their own capsules.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if !vm.isDemo {   // these need a real computer behind them
+                        stripButton("Files") { showFiles = true }
+                        stripButton("Changes") { showGit = true }
+                    }
+                    stripButton("Session") { showDetails = true }
+                    stripButton("Find") {
+                        withAnimation(.easeOut(duration: 0.15)) { finding.toggle() }
+                        if finding { findFocused = true } else { findQuery = "" }
+                    }
+                    .keyboardShortcut("f", modifiers: .command)
+                }
             }
-            stripButton("Session") { showDetails = true }
-            stripButton("Find") {
-                withAnimation(.easeOut(duration: 0.15)) { finding.toggle() }
-                if finding { findFocused = true } else { findQuery = "" }
-            }
-            .keyboardShortcut("f", modifiers: .command)
-            Spacer(minLength: 0)
             // Where grok is in its own checklist, without scrolling back to the card.
+            // It keeps its width and the chips give way, not the other way round.
             if !vm.plan.isEmpty, vm.busy || !vm.plan.allDone {
                 PlanProgressPill(entries: vm.plan)
+                    .layoutPriority(1)
             }
             if vm.mode == "plan" {
-                Text("PLAN").font(Grok.sans(11, .bold)).tracking(0.8).foregroundStyle(.black)
+                Text("PLAN").font(Grok.sans(11, .bold)).latinTracking(0.8).foregroundStyle(.black)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(Grok.accent).clipShape(Capsule())
+                    .layoutPriority(1)
             }
         }
         .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 4)
@@ -227,7 +237,9 @@ struct ChatView: View {
                 .accessibilityHidden(true)
             TextField("", text: $findQuery,
                       prompt: Text("find in this conversation").foregroundColor(Grok.textFaint))
-                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                // What you type here is a word, not a command, so it is set in the
+                // reading face like the rest of the bar.
+                .font(Grok.sans(15)).foregroundStyle(Grok.text)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .focused($findFocused)
                 .submitLabel(.search)
@@ -283,7 +295,7 @@ struct ChatView: View {
         // Transparent padding inside the button grows the tap area toward 44pt
         // without changing how the chip looks.
         Button { Haptics.tap(); action() } label: {
-            Text(title).chip(on: false)
+            Text(title).lineLimit(1).chip(on: false)
                 .padding(.vertical, 7)
                 .contentShape(Rectangle())
         }
@@ -594,7 +606,7 @@ struct ChatView: View {
                 }
                 .accessibilityLabel(Text("Dismiss error"))
             }
-            .padding(.horizontal, 16).padding(.vertical, 10)
+            .padding(.horizontal, Grok.gutter).padding(.vertical, 10)
             .background(Grok.danger.opacity(0.10))
             .overlay(Rectangle().fill(Grok.danger.opacity(0.3)).frame(height: 1), alignment: .top)
         }
@@ -643,8 +655,8 @@ struct ChatView: View {
                             Image(uiImage: img)
                                 .resizable().scaledToFill()
                                 .frame(width: 64, height: 64)
-                                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
-                                .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
+                                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
                             Button {
                                 if attachments.indices.contains(i) { attachments.remove(at: i) }
                                 if attachmentThumbs.indices.contains(i) { attachmentThumbs.remove(at: i) }
@@ -660,7 +672,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Grok.gutter).padding(.top, 12).padding(.bottom, 2)
+                .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 2)
             }
         }
     }
@@ -687,7 +699,7 @@ struct ChatView: View {
                         }
                         .font(Grok.sans(14, .medium))
                         .foregroundStyle(Grok.textDim)
-                        .padding(.leading, 10)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
                         .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
                     }
                 }
@@ -786,7 +798,7 @@ struct ChatView: View {
                         .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
                     }
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, Grok.gutter)
             }
             .padding(.top, 10)
         }
@@ -879,8 +891,8 @@ struct ChatView: View {
             }
             .frame(maxHeight: 190)
             .background(Grok.raised)
-            .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             .padding(.horizontal, Grok.gutter)
             .padding(.top, 10)
         }
@@ -1075,7 +1087,7 @@ struct HandoffCard: View {
                 Image(systemName: "arrow.triangle.merge")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.accent)
                     .accessibilityHidden(true)
-                Text("CARRIED OVER").font(Grok.sans(13, .bold)).tracking(1.2).foregroundStyle(Grok.text)
+                SectionLabel("CARRIED OVER")
             }
             Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message — nothing to paste.")
                 .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
@@ -1091,7 +1103,12 @@ struct HandoffCard: View {
                         .font(Grok.sans(14, .medium))
                 }
                 .foregroundStyle(Grok.textDim)
+                // Full width and a thumb tall to press, then the vertical growth comes
+                // back out of the layout so the card keeps its 10pt rhythm.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
                 .contentShape(Rectangle())
+                .padding(.vertical, -12)
             }
             .buttonStyle(.plain)
             if expanded {
@@ -1101,16 +1118,19 @@ struct HandoffCard: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Grok.bg)
-                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             }
         }
-        .padding(14)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
-        .padding(.horizontal, Grok.gutter).padding(.top, 12)
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+        // The transcript already sits on the gutter; a second one here put this card
+        // 16pt inside the action strip above it and the composer below it.
+        .padding(.top, 12)
     }
 }
 
@@ -1292,8 +1312,8 @@ struct ChatBubble: View {
                                 Image(uiImage: img)
                                     .resizable().scaledToFill()
                                     .frame(width: 110, height: 110)
-                                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
-                                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairlineStrong, lineWidth: 1))
+                                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
                             }
                         }
                     } else if item.imageCount > 0 {
@@ -1362,7 +1382,7 @@ struct ChatBubble: View {
                     .accessibilityHidden(true)
                 Text(item.text).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(3)
             }
-            .padding(14)
+            .padding(Grok.pad)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Grok.danger.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
@@ -1385,7 +1405,7 @@ struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text(language.isEmpty ? "code" : language.lowercased())
-                    .font(Grok.sans(11, .medium)).tracking(0.6).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(11, .medium)).latinTracking(0.6).foregroundStyle(Grok.textFaint)
                 Spacer(minLength: 0)
                 Button {
                     UIPasteboard.general.string = code
@@ -1417,8 +1437,8 @@ struct CodeBlock: View {
             }
         }
         .background(Grok.bg)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: code) {
             guard Syntax.supports(language) else { rendered = nil; return }
@@ -1466,6 +1486,13 @@ struct ToolLine: View {
                                 .font(.system(size: 9, weight: .bold))
                         }
                         .foregroundStyle(Grok.textFaint)
+                        // A 13pt label is a 16pt tall target on the control that opens
+                        // what a tool actually did. Pad it out to a thumb, then take the
+                        // vertical growth back out of the layout so a tool line with
+                        // output stays exactly as tall as one without.
+                        .padding(.vertical, 13).padding(.leading, 12)
+                        .contentShape(Rectangle())
+                        .padding(.vertical, -13)
                     }
                 }
             }
@@ -1499,8 +1526,8 @@ struct ToolLine: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 }
 
@@ -1581,6 +1608,10 @@ struct DiffRowView: View {
             HStack(spacing: 8) {
                 Text(verbatim: "⋯").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     .frame(width: 10, alignment: .leading)
+                    .accessibilityHidden(true)
+                // Stand in for the line-number column, so the folded-lines label starts
+                // on the same left edge as the code above and below it.
+                Color.clear.frame(width: 26, height: 1)
                     .accessibilityHidden(true)
                 (row.hidden == 1 ? Text("1 unchanged line") : Text("\(row.hidden) unchanged lines"))
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
@@ -1730,7 +1761,7 @@ struct PermissionCard: View {
                 actions
             }
         }
-        .padding(14)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
@@ -1751,7 +1782,7 @@ struct PermissionCard: View {
                 HStack(spacing: 5) {
                     Image(systemName: risk.icon).font(.system(size: 10, weight: .semibold))
                     Text(risk.label)
-                        .font(Grok.sans(10, .bold)).tracking(0.6)
+                        .font(Grok.sans(10, .bold)).latinTracking(0.6)
                         .lineLimit(1).minimumScaleFactor(0.8)
                 }
                 .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
@@ -1842,31 +1873,42 @@ struct PermissionCard: View {
                       prompt: Text("why not? e.g. use the staging database instead")
                           .foregroundColor(Grok.textFaint),
                       axis: .vertical)
-                .font(Grok.mono(13))
+                // A sentence addressed to Grok, not a command: the reading face, the
+                // way the composer above sets the message you are writing.
+                .font(Grok.sans(15))
                 .foregroundStyle(Grok.text)
                 .lineLimit(1...4)
                 .focused($reasonFocused)
                 .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(Grok.bg)
-                .overlay(RoundedRectangle(cornerRadius: Grok.R.small).stroke(Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                 .accessibilityLabel("Reason for denying")
 
-            HStack(spacing: 8) {
-                Button { explaining = false; reason = "" } label: {
-                    Text("Back").lineLimit(1)
-                }
-                .buttonStyle(PillButton(kind: .subtle))
-
-                Button {
-                    let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-                    onDecide(deny.optionId, false, trimmed.isEmpty ? nil : trimmed)
-                } label: {
-                    Text("Deny & send").lineLimit(1)
-                }
-                .buttonStyle(PillButton(kind: .prominent))
+            // The same two-compact-pills row the card's main answers use, with the
+            // vertical fallback for the type sizes where "Refuser et envoyer" beside
+            // "Retour" would otherwise shrink to a different point size than its
+            // neighbour and then truncate.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { backButton; sendDenialButton(deny) }
+                VStack(spacing: 8) { backButton; sendDenialButton(deny) }
             }
         }
+    }
+
+    private var backButton: some View {
+        Button { explaining = false; reason = "" } label: { Text("Back") }
+            .buttonStyle(PillButton(kind: .subtle, compact: true))
+    }
+
+    private func sendDenialButton(_ deny: PermissionOption) -> some View {
+        Button {
+            let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            onDecide(deny.optionId, false, trimmed.isEmpty ? nil : trimmed)
+        } label: {
+            Text("Deny & send")
+        }
+        .buttonStyle(PillButton(kind: .prominent, compact: true))
     }
 
     private func outcomeLabel(_ optionId: String) -> String {
@@ -1899,13 +1941,13 @@ struct SessionDetailsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: Grok.groupGap) {
                     context
                     tokens
                     technical
                     exportSection
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -2059,7 +2101,10 @@ struct SessionDetailsSheet: View {
             dismiss()
             app.pendingOpenSessionId = fresh.id   // the list (or split view) opens it
         } catch {
-            compactError = "Compaction failed — check the connection and try again."
+            // A bare literal here never reaches the string table: the sentence shipped
+            // in English to all seven translations, and to English in its uncorrected
+            // wording. Same shape as `branch()` above.
+            compactError = String(localized: "Compaction failed — check the connection and try again.")
         }
     }
 
@@ -2089,12 +2134,33 @@ struct SessionDetailsSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("TECHNICAL")
             row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : String(localized: "grok default")) : u.lastModelId)
-            row("Reasoning effort", vm.effort.isEmpty ? String(localized: "auto") : vm.effort)
+            row("Reasoning effort", effortText)
             row("Plan mode", vm.planMode ? String(localized: "on") : String(localized: "off"))
-            row("Auto-approve", vm.autoApprove ? String(localized: "on") : String(localized: "off"))
+            row("Approvals", approvalText)
             row("Transport", session.transport ?? "acp")
-            row("Directory", session.cwd.map { ($0 as NSString).lastPathComponent } ?? "—")
+            row("Directory", session.cwd.map { ($0 as NSString).lastPathComponent } ?? "-")
             row("Session ID", String(session.id.prefix(8)))
+        }
+    }
+
+    /// Both of these have to say what the composer's chips say. They used to print the
+    /// raw wire value, which is English in every language, and "" was reported as
+    /// "auto" for a session that is in fact running high.
+    private var effortText: String {
+        switch vm.effort {
+        case "medium": return String(localized: "Medium")
+        case "low":    return String(localized: "Low")
+        default:       return String(localized: "High")
+        }
+    }
+
+    /// Three states, not two: a session set to approve reads only read as "off" here
+    /// while its chip in the composer was lit.
+    private var approvalText: String {
+        switch vm.approvalPolicy {
+        case "all":   return String(localized: "Auto")
+        case "reads": return String(localized: "Reads")
+        default:      return String(localized: "Ask")
         }
     }
 
@@ -2227,11 +2293,12 @@ struct PlanCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+            .stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 }
 

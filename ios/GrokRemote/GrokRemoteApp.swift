@@ -193,7 +193,7 @@ struct ReconnectSplash: View {
         VStack(spacing: 18) {
             TethrXMark(size: 40)
                 .frame(width: 68, height: 68)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small).tint(.white)
                 Text("Reconnecting…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)

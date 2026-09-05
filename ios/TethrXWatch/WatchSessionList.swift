@@ -90,8 +90,8 @@ struct WatchSessionList: View {
         .foregroundStyle(Grok.text)
         .padding(.vertical, 4)
         .listRowBackground(
-            RoundedRectangle(cornerRadius: 12).fill(Grok.danger.opacity(0.18))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.danger.opacity(0.45), lineWidth: 1))
+            RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).fill(Grok.danger.opacity(0.18))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.danger.opacity(0.45), lineWidth: 1))
         )
     }
 
@@ -104,13 +104,13 @@ struct WatchSessionList: View {
                 if session.isWaitingOnYou {
                     Image(systemName: "hand.raised.fill").font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Grok.text)
-                    Text("waiting").font(Grok.mono(11, .semibold)).foregroundStyle(Grok.text)
+                    Text("waiting").font(Grok.sans(12, .semibold)).foregroundStyle(Grok.text)
                 } else if session.isRunning {
                     Circle().fill(Grok.accent).frame(width: 5, height: 5)
-                    Text("running").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    Text("running").font(Grok.sans(12)).foregroundStyle(Grok.textDim)
                 } else {
                     (session.turns == 1 ? Text("1 turn") : Text("\(session.turns) turns"))
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(12)).foregroundStyle(Grok.textFaint)
                 }
                 ElapsedLabel(since: session.since)
                 Spacer(minLength: 0)
@@ -118,13 +118,38 @@ struct WatchSessionList: View {
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(session.isWaitingOnYou
-                                 ? "\(session.name), waiting for your approval"
-                                 : (session.isRunning ? "\(session.name), running" : session.name)))
+        .accessibilityLabel(rowLabel(session))
+        .accessibilityValue(rowValue(session))
+    }
+
+    /// Built as three separate `Text`s rather than one ternary, because a ternary
+    /// that mixes a literal with `session.name` resolves as a plain String and the
+    /// two spoken phrases were never translated.
+    private func rowLabel(_ session: WatchSession) -> Text {
+        if session.isWaitingOnYou { return Text("\(session.name), waiting for your approval") }
+        if session.isRunning { return Text("\(session.name), running") }
+        return Text(verbatim: session.name)
+    }
+
+    /// The turn count and the stopwatch are on the row; the label above says neither,
+    /// so without this VoiceOver hears strictly less than the screen shows.
+    ///
+    /// The duration is a date-styled `Text`, not a formatted string. The visible
+    /// stopwatch ticks inside a `TimelineView`, but this row's body does not, so a
+    /// snapshot taken here would still be spoken minutes later. A date-styled `Text`
+    /// keeps itself current, and reads as a phrase rather than as "3m".
+    private func rowValue(_ session: WatchSession) -> Text {
+        let turns: Text? = session.isWaitingOnYou || session.isRunning
+            ? nil
+            : Text("\(session.turns) turns")
+        guard let since = session.since else { return turns ?? Text(verbatim: "") }
+        let elapsed = Text(since, style: .relative)
+        guard let turns else { return elapsed }
+        return turns + Text(verbatim: ", ") + elapsed
     }
 
     private func rowBackground(_ session: WatchSession) -> some View {
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
             .fill(session.isWaitingOnYou ? Color.white.opacity(0.14) : Grok.raised)
     }
 
@@ -135,17 +160,17 @@ struct WatchSessionList: View {
                 Text("Can't reach your iPhone")
                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
                 Text("Open TethrX on your iPhone once, and keep it nearby.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(12)).foregroundStyle(Grok.textDim)
             } else if !store.snapshot.connected {
                 Text("No computer connected")
                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
                 Text("Pair one in TethrX on your iPhone.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(12)).foregroundStyle(Grok.textDim)
             } else {
                 Text("No sessions yet")
                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
                 Text("Start one on your iPhone.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(12)).foregroundStyle(Grok.textDim)
             }
         }
         .padding(.vertical, 6)
@@ -155,10 +180,10 @@ struct WatchSessionList: View {
     @ViewBuilder private var footer: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let error = store.errorText {
-                Text(error).font(Grok.mono(10)).foregroundStyle(Grok.danger)
+                Text(error).font(Grok.sans(11)).foregroundStyle(Grok.danger)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let notice = store.notice {
-                Text(notice).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                Text(notice).font(Grok.sans(11)).foregroundStyle(Grok.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             } else if !store.snapshot.computer.isEmpty {
                 Eyebrow(text: "computer")
@@ -168,7 +193,7 @@ struct WatchSessionList: View {
                 // still true — say it quietly, and only once there is a list to qualify.
                 if store.phoneUnreachable {
                     Text("Not live. Open TethrX on your iPhone to refresh.")
-                        .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

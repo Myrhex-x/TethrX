@@ -208,6 +208,10 @@ final class WatchStore: NSObject, ObservableObject {
         queuedAnswers.formIntersection(stillWaiting)
         snapshot = fresh
         errorText = nil
+        // A snapshot only arrives from a phone that is in touch, so "will pass it on
+        // when it's back in range" has already happened. Left standing it displaces
+        // the footer for the rest of the session.
+        notice = nil
         phoneUnreachable = false
         publishComplication(fresh)
     }
@@ -249,7 +253,10 @@ extension WatchStore: WCSessionDelegate {
     /// The phone confirming a queued answer landed.
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         Task { @MainActor in
-            if let requestId = userInfo["answered"] as? String { self.queuedAnswers.remove(requestId) }
+            if let requestId = userInfo["answered"] as? String {
+                self.queuedAnswers.remove(requestId)
+                self.notice = nil
+            }
         }
     }
 

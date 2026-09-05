@@ -142,10 +142,15 @@ struct StatusWidgetView: View {
                 }
                 .widgetAccentable()
                 Text(state.word).font(.system(size: 15, weight: .semibold))
-                Text(detail).font(.system(size: 11, design: .monospaced)).opacity(0.7).lineLimit(1)
+                // The tile is 172pt wide at most, and this line is a session name or
+                // a translated sentence: French runs half again as long as English,
+                // so it gets a second line rather than a cut-off word.
+                Text(detail).font(.system(size: 11, design: .monospaced)).opacity(0.7)
+                    .lineLimit(2).minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .containerBackground(.clear, for: .widget)
+            .accessibilityElement(children: .combine)
         default:
             home.containerBackground(Color.black, for: .widget)
         }
@@ -217,7 +222,7 @@ struct StatusWidgetView: View {
     private func stat(_ value: String, _ caption: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value).font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
-            Text(caption).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.4))
+            Text(caption).font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.4))
         }
     }
 

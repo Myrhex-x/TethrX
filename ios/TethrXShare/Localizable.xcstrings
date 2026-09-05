@@ -110,7 +110,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Buscando sus sesiones…"
+            "value" : "Buscando tus sesiones…"
           }
         },
         "fr" : {
@@ -122,7 +122,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ricerca delle sue sessioni…"
+            "value" : "Ricerca delle tue sessioni…"
           }
         },
         "ja" : {
@@ -204,7 +204,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aún sin emparejar"
+            "value" : "Aún sin enlazar"
           }
         },
         "fr" : {
@@ -251,7 +251,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abra TethrX y empareje con su ordenador; después, comparta de nuevo."
+            "value" : "Abre TethrX y enlaza con tu ordenador; después, comparte de nuevo."
           }
         },
         "fr" : {
@@ -263,13 +263,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apra TethrX e abbini il suo computer, poi condivida di nuovo."
+            "value" : "Apri TethrX e abbina il tuo computer, poi condividi di nuovo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TethrXを開いてパソコンとペアリングし、もう一度共有してください。"
+            "value" : "TethrXを開いてコンピュータとペアリングし、もう一度共有してください。"
           }
         },
         "pt-BR" : {
@@ -398,7 +398,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vea la imagen adjunta."
+            "value" : "Mira la imagen adjunta."
           }
         },
         "fr" : {
@@ -819,7 +819,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su ordenador respondió con un error (%lld)."
+            "value" : "Tu ordenador respondió con un error (%lld)."
           }
         },
         "fr" : {
@@ -865,7 +865,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su ordenador rechazó el token de enlace. Vuelva a enlazar en TethrX."
+            "value" : "Tu ordenador rechazó el token de enlace. Vuelve a enlazar en TethrX."
           }
         },
         "fr" : {
@@ -877,7 +877,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il computer ha rifiutato il token di associazione. Ripetere l'associazione in TethrX."
+            "value" : "Il tuo computer ha rifiutato il token di abbinamento. Ripeti l'abbinamento in TethrX."
           }
         },
         "ja" : {

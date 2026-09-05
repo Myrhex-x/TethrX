@@ -162,7 +162,10 @@ struct SessionListView: View {
                     Text(verbatim: "TethrX")
                         .font(Grok.display(26)).tracking(-0.4).foregroundStyle(Grok.text)
                     SectionLabel(verbatim: statusLine)
-                        .lineLimit(1)
+                        // A real Mac name plus the version overruns this slot, and a
+                        // tail ellipsis eats the version, which is the half that says
+                        // something. Shrink first, then cut the middle of the host.
+                        .lineLimit(1).minimumScaleFactor(0.75).truncationMode(.middle)
                 }
             }
             Spacer()
@@ -175,7 +178,6 @@ struct SessionListView: View {
             }
             .keyboardShortcut("n", modifiers: .command)
         }
-        .padding(.horizontal, Grok.pad)
         .padding(.bottom, 4)
     }
 
@@ -184,7 +186,11 @@ struct SessionListView: View {
         if app.demoMode { return String(localized: "Tour") }
         var parts: [String] = []
         if let host = app.health?.host, !host.isEmpty {
-            parts.append(host.replacingOccurrences(of: ".home", with: ""))
+            // A Mac reports its Bonjour name, so the host normally arrives as
+            // "Name-MacBook-Pro.local". The suffix is the one part of it that says
+            // nothing about which computer this is, and it costs the version its room.
+            parts.append(host.replacingOccurrences(of: ".local", with: "")
+                             .replacingOccurrences(of: ".home", with: ""))
         }
         if let grok = app.health?.grok, !grok.isEmpty {
             parts.append(grok.replacingOccurrences(of: "grok ", with: ""))
@@ -206,8 +212,10 @@ struct SessionListView: View {
             Button { app.errorMessage = nil } label: {
                 Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Grok.textDim)
-                    .frame(width: 32, height: 32)
+                    // 44pt to tap, 32pt to the layout, so the banner keeps its height.
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
+                    .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Dismiss error"))
@@ -223,7 +231,7 @@ struct SessionListView: View {
 
     private var demoBanner: some View {
         HStack(spacing: 10) {
-            Text("TOUR").font(Grok.sans(11, .bold)).tracking(0.8).foregroundStyle(.black)
+            Text("TOUR").font(Grok.sans(11, .bold)).latinTracking(0.8).foregroundStyle(.black)
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Grok.accent).clipShape(Capsule())
             Text("Sample data — nothing is connected.")
@@ -257,16 +265,18 @@ struct SessionListView: View {
         if !waiting.isEmpty || !running.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Eyebrow(waiting.isEmpty ? "WORKING" : "NEEDS YOU")
-                    .padding(.horizontal, Grok.pad)
                 ForEach(waiting) { session in activeCard(session) }
                 if !running.isEmpty {
+                    // A session that is merely working needs nothing from you, so it
+                    // cannot sit under NEEDS YOU. With nothing waiting, the heading at
+                    // the top of the block already reads WORKING.
+                    if !waiting.isEmpty { Eyebrow("WORKING") }
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(running.enumerated()), id: \.element.id) { index, session in
                             if index > 0 { Rectangle().fill(Grok.rule).frame(height: 1) }
                             runningRow(session)
                         }
                     }
-                    .padding(.horizontal, Grok.pad)
                 }
             }
         }
@@ -343,7 +353,7 @@ struct SessionListView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Text("npm i -g tethrx-bridge")
-                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
+                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
                 Button {
@@ -351,8 +361,10 @@ struct SessionListView: View {
                     Haptics.tap()
                 } label: {
                     Image(systemName: "doc.on.doc").font(.system(size: 11, weight: .medium)).foregroundStyle(Grok.textDim)
-                        .frame(width: 40, height: 40)
+                        // 44pt to tap, 40pt to the layout, so the code box keeps its height.
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
+                        .frame(width: 40, height: 40)
                 }
                 .accessibilityLabel(Text("Copy command"))
             }
@@ -431,7 +443,7 @@ struct SessionListView: View {
                     Text("Loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Grok.pad).padding(.vertical, 24)
+                .padding(.vertical, 24)
                 .accessibilityElement(children: .combine)
             } else if app.sessions.isEmpty {
                 emptyHistory
@@ -439,7 +451,7 @@ struct SessionListView: View {
                 Text("Nothing matches \u{201C}\(query)\u{201D}")
                     .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Grok.pad).padding(.vertical, 24)
+                    .padding(.vertical, 24)
             } else {
                 ForEach(historySections, id: \.key) { section in
                     sectionHeader(section)
@@ -455,7 +467,6 @@ struct SessionListView: View {
                                     .padding(.vertical, 14)
                             }
                         }
-                        .padding(.horizontal, Grok.pad)
                     }
                     Color.clear.frame(height: 16)
                 }
@@ -496,7 +507,6 @@ struct SessionListView: View {
                     }
                 }
             }
-            .padding(.horizontal, Grok.pad)
         }
     }
 
@@ -575,16 +585,12 @@ struct SessionListView: View {
     private var searchField: some View {
         HStack(spacing: 10) {
             searchBox
-            Button { Haptics.tap(); newFolderName = ""; creatingFolder = true } label: {
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Grok.textDim)
-                    .frame(width: 44, height: 44)
-                    .background(Grok.raised, in: Circle())
-                    .contentShape(Circle())
+            // The same circular primitive the gear and + use one group above. The
+            // hand-rolled version was a ringless 5% disc, which barely read as a
+            // button beside them.
+            CircleIconButton(system: "folder.badge.plus", a11y: "New folder") {
+                Haptics.tap(); newFolderName = ""; creatingFolder = true
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("New folder"))
         }
     }
 
@@ -597,8 +603,12 @@ struct SessionListView: View {
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textDim)
-                        .frame(width: 36, height: 36)
+                        // 44pt to tap, but only the glyph's own box to the layout: as
+                        // the tallest child it grew the whole field by 15pt on the
+                        // first keystroke and shrank it again on clear.
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
+                        .frame(width: 24, height: 20)
                 }
                 .accessibilityLabel(Text("Clear search"))
             }
@@ -651,9 +661,14 @@ struct SessionListView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(Text("Folder options for \(section.title)"))
+            } else {
+                // The filler rule inside the button runs to whatever width is left, so
+                // without this slot a date heading's rule ends 52pt further right than
+                // a folder's. Width only: a Color stays flexible in height, so an empty
+                // slot cannot make the heading taller.
+                Color.clear.frame(width: 44)
             }
         }
-        .padding(.horizontal, Grok.pad)
         .padding(.bottom, 8)
     }
 
@@ -665,7 +680,7 @@ struct SessionListView: View {
                 .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Grok.pad).padding(.vertical, 28)
+        .padding(.vertical, 28)
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
@@ -775,8 +790,11 @@ struct InlineAnswer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if !command.isEmpty, !isPlan {
+                // A shell command, so it wears the same face here as in the chat
+                // approval card and on the watch. You are authorizing it from a list
+                // row without having read the conversation.
                 Text(command)
-                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
+                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -800,7 +818,10 @@ struct InlineAnswer: View {
                 } label: {
                     HStack(spacing: 6) {
                         if working { ProgressView().controlSize(.mini).tint(.black) }
-                        (isPlan ? Text("Approve & build") : Text("Approve")).lineLimit(1)
+                        // Half a card each, and "Genehmigen & umsetzen" does not fit in
+                        // half a card at large text sizes. Same floor PillButton uses.
+                        (isPlan ? Text("Approve & build") : Text("Approve"))
+                            .lineLimit(1).minimumScaleFactor(0.75)
                     }
                     .font(Grok.sans(13, .semibold))
                     .foregroundStyle(.black)
@@ -811,7 +832,8 @@ struct InlineAnswer: View {
                 .disabled(working)
 
                 Button { answer(false) } label: {
-                    (isPlan ? Text("Keep planning") : Text("Deny")).lineLimit(1)
+                    (isPlan ? Text("Keep planning") : Text("Deny"))
+                        .lineLimit(1).minimumScaleFactor(0.75)
                         .font(Grok.sans(13, .semibold))
                         .foregroundStyle(Grok.textDim)
                         .frame(maxWidth: .infinity).padding(.vertical, 9)
@@ -821,8 +843,8 @@ struct InlineAnswer: View {
                 .disabled(working)
             }
         }
-        .padding(.horizontal, nested ? Grok.pad : 12)
-        .padding(.vertical, nested ? 12 : 12)
+        .padding(.horizontal, Grok.pad)
+        .padding(.vertical, 12)
         .background(risk?.level == .destructive ? Grok.danger.opacity(0.08)
                     : (nested ? Color.clear : Grok.raised))
         .overlay(nested ? nil : RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
@@ -924,25 +946,34 @@ struct SessionRow: View {
                             .foregroundStyle(Grok.textFaint)
                             .accessibilityLabel(Text("Pinned"))
                     }
-                    // An id is an identifier, so it keeps the mono face.
+                    // An id is an identifier, so it keeps the mono face. Equal advances
+                    // also start the badge beside it at the same x on every row.
                     Text(session.id.prefix(8))
-                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.mono(13)).foregroundStyle(Grok.textFaint)
+                        .lineLimit(1)
                     // Blocked on you outranks running: it is the state that needs an
                     // action, and it used to be invisible.
                     if session.isWaitingOnYou {
                         HStack(spacing: 5) {
                             Image(systemName: "hand.raised.fill").font(.system(size: 8, weight: .bold))
-                            Text("WAITING FOR YOU").font(Grok.sans(11, .semibold)).tracking(0.4)
+                            Text("WAITING FOR YOU").font(Grok.sans(11, .semibold)).latinTracking(0.4)
+                                .lineLimit(1).minimumScaleFactor(0.8)
                             ElapsedLabel(since: Fmt.date(fromISO: session.waiting?.since))
                         }
                         .foregroundStyle(Grok.text)
+                        // Translated, this badge is half again as wide as the English,
+                        // and it is the whole point of the row: it takes its width
+                        // before the id does, rather than wrapping onto a second line.
+                        .layoutPriority(1)
                         .accessibilityLabel(Text("Waiting for your approval"))
                     } else if session.isRunning {
                         HStack(spacing: 5) {
                             Circle().fill(Grok.accent).frame(width: 6, height: 6)
-                            Text("RUNNING").font(Grok.sans(11, .semibold)).tracking(0.4).foregroundStyle(Grok.accent)
+                            Text("RUNNING").font(Grok.sans(11, .semibold)).latinTracking(0.4).foregroundStyle(Grok.accent)
+                                .lineLimit(1).minimumScaleFactor(0.8)
                             ElapsedLabel(since: Fmt.date(fromISO: session.runningSince))
                         }
+                        .layoutPriority(1)
                     }
                 }
                 Text(name).font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text).lineLimit(1)
@@ -951,15 +982,23 @@ struct SessionRow: View {
                         Text((cwd as NSString).lastPathComponent)
                             .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                             .lineLimit(1)
+                            // The folder is what tells two sessions apart, so it takes
+                            // its width before the counts beside it do.
+                            .layoutPriority(1)
                     }
-                    Text("· \(session.turnCount) turn\(session.turnCount == 1 ? "" : "s")")
+                    // A plural cannot be built by gluing an English "s" on: no
+                    // translator can use it, and a single turn read "turni: 1" in
+                    // Italian. Both halves come from the catalog instead.
+                    (Text(verbatim: "· ") + (session.turnCount == 1
+                                             ? Text("1 turn")
+                                             : Text("\(session.turnCount) turns")))
                         .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
                     // Only when nothing is happening: a live session already carries
                     // a stopwatch, and two clocks in one row is one too many.
                     if !session.isRunning, !session.isWaitingOnYou,
                        let touched = Fmt.date(fromISO: session.updatedAt) {
                         Text(verbatim: "· \(Fmt.ago(touched))")
-                            .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).fixedSize()
+                            .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineLimit(1)
                     }
                 }
             }

@@ -46,7 +46,11 @@ struct GitReviewSheet: View {
                         repoPicker
                         VStack(alignment: .leading, spacing: 8) {
                             Text("No changes").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
-                            Text("The working tree is clean\(status?.branch.map { " on \($0)" } ?? "").")
+                            // Whole phrases per case, like the file counter below.
+                            // The branch clause used to be an English " on main"
+                            // spliced into the translated sentence as an argument.
+                            (status?.branch.map { Text("The working tree is clean on \($0).") }
+                                ?? Text("The working tree is clean."))
                                 .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                         }
                     } else {
@@ -66,7 +70,7 @@ struct GitReviewSheet: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -88,7 +92,11 @@ struct GitReviewSheet: View {
             Button("Discard", role: .destructive) { Task { await discard() } }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Reverts every modified file and deletes untracked ones in \(dir ?? session.cwd ?? "this folder"). This cannot be undone.")
+            if let folder = dir ?? session.cwd {
+                Text("Reverts every modified file and deletes untracked ones in \(folder). This cannot be undone.")
+            } else {
+                Text("Reverts every modified file and deletes untracked ones in this folder. This cannot be undone.")
+            }
         }
     }
 
@@ -141,7 +149,8 @@ struct GitReviewSheet: View {
                 .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Branch \(status?.branch ?? "unknown"), \(files.count) changed files"))
+        .accessibilityLabel(status?.branch.map { Text("Branch \($0), \(files.count) changed files") }
+                            ?? Text("\(files.count) changed files"))
     }
 
     private var fileList: some View {
@@ -158,7 +167,7 @@ struct GitReviewSheet: View {
                             }
                         }
                         Spacer(minLength: 0)
-                        Text(file.label).font(Grok.sans(11, .medium)).tracking(0.5)
+                        Text(file.label).font(Grok.sans(11, .medium)).latinTracking(0.5)
                             .foregroundStyle(Grok.textDim)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
@@ -171,10 +180,10 @@ struct GitReviewSheet: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Grok.pad)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     private var commitBox: some View {
@@ -190,7 +199,7 @@ struct GitReviewSheet: View {
             Button { Task { await commit() } } label: {
                 HStack(spacing: 10) {
                     if working { ProgressView().controlSize(.small).tint(.white) }
-                    (working ? Text("COMMITTING") : Text("COMMIT ALL")).tracking(1.3)
+                    (working ? Text("COMMITTING") : Text("COMMIT ALL")).latinTracking(1.3)
                 }
             }
             .buttonStyle(PillButton(kind: .prominent))

@@ -29,7 +29,7 @@ struct BridgeLogSheet: View {
                         ProgressView().controlSize(.small).tint(.white)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 16)
                 .textSelection(.enabled)
             }
             .background(Grok.bg)

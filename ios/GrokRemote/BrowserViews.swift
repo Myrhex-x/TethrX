@@ -49,7 +49,7 @@ struct DirectoryPickerSheet: View {
                         if listing?.parent == nil, !recents.isEmpty { recentsSection }
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -91,15 +91,16 @@ struct DirectoryPickerSheet: View {
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textDim)
-                        .frame(width: 36, height: 36).contentShape(Rectangle())
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .accessibilityLabel(Text("Clear search"))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(minHeight: 44)
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     @ViewBuilder private var searchResults: some View {
@@ -131,10 +132,10 @@ struct DirectoryPickerSheet: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, Grok.pad)
                 .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             }
         } else if searching {
             HStack(spacing: 10) {
@@ -169,7 +170,7 @@ struct DirectoryPickerSheet: View {
             if l.dirs.isEmpty {
                 Text("// no subfolders")
                     .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
-                    .padding(.vertical, 14).padding(.horizontal, 14)
+                    .padding(Grok.pad)
             }
             ForEach(l.dirs) { d in
                 row(name: d.name, icon: "folder") { Task { await load(d.path) } }
@@ -177,8 +178,8 @@ struct DirectoryPickerSheet: View {
             }
         }
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     private var recentsSection: some View {
@@ -201,8 +202,8 @@ struct DirectoryPickerSheet: View {
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10)
                     .background(Grok.raised)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -218,7 +219,7 @@ struct DirectoryPickerSheet: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(Grok.textFaint)
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
+            .padding(.horizontal, Grok.pad).padding(.vertical, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -246,7 +247,8 @@ struct FileBrowserSheet: View {
     var body: some View {
         NavigationStack {
             FileFolderScreen(client: client, sessionId: session.id, relPath: "",
-                             title: session.cwd.map { ($0 as NSString).lastPathComponent } ?? "Files")
+                             title: session.cwd.map { ($0 as NSString).lastPathComponent }
+                                ?? String(localized: "Files"))
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }.foregroundStyle(Grok.text).fontWeight(.semibold)
@@ -360,11 +362,11 @@ struct FileViewerScreen: View {
                             .foregroundStyle(Grok.text)
                             .lineSpacing(2)
                             .textSelection(.enabled)
-                            .padding(14)
+                            .padding(Grok.pad)
                         if file.truncated == true {
                             Text("… truncated — the full file is \(file.size) bytes")
                                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
-                                .padding(.horizontal, 14).padding(.bottom, 12)
+                                .padding(.horizontal, Grok.pad).padding(.bottom, 12)
                         }
                     }
                 }

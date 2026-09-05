@@ -13,6 +13,7 @@ struct TethrXLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.sessionName)
                         .font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                        .lineLimit(1)
                     Text(context.state.detail)
                         .font(.system(size: 12, design: .monospaced)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 }
@@ -50,7 +51,8 @@ struct TethrXLiveActivity: Widget {
                         }
                         Spacer(minLength: 8)
                         Text(label(context.state.phase))
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1).minimumScaleFactor(0.8)
                             .foregroundStyle(context.state.phase == "waiting" || context.state.phase == "error" ? .white : .white.opacity(0.7))
                     }
                     .padding(.horizontal, 8)
@@ -76,7 +78,7 @@ struct TethrXLiveActivity: Widget {
     @ViewBuilder private func badge(_ phase: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: glyph(phase)).font(.system(size: 11, weight: .semibold))
-            Text(label(phase)).font(.system(size: 11, weight: .medium, design: .monospaced))
+            Text(label(phase)).font(.system(size: 11, weight: .medium)).lineLimit(1)
         }
         .foregroundStyle(phase == "waiting" || phase == "error" ? .white : .white.opacity(0.7))
     }

@@ -34,7 +34,7 @@ struct WelcomeView: View {
                     if let err = app.errorMessage { errorRow(err) }
                     footer
                 }
-                .padding(24)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 24)
                 .padding(.top, 12)
             }
             .background(Grok.bg)
@@ -53,11 +53,11 @@ struct WelcomeView: View {
             HStack(spacing: 13) {
                 TethrXMark(size: 30)
                     .frame(width: 52, height: 52)
-                    .overlay(RoundedRectangle(cornerRadius: 13).stroke(Grok.hairlineStrong, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
                 VStack(alignment: .leading, spacing: 4) {
                     Eyebrow("TETHRX")
                     Text("Your coding tasks, in your pocket")
-                        .font(Grok.sans(20, .semibold)).tracking(-0.3).foregroundStyle(Grok.text)
+                        .font(Grok.sans(20, .semibold)).latinTracking(-0.3).foregroundStyle(Grok.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -141,16 +141,16 @@ struct WelcomeView: View {
                 .font(Grok.sans(15, .medium)).foregroundStyle(Grok.textDim)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
-                .overlay(RoundedRectangle(cornerRadius: 11).stroke(Grok.hairline, lineWidth: 1))
-                .contentShape(RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             }
             .buttonStyle(.plain)
         }
-        .padding(18)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     private var isBlankDraft: Bool {
@@ -179,17 +179,17 @@ struct WelcomeView: View {
                     } else {
                         Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
                     }
-                    (app.connecting ? Text("Reconnecting…") : Text("Reconnect")).tracking(0.3)
+                    (app.connecting ? Text("Reconnecting…") : Text("Reconnect")).latinTracking(0.3)
                 }
             }
             .buttonStyle(PillButton(kind: .prominent))
             .disabled(app.connecting)
         }
-        .padding(16)
+        .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Chrome

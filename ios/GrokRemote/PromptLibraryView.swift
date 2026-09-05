@@ -35,7 +35,7 @@ struct PromptLibraryView: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -123,9 +123,9 @@ struct PromptRow: View {
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 11).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 11))
-        .contentShape(RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 }
 

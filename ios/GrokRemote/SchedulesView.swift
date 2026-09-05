@@ -53,7 +53,8 @@ struct SchedulesSection: View {
     }
 
     private func row(_ s: BridgeSchedule) -> some View {
-        let sessionName = app.sessions.first(where: { $0.id == s.sessionId })?.displayName ?? "session"
+        let sessionName = app.sessions.first(where: { $0.id == s.sessionId })?.displayName
+            ?? String(localized: "session")
         return HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(s.prompt).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(2)
@@ -74,10 +75,10 @@ struct SchedulesSection: View {
             .foregroundStyle(Grok.textDim)
             .accessibilityLabel(Text("Remove schedule"))
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, Grok.pad).padding(.vertical, 10)
         .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     private func load() async {
@@ -137,16 +138,19 @@ struct ScheduleEditorSheet: View {
                             }
                         } label: {
                             HStack {
-                                Text(selectedSession?.displayName ?? "choose…")
-                                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
+                                // Two cases, not one coalesced String: a String reaches
+                                // Text through the verbatim initializer, so the
+                                // placeholder would have stayed English everywhere.
+                                (selectedSession.map { Text($0.displayName) } ?? Text("choose…"))
+                                    .font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1)
                                 Spacer()
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 11)).foregroundStyle(Grok.textFaint)
                             }
-                            .padding(.horizontal, 14).padding(.vertical, 12)
+                            .padding(.horizontal, Grok.pad).padding(.vertical, 12)
                             .background(Grok.raised)
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                         }
                         Text("The task runs in this session — its folder, effort, and approval settings apply.")
                             .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
@@ -170,8 +174,11 @@ struct ScheduleEditorSheet: View {
                             .frame(maxWidth: .infinity)
                         // The circles stay 34pt and the gap between them becomes the
                         // slack in a 44pt target, so a mis-tap no longer picks the
-                        // wrong day. VoiceOver read the initials, which is two "S"
-                        // and two "T" with no way to tell what is already on.
+                        // wrong day. The targets flex instead of being a fixed 44pt
+                        // each: seven rigid ones are 308pt, wider than the card has
+                        // under Display Zoom, and short of it on a large phone.
+                        // VoiceOver read the initials, which is two "S" and two "T"
+                        // with no way to tell what is already on.
                         HStack(spacing: 0) {
                             ForEach(0..<7, id: \.self) { d in
                                 Button {
@@ -184,7 +191,7 @@ struct ScheduleEditorSheet: View {
                                         .foregroundStyle(weekdays.contains(d) ? .black : Grok.textDim)
                                         .overlay(Circle().stroke(weekdays.contains(d) ? Color.clear : Grok.hairline, lineWidth: 1))
                                         .clipShape(Circle())
-                                        .frame(width: 44, height: 44)
+                                        .frame(maxWidth: .infinity, minHeight: 44)
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -205,13 +212,13 @@ struct ScheduleEditorSheet: View {
                     Button { Task { await save() } } label: {
                         HStack(spacing: 10) {
                             if saving { ProgressView().controlSize(.small).tint(.white) }
-                            (saving ? Text("SAVING") : Text("SAVE SCHEDULE")).tracking(1.3)
+                            (saving ? Text("SAVING") : Text("SAVE SCHEDULE")).latinTracking(1.3)
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))
                     .disabled(saving || prompt.trimmingCharacters(in: .whitespaces).isEmpty || selectedSession == nil)
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)

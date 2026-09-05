@@ -18,14 +18,19 @@ final class AppLock: ObservableObject {
         locked = UserDefaults.standard.bool(forKey: "app.faceIDLock")   // locked on cold launch when enabled
     }
 
-    /// Human-readable name of the available biometry, for the Settings label.
+    /// Name of the available biometry, for the Settings label. "Face ID" and
+    /// "Touch ID" are brand names and stay English everywhere. With no biometry
+    /// this is empty rather than a word: dropping a bare English noun into the
+    /// translated "Require %@" sentence read as half-translated, and the noun a
+    /// passcode needs differs per language anyway, so the caller picks a whole
+    /// sentence instead.
     var biometryName: String {
         let ctx = LAContext()
         _ = ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
         switch ctx.biometryType {
         case .faceID: return "Face ID"
         case .touchID: return "Touch ID"
-        default: return "passcode"
+        default: return ""
         }
     }
 
@@ -55,7 +60,7 @@ struct LockView: View {
             VStack(spacing: 20) {
                 TethrXMark(size: 40)
                     .frame(width: 68, height: 68)
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Grok.hairlineStrong, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
                 Text("TethrX is locked").font(Grok.sans(18, .semibold)).foregroundStyle(Grok.text)
                 Button { lock.authenticate() } label: {
                     Label("Unlock", systemImage: "lock.open").frame(maxWidth: 220)

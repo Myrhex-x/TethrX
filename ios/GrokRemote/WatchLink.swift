@@ -228,7 +228,7 @@ extension WatchLink: WCSessionDelegate {
         case "decide":
             guard let client = app.client,
                   let id = message["sessionId"] as? String,
-                  let requestId = message["requestId"] as? String else { return ["error": "not connected"] }
+                  let requestId = message["requestId"] as? String else { return ["error": Self.notConnected] }
             let optionId = message["optionId"] as? String
             let reason = (message["reason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
@@ -245,7 +245,7 @@ extension WatchLink: WCSessionDelegate {
         case "reply":
             guard let client = app.client,
                   let id = message["sessionId"] as? String,
-                  let text = message["text"] as? String, !text.isEmpty else { return ["error": "not connected"] }
+                  let text = message["text"] as? String, !text.isEmpty else { return ["error": Self.notConnected] }
             do {
                 _ = try await client.enqueue(sessionId: id, text: text)
                 return ["ok": true]
@@ -254,7 +254,7 @@ extension WatchLink: WCSessionDelegate {
             }
 
         case "stop":
-            guard let client = app.client, let id = message["sessionId"] as? String else { return ["error": "not connected"] }
+            guard let client = app.client, let id = message["sessionId"] as? String else { return ["error": Self.notConnected] }
             do {
                 try await client.cancelOrThrow(sessionId: id)
                 await app.reloadSessions(quiet: true)
@@ -276,7 +276,7 @@ extension WatchLink: WCSessionDelegate {
         var detail = WatchDetail(sessionId: sessionId)
         let app = AppState.shared
         guard let client = app.client else {
-            detail.error = String(localized: "Not connected to a computer.")
+            detail.error = Self.notConnected
             return detail
         }
         detail.name = app.sessions.first(where: { $0.id == sessionId })?.displayName ?? ""
@@ -351,6 +351,12 @@ extension WatchLink: WCSessionDelegate {
     private static func readable(_ error: Error) -> String {
         (error as? BridgeError)?.errorDescription ?? error.localizedDescription
     }
+
+    /// The watch paints whatever comes back in "error" verbatim, so anything a
+    /// person can actually hit has to be translated here, on the phone. This one
+    /// fires whenever the phone is open with no computer paired, which is exactly
+    /// when someone taps Approve on their wrist.
+    private static var notConnected: String { String(localized: "Not connected to a computer.") }
 }
 
 extension JSONEncoder {

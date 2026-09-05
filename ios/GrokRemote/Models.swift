@@ -433,12 +433,17 @@ struct GitFile: Codable, Identifiable, Hashable {
         return dir.isEmpty ? "" : dir
     }
     /// Human label for git's porcelain status code.
+    ///
+    /// Localized here rather than at the badge: `label` reaches `Text` as a plain
+    /// `String`, which selects the verbatim initializer, so a bare literal would
+    /// never be looked up in any language. The trailing `code` stays verbatim
+    /// because it is a porcelain code, not prose.
     var label: String {
-        if code == "??" { return "new" }
-        if code.contains("D") { return "deleted" }
-        if code.contains("R") { return "renamed" }
-        if code.contains("A") { return "added" }
-        if code.contains("M") { return "modified" }
+        if code == "??" { return String(localized: "new") }
+        if code.contains("D") { return String(localized: "deleted") }
+        if code.contains("R") { return String(localized: "renamed") }
+        if code.contains("A") { return String(localized: "added") }
+        if code.contains("M") { return String(localized: "modified") }
         return code
     }
 }

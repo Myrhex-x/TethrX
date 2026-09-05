@@ -26,10 +26,10 @@ struct WatchDetailView: View {
                 transcript
                 actions
                 if let error = detail?.error ?? store.errorText {
-                    Text(error).font(Grok.mono(10)).foregroundStyle(Grok.danger)
+                    Text(error).font(Grok.sans(11)).foregroundStyle(Grok.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if let notice = store.notice {
-                    Text(notice).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                    Text(notice).font(Grok.sans(11)).foregroundStyle(Grok.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -63,7 +63,7 @@ struct WatchDetailView: View {
             // wrist, one-handed, is exactly when it matters most.
             if let risk = approval.risk {
                 Text(risk)
-                    .font(Grok.mono(11))
+                    .font(Grok.sans(12))
                     .foregroundStyle(approval.isDestructive ? Grok.danger : Grok.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -75,7 +75,7 @@ struct WatchDetailView: View {
                     Image(systemName: "arrow.up.circle").font(.system(size: 11, weight: .semibold))
                         .accessibilityHidden(true)
                     Text("Sent, waiting for your iPhone")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                        .font(Grok.sans(12)).foregroundStyle(Grok.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
@@ -109,9 +109,9 @@ struct WatchDetailView: View {
         .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(approval.isDestructive ? Grok.danger.opacity(0.12) : Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: 12)
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
             .stroke(approval.isDestructive ? Grok.danger.opacity(0.45) : Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     // MARK: The tail of the conversation
@@ -126,11 +126,12 @@ struct WatchDetailView: View {
                             .font(Grok.sans(13)).foregroundStyle(Grok.text)
                             .padding(.horizontal, 9).padding(.vertical, 6)
                             .background(Grok.raised)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     case "tool":
                         HStack(alignment: .top, spacing: 5) {
                             Text(verbatim: "›").font(Grok.mono(11, .bold)).foregroundStyle(Grok.accent)
+                                .accessibilityHidden(true)
                             Text(line.text).font(Grok.mono(11)).foregroundStyle(Grok.textDim)
                                 .lineLimit(2)
                         }
@@ -147,17 +148,17 @@ struct WatchDetailView: View {
             (store.phoneUnreachable
              ? Text("Open TethrX on your iPhone to read the conversation.")
              : Text("Couldn't load this conversation."))
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(12)).foregroundStyle(Grok.textFaint)
                 .fixedSize(horizontal: false, vertical: true)
         } else if detail == nil {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("loading…").font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                Text("loading…").font(Grok.sans(12)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)
         } else {
             Text("Nothing said yet.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(12)).foregroundStyle(Grok.textFaint)
         }
     }
 

@@ -16,28 +16,31 @@ struct ScanSheet: View {
             switch status {
             case .authorized:
                 QRScannerView { code in onPair(code) }.ignoresSafeArea()
-                RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.85), lineWidth: 3)
+                RoundedRectangle(cornerRadius: Grok.R.bubble, style: .continuous).stroke(.white.opacity(0.85), lineWidth: 3)
                     .frame(width: 240, height: 240)
             case .denied, .restricted:
                 denied
             default:
-                Text("Requesting camera access…").font(Grok.sans(16)).foregroundStyle(.white.opacity(0.7))
+                Text("Requesting camera access…").font(Grok.sans(16)).foregroundStyle(Grok.textDim)
             }
 
             VStack {
                 HStack {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark").font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white).padding(12).background(.black.opacity(0.5), in: Circle())
+                            .foregroundStyle(Grok.text).padding(12).background(.black.opacity(0.5), in: Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(Text("Close"))
                     Spacer()
                 }
                 Spacer()
                 if status == .authorized {
                     Text("open  localhost:4180/pair  on your computer\nand point the camera at a code")
-                        .font(Grok.sans(16)).foregroundStyle(.white).multilineTextAlignment(.center).lineSpacing(3)
+                        .font(Grok.sans(16)).foregroundStyle(Grok.text).multilineTextAlignment(.center).lineSpacing(3)
                         .padding(.horizontal, 16).padding(.vertical, 12)
-                        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+                        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                         .padding(.bottom, 30)
                 }
             }
@@ -53,10 +56,10 @@ struct ScanSheet: View {
 
     private var denied: some View {
         VStack(spacing: 14) {
-            Image(systemName: "camera.fill").font(.system(size: 30)).foregroundStyle(.white.opacity(0.7))
-            Text("Camera access is off").font(Grok.sans(17, .semibold)).foregroundStyle(.white)
+            Image(systemName: "camera.fill").font(.system(size: 30)).foregroundStyle(Grok.textDim)
+            Text("Camera access is off").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
             Text("Turn on the camera for TethrX in Settings to scan the pairing code — or just type the address and token by hand.")
-                .font(Grok.sans(15)).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center).lineSpacing(2)
+                .font(Grok.sans(15)).foregroundStyle(Grok.textDim).multilineTextAlignment(.center).lineSpacing(2)
             Button("Open Settings") {
                 if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
             }

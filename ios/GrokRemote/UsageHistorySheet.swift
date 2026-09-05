@@ -37,7 +37,7 @@ struct UsageHistorySheet: View {
                     }
                     footnote
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -83,9 +83,10 @@ struct UsageHistorySheet: View {
 
     private func stat(_ value: String, _ caption: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value).font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
+            Text(value).font(Grok.sans(17, .semibold)).monospacedDigit().foregroundStyle(Grok.text)
                 .minimumScaleFactor(0.7).lineLimit(1)
             Text(caption).font(Grok.sans(11)).foregroundStyle(Grok.textFaint)
+                .lineLimit(1).minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -103,7 +104,7 @@ struct UsageHistorySheet: View {
                         : 2
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
                             .fill(day.totalTokens > 0 ? Grok.accent.opacity(0.85) : Grok.hairlineStrong)
                             .frame(height: height)
                     }
@@ -129,13 +130,15 @@ struct UsageHistorySheet: View {
             Eyebrow("BY DAY")
             ForEach(recent.filter { $0.turns > 0 }) { day in
                 HStack(spacing: 10) {
-                    Text(day.date).font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                    Text(day.date).font(Grok.sans(14)).monospacedDigit().foregroundStyle(Grok.textDim)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(width: 86, alignment: .leading)
-                    Text(Fmt.tokens(day.totalTokens)).font(Grok.sans(15, .semibold))
+                    Text(Fmt.tokens(day.totalTokens)).font(Grok.sans(15, .semibold)).monospacedDigit()
                         .foregroundStyle(Grok.text)
                     Spacer(minLength: 6)
                     Text(turnsLabel(day.turns)).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
-                    Text(Fmt.cost(day.costUSD)).font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                    Text(Fmt.cost(day.costUSD)).font(Grok.sans(14)).monospacedDigit().foregroundStyle(Grok.textDim)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(width: 58, alignment: .trailing)
                 }
             }

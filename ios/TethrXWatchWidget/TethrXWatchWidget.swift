@@ -136,7 +136,12 @@ struct ComplicationView: View {
                 }
                 .widgetAccentable()
                 Text(entry.word).font(.system(size: 15, weight: .semibold))
-                Text(detail).font(.system(size: 11, design: .monospaced)).opacity(0.7).lineLimit(1)
+                // Shrunk rather than cut. This second line is the one that tells a
+                // brand-new user how to fix an unpaired watch, and at full size it
+                // overruns a 41mm face in English and every translation of it. Sans,
+                // because it is a sentence: the mono face was also costing width.
+                Text(detail).font(.system(size: 11)).opacity(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 

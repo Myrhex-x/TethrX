@@ -7,6 +7,100 @@
     "!" : {
       "shouldTranslate" : false
     },
+    "1 turn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Turn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 turno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 tour"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 turno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 ターン"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 turno"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 轮"
+          }
+        }
+      }
+    },
+    "Approvals" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigaben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprobaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approbations"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approvazioni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "承認"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprovações"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批准方式"
+          }
+        }
+      }
+    },
     "Ask" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -195,6 +289,53 @@
         }
       }
     },
+    "Require a passcode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code erforderlich"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solicitar el código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exiger le code"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richiedi il codice"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスコードを要求"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exigir o código"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要密码"
+          }
+        }
+      }
+    },
     "Saved prompts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -238,6 +379,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已保存的提示词"
+          }
+        }
+      }
+    },
+    "v%@ · update available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · Update verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · actualización disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · mise à jour disponible"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · aggiornamento disponibile"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · アップデートあり"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · atualização disponível"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ · 有可用更新"
           }
         }
       }
@@ -1357,7 +1545,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ : %@ jetons"
+            "value" : "%@ : %@ tokens"
           }
         },
         "it" : {
@@ -1591,7 +1779,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Runden"
+            "value" : "%lld Turns"
           }
         },
         "es" : {
@@ -2357,7 +2545,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "aktive tage"
+            "value" : "Aktive Tage"
           }
         },
         "es" : {
@@ -2969,7 +3157,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Responde aprobaciones, lee las últimas líneas y dicta un mensaje desde la muñeca. El reloj se lo pide a este iPhone, así que tu token de emparejamiento nunca sale de aquí."
+            "value" : "Responde aprobaciones, lee las últimas líneas y dicta un mensaje desde la muñeca. El reloj se lo pide a este iPhone, así que tu token de enlace nunca sale de aquí."
           }
         },
         "fr" : {
@@ -5650,7 +5838,6 @@
       }
     },
     "Compaction failed — check the connection and try again." : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6540,7 +6727,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "kosten"
+            "value" : "Kosten"
           }
         },
         "es" : {
@@ -6736,7 +6923,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo ramificar esta sesión. Compruebe la conexión e inténtelo de nuevo."
+            "value" : "No se pudo ramificar esta sesión. Comprueba la conexión e inténtalo de nuevo."
           }
         },
         "fr" : {
@@ -6748,7 +6935,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non è stato possibile ramificare questa sessione. Controlli la connessione e riprovi."
+            "value" : "Non è stato possibile ramificare questa sessione. Controlla la connessione e riprova."
           }
         },
         "ja" : {
@@ -6918,7 +7105,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法加载计划任务。bridge 可能需要更新。"
+            "value" : "无法加载计划任务。桥接可能需要更新。"
           }
         }
       }
@@ -7005,7 +7192,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パソコンから使用状況を読み込めませんでした。"
+            "value" : "コンピュータから使用状況を読み込めませんでした。"
           }
         },
         "pt-BR" : {
@@ -7362,7 +7549,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auf Ihrem Computer gezählt, anhand der Angaben von Grok zu jeder Runde. Die Kosten sind Groks eigene Schätzung, keine Abrechnungsdaten aus Ihrem xAI-Konto."
+            "value" : "Auf Ihrem Computer gezählt, anhand der Angaben von Grok zu jedem Turn. Die Kosten sind Groks eigene Schätzung, keine Abrechnungsdaten aus Ihrem xAI-Konto."
           }
         },
         "es" : {
@@ -7386,7 +7573,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "各ターンについてGrokが報告した内容をもとに、パソコン上で集計しています。コストはGrok自身の推定値で、xAIアカウントの請求データではありません。"
+            "value" : "各ターンについてGrokが報告した内容をもとに、コンピュータ上で集計しています。コストはGrok自身の推定値で、xAIアカウントの請求データではありません。"
           }
         },
         "pt-BR" : {
@@ -9268,7 +9455,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie die Bridge-Adresse und den Pairing-Token ein."
+            "value" : "Geben Sie die Bridge-Adresse und den Kopplungs-Token ein."
           }
         },
         "es" : {
@@ -10145,7 +10332,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entfernen"
+            "value" : "Vergessen"
           }
         },
         "es" : {
@@ -10181,7 +10368,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "忽略"
+            "value" : "忘记"
           }
         }
       }
@@ -10216,7 +10403,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@を削除しますか？"
+            "value" : "%@の登録を解除しますか？"
           }
         },
         "pt-BR" : {
@@ -10263,7 +10450,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このコンピュータを削除"
+            "value" : "このコンピュータの登録を解除"
           }
         },
         "pt-BR" : {
@@ -10567,7 +10754,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "von der Pairing-Seite"
+            "value" : "von der Kopplungsseite"
           }
         },
         "es" : {
@@ -11860,7 +12047,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plus haut = réflexion plus longue et plus de jetons ; Auto laisse Grok décider."
+            "value" : "Plus haut = réflexion plus longue et plus de tokens ; Auto laisse Grok décider."
           }
         },
         "it" : {
@@ -11907,7 +12094,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plus haut = réflexion plus longue et plus de jetons. Élevé est la valeur par défaut de Grok."
+            "value" : "Plus haut = réflexion plus longue et plus de tokens. Élevé est la valeur par défaut de Grok."
           }
         },
         "it" : {
@@ -11995,6 +12182,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "So startet jede neue Session. Nichts davon ist endgültig: dieselben Regler sitzen in jeder Session im Nachrichtenfeld."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How every new session starts. Nothing here is locked in. The same controls sit inside the message box in every session."
           }
         },
         "es" : {
@@ -14992,7 +15185,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sin autorización. Revisa tu token de vinculación."
+            "value" : "Sin autorización. Revisa tu token de enlace."
           }
         },
         "fr" : {
@@ -15633,7 +15826,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Starten Sie auf dem anderen Computer die Bridge, öffnen Sie dessen Pairing-Seite und scannen Sie dann den Code unten."
+            "value" : "Starten Sie auf dem anderen Computer die Bridge, öffnen Sie dessen Kopplungsseite und scannen Sie dann den Code unten."
           }
         },
         "es" : {
@@ -15679,7 +15872,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sobald die Pairing-Seite offen ist, tippen Sie auf „Zum Koppeln scannen“ und richten Sie die Kamera auf den Code mit der Beschriftung TAILSCALE."
+            "value" : "Sobald die Kopplungsseite offen ist, tippen Sie auf „Zum Koppeln scannen“ und richten Sie die Kamera auf den Code mit der Beschriftung TAILSCALE."
           }
         },
         "es" : {
@@ -15725,7 +15918,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sobald die Pairing-Seite offen ist, tippen Sie auf „Zum Koppeln scannen“ und richten Sie die Kamera auf den Code mit der Beschriftung WI-FI / LAN."
+            "value" : "Sobald die Kopplungsseite offen ist, tippen Sie auf „Zum Koppeln scannen“ und richten Sie die Kamera auf den Code mit der Beschriftung WI-FI / LAN."
           }
         },
         "es" : {
@@ -15863,7 +16056,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein einziger Befehl lädt die Bridge auf Ihren Computer und startet sie. Sie gibt einen Pairing-Token aus und läuft weiter. Lassen Sie sie laufen."
+            "value" : "Ein einziger Befehl lädt die Bridge auf Ihren Computer und startet sie. Sie gibt einen Kopplungs-Token aus und läuft weiter. Lassen Sie sie laufen."
           }
         },
         "en" : {
@@ -16100,7 +16293,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pairing-Seite öffnen"
+            "value" : "Kopplungsseite öffnen"
           }
         },
         "es" : {
@@ -16515,7 +16708,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PAIRING-TOKEN"
+            "value" : "KOPPLUNGS-TOKEN"
           }
         },
         "es" : {
@@ -19221,13 +19414,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lo elimina de este teléfono y borra su token de emparejamiento. Vuelve a emparejar cuando quieras desde el código QR del ordenador."
+            "value" : "Lo elimina de este teléfono y borra su token de enlace. Vuelve a enlazar cuando quieras desde el código QR del ordenador."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le supprime de ce téléphone et efface son jeton de jumelage. Jumelez à nouveau à tout moment depuis le code QR de l'ordinateur."
+            "value" : "Le supprime de ce téléphone et efface son jeton d'appairage. Appairez à nouveau à tout moment depuis le code QR de l'ordinateur."
           }
         },
         "it" : {
@@ -23211,7 +23404,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die festhängende Aufgabe beenden?"
+            "value" : "Den festhängenden Turn beenden?"
           }
         },
         "es" : {
@@ -24090,7 +24283,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "そのパソコンのアドレスが正しくないようです。"
+            "value" : "そのコンピュータのアドレスが正しくないようです。"
           }
         },
         "pt-BR" : {
@@ -24201,7 +24394,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "操作未完成。请查看 bridge 日志了解详情。"
+            "value" : "操作未完成。请查看桥接日志了解详情。"
           }
         }
       }
@@ -24211,7 +24404,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das sieht nicht nach einem TethrX-Pairing-Code aus."
+            "value" : "Das sieht nicht nach einem TethrX-Kopplungscode aus."
           }
         },
         "es" : {
@@ -24524,7 +24717,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有会话运行时，bridge 也会自行安装。"
+            "value" : "没有会话运行时，桥接也会自行安装。"
           }
         }
       }
@@ -24623,7 +24816,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bridge 是运行在你电脑上的小型辅助程序。这部手机只与它通信，绝不连接云端。"
+            "value" : "桥接是运行在你电脑上的小型辅助程序。这部手机只与它通信，绝不连接云端。"
           }
         }
       }
@@ -24777,7 +24970,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die laufende Aufgabe wird beendet. Die Unterhaltung bleibt erhalten, und Ihre nächste Nachricht knüpft daran an."
+            "value" : "Der laufende Turn wird beendet. Die Unterhaltung bleibt erhalten, und Ihre nächste Nachricht knüpft daran an."
           }
         },
         "es" : {
@@ -25809,7 +26002,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "tokens"
+            "value" : "Tokens"
           }
         },
         "es" : {
@@ -25867,7 +26060,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jetons"
+            "value" : "Tokens"
           }
         },
         "it" : {
@@ -25891,7 +26084,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "令牌"
+            "value" : "token"
           }
         }
       }
@@ -26552,7 +26745,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktivieren Sie die Kamera für TethrX in den Einstellungen, um den Pairing-Code zu scannen, oder geben Sie Adresse und Token einfach von Hand ein."
+            "value" : "Aktivieren Sie die Kamera für TethrX in den Einstellungen, um den Kopplungscode zu scannen, oder geben Sie Adresse und Token einfach von Hand ein."
           }
         },
         "en" : {
@@ -26604,7 +26797,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "runden"
+            "value" : "Turns"
           }
         },
         "es" : {
@@ -27453,7 +27646,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用量从 bridge 更新并开始记录的那天起统计。"
+            "value" : "用量从桥接更新并开始记录的那天起统计。"
           }
         }
       }
@@ -27509,7 +27702,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verwende dies, wenn Grok nicht mehr reagiert. Die festhängende Aufgabe wird beendet, die Unterhaltung bleibt erhalten."
+            "value" : "Verwenden Sie dies, wenn Grok nicht mehr reagiert. Der festhängende Turn wird beendet, die Unterhaltung bleibt erhalten."
           }
         },
         "es" : {
@@ -28989,7 +29182,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su ordenador respondió con un error (%lld)."
+            "value" : "Tu ordenador respondió con un error (%lld)."
           }
         },
         "fr" : {
@@ -29001,13 +29194,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il suo computer ha risposto con un errore (%lld)."
+            "value" : "Il tuo computer ha risposto con un errore (%lld)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パソコンがエラーを返しました（%lld）。"
+            "value" : "コンピュータがエラーを返しました（%lld）。"
           }
         },
         "pt-BR" : {
@@ -29035,7 +29228,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su ordenador necesita bridge 0.1.15 o posterior para el uso diario. Actualícelo con: npm i -g tethrx-bridge"
+            "value" : "Tu ordenador necesita bridge 0.1.15 o posterior para el uso diario. Actualízalo con: npm i -g tethrx-bridge"
           }
         },
         "fr" : {
@@ -29065,7 +29258,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "查看每日用量需要 bridge 0.1.15 或更高版本。请用以下命令更新：npm i -g tethrx-bridge"
+            "value" : "查看每日用量需要桥接 0.1.15 或更高版本。请用以下命令更新：npm i -g tethrx-bridge"
           }
         }
       }
@@ -29081,7 +29274,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Su ordenador rechazó el token de emparejamiento. Vuelva a emparejar en TethrX."
+            "value" : "Tu ordenador rechazó el token de enlace. Vuelve a enlazar en TethrX."
           }
         },
         "fr" : {
@@ -29093,13 +29286,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il suo computer ha rifiutato il token di abbinamento. Ripeta l'abbinamento in TethrX."
+            "value" : "Il tuo computer ha rifiutato il token di abbinamento. Ripeti l'abbinamento in TethrX."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パソコンがペアリングトークンを拒否しました。TethrXでペアリングし直してください。"
+            "value" : "コンピュータがペアリングトークンを拒否しました。TethrXでペアリングし直してください。"
           }
         },
         "pt-BR" : {
@@ -29173,7 +29366,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tu ordenador dejó de ofrecer una conexión segura. Vuelve a vincularlo desde su página de vinculación para continuar."
+            "value" : "Tu ordenador dejó de ofrecer una conexión segura. Vuelve a enlazarlo desde su página de enlace para continuar."
           }
         },
         "fr" : {
@@ -29219,7 +29412,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El certificado de seguridad de tu ordenador ha cambiado. Vuelve a vincularlo desde su página de vinculación para continuar."
+            "value" : "El certificado de seguridad de tu ordenador ha cambiado. Vuelve a enlazarlo desde su página de enlace para continuar."
           }
         },
         "fr" : {

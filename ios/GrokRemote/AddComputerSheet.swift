@@ -50,8 +50,8 @@ struct AddComputerSheet: View {
                                     }
                                     .padding(.horizontal, 12).padding(.vertical, 10)
                                     .background(Grok.raised)
-                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+                                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -80,7 +80,7 @@ struct AddComputerSheet: View {
                     Button { Task { await add() } } label: {
                         HStack(spacing: 10) {
                             if working { ProgressView().controlSize(.small).tint(.white) }
-                            (working ? Text("CONNECTING") : Text("ADD COMPUTER")).tracking(1.4)
+                            (working ? Text("CONNECTING") : Text("ADD COMPUTER")).latinTracking(1.4)
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))
@@ -90,7 +90,7 @@ struct AddComputerSheet: View {
                     Text("Adding a computer switches to it. Your other computers stay paired — swap between them any time.")
                         .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(3)
                 }
-                .padding(20)
+                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
@@ -161,8 +161,8 @@ struct AddComputerSheet: View {
             .padding(.horizontal, 14).padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Grok.raised)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Grok.hairline, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
     private func field(_ label: LocalizedStringResource, _ placeholder: LocalizedStringKey, _ text: Binding<String>, secure: Bool) -> some View {
