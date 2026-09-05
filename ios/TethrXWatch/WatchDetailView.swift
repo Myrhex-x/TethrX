@@ -28,6 +28,9 @@ struct WatchDetailView: View {
                 if let error = detail?.error ?? store.errorText {
                     Text(error).font(Grok.mono(10)).foregroundStyle(Grok.danger)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if let notice = store.notice {
+                    Text(notice).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 2)
@@ -141,8 +144,11 @@ struct WatchDetailView: View {
                 }
             }
         } else if loadFailed {
-            Text("Couldn't load this conversation.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+            (store.phoneUnreachable
+             ? Text("Open TethrX on your iPhone to read the conversation.")
+             : Text("Couldn't load this conversation."))
+                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                .fixedSize(horizontal: false, vertical: true)
         } else if detail == nil {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)

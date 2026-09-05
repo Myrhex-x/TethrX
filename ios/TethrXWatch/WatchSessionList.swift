@@ -134,7 +134,7 @@ struct WatchSessionList: View {
             if store.phoneUnreachable {
                 Text("Can't reach your iPhone")
                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
-                Text("Keep it nearby, and open TethrX on it once.")
+                Text("Open TethrX on your iPhone once, and keep it nearby.")
                     .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
             } else if !store.snapshot.connected {
                 Text("No computer connected")
@@ -157,10 +157,20 @@ struct WatchSessionList: View {
             if let error = store.errorText {
                 Text(error).font(Grok.mono(10)).foregroundStyle(Grok.danger)
                     .fixedSize(horizontal: false, vertical: true)
+            } else if let notice = store.notice {
+                Text(notice).font(Grok.mono(10)).foregroundStyle(Grok.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if !store.snapshot.computer.isEmpty {
                 Eyebrow(text: "computer")
                 Text(store.snapshot.computer)
                     .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineLimit(1)
+                // Being out of touch with the phone is ordinary, and the list above is
+                // still true — say it quietly, and only once there is a list to qualify.
+                if store.phoneUnreachable {
+                    Text("Not live. Open TethrX on your iPhone to refresh.")
+                        .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .listRowBackground(Color.clear)

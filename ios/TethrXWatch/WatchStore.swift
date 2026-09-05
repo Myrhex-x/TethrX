@@ -27,8 +27,11 @@ final class WatchStore: NSObject, ObservableObject {
     /// True while a request is in flight, so a row can show it is working rather
     /// than looking inert.
     @Published var loading = false
-    /// The last thing that went wrong, in words. Cleared by the next success.
+    /// A genuine failure, in words. Cleared by the next success.
     @Published var errorText: String?
+    /// Something worth saying that is not a failure, like an answer having been
+    /// queued. Kept apart from `errorText` so good news is never painted red.
+    @Published var notice: String?
     /// Set when the phone cannot be reached at all.
     @Published var phoneUnreachable = false
 
@@ -144,7 +147,6 @@ final class WatchStore: NSObject, ObservableObject {
     /// background queue rather than dropping it.
     private func send(_ message: [String: Any], queueIfUnreachable: Bool = false) async -> [String: Any]? {
         guard WCSession.isSupported(), session.activationState == .activated else {
-            errorText = String(localized: "Not connected to your iPhone.")
             phoneUnreachable = true
             return nil
         }
@@ -169,15 +171,18 @@ final class WatchStore: NSObject, ObservableObject {
             }
         }
         guard let reply else {
+            // Not reachable is the NORMAL state of a wrist: the phone app is usually
+            // not in the foreground. The list and the pending approval arrived as
+            // application context and are still perfectly good, so this is not an
+            // error and must not be painted like one — the views show a quiet "not
+            // live" line instead, and only when there is nothing better to say.
             phoneUnreachable = true
             if queueIfUnreachable {
                 // Delivered whenever the phone is next available, including a launch
                 // in the background. Losing an approval because a wrist walked out of
                 // range would be the worst possible failure here.
                 session.transferUserInfo(message)
-                errorText = String(localized: "Sent. Your iPhone will pass it on when it's back in range.")
-            } else {
-                errorText = String(localized: "Couldn't reach your iPhone. Keep it nearby and unlocked.")
+                notice = String(localized: "Sent. Your iPhone will pass it on when it's back in range.")
             }
             return nil
         }
@@ -187,6 +192,7 @@ final class WatchStore: NSObject, ObservableObject {
             return nil
         }
         errorText = nil
+        notice = nil
         return reply
     }
 
