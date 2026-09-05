@@ -433,8 +433,12 @@ final class ChatViewModel: ObservableObject {
                 } else {
                     append(.thought, run.text)
                     thoughtIndex = items.count - 1
+                    items[items.count - 1].startedAt = Date()
                 }
             } else {
+                // Prose after reasoning ends the trace, which is what gives it a
+                // duration and lets the card collapse.
+                closeThought()
                 if let i = assistantIndex, items.indices.contains(i) {
                     items[i].text += run.text
                 } else {
@@ -470,6 +474,7 @@ final class ChatViewModel: ObservableObject {
         switch kind {
         case "turn_start":
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil
             // A new turn gets a new checklist; the previous one stays in the transcript
             // exactly as it ended.
@@ -494,6 +499,7 @@ final class ChatViewModel: ObservableObject {
 
         case "tool_call":
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil
             let tool = event["tool"] as? String ?? "tool"
             if !isReplay { liveActivity.update(phase: "working", detail: tool) }
@@ -523,6 +529,7 @@ final class ChatViewModel: ObservableObject {
 
         case "plan":
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil   // else the next thought chunk appends ABOVE the plan card
             let entries = PlanEntry.decode(event["entries"] as? [[String: Any]] ?? [])
             guard !entries.isEmpty else { break }
@@ -542,6 +549,7 @@ final class ChatViewModel: ObservableObject {
 
         case "permission_request":
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil
             if !isReplay {
                 liveActivity.update(phase: "waiting", detail: "Waiting for your approval")
@@ -569,6 +577,7 @@ final class ChatViewModel: ObservableObject {
 
         case "plan_review":
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil
             if !isReplay {
                 liveActivity.update(phase: "waiting", detail: "Plan ready to review")
@@ -613,6 +622,7 @@ final class ChatViewModel: ObservableObject {
             busy = false
             turnStartedAt = nil
             assistantIndex = nil
+            closeThought()
             thoughtIndex = nil
             // The visible "turn ended" separator lives here — the bridge emits
             // turn_complete, not the "end" kind an older revision listened for.
@@ -654,6 +664,13 @@ final class ChatViewModel: ObservableObject {
 
     private func append(_ role: ChatRole, _ text: String) {
         items.append(ChatItem(role: role, text: text))
+    }
+
+    /// Stamp the open reasoning block as finished. Idempotent: anything that follows
+    /// thinking calls it, and only the first call sets the time.
+    private func closeThought() {
+        guard let i = thoughtIndex, items.indices.contains(i), items[i].endedAt == nil else { return }
+        items[i].endedAt = Date()
     }
 
     /// Compact JSON preview of a tool's arguments for display.

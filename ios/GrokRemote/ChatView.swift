@@ -22,6 +22,7 @@ struct ChatView: View {
     // so a log or a config that only exists on the phone has to travel in the prompt.
     @State private var files: [TextAttachment] = []
     @State private var importingFile = false
+    @State private var showPhotoPicker = false
     @State private var fileError: String?
     /// A command that costs a full expensive turn, held until the user confirms.
     @State private var pendingCostlyCommand: String?
@@ -289,6 +290,13 @@ struct ChatView: View {
                         if vm.items.isEmpty, let seed = vm.session.seedContext, !seed.isEmpty {
                             HandoffCard(summary: seed)
                         }
+                        if vm.items.isEmpty, vm.session.seedContext?.isEmpty != false {
+                            // An empty conversation is a blank page, not a bug. Grok
+                            // puts its mark in the middle of one; so does this.
+                            TethrXMark(size: 64, color: .white.opacity(0.10))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 90)
+                        }
                         ForEach(vm.items) { item in
                             switch item.role {
                             case .permission:
@@ -410,84 +418,103 @@ struct ChatView: View {
         }
     }
 
+    /// One card: the message on top, everything you can do to it underneath, the way
+    /// Grok's own composer is built. The controls used to live in a separate scrolling
+    /// strip above the field, which read as a toolbar bolted on rather than part of
+    /// the thing you are writing in.
     private var composer: some View {
         VStack(spacing: 0) {
             queuedRow
             attachmentsRow
             filesRow
             snippetsRow
-            chatControls
             commandPalette
-            HStack(alignment: .bottom, spacing: 10) {
-                HStack(alignment: .bottom, spacing: 10) {
-                    TextField("", text: $draft,
-                              prompt: (vm.busy ? Text("Queue a follow-up") : Text("Ask Grok anything")).foregroundColor(Grok.textFaint),
-                              axis: .vertical)
-                        .font(Grok.body())
-                        .foregroundStyle(Grok.text)
-                        .lineLimit(1...5)
-                        .focused($composerFocused)
-                    // Attach a screenshot or photo; grok views the saved file.
-                    if !vm.busy {
-                        PhotosPicker(selection: $pickedItems, maxSelectionCount: 3, matching: .images) {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(attachments.isEmpty ? Grok.textDim : Grok.accent)
-                        }
-                        .padding(.top, 1)
-                        .accessibilityLabel("Attach images")
-                    }
-                    if !vm.busy {
-                        Button { importingFile = true } label: {
-                            Image(systemName: "paperclip")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(files.isEmpty ? Grok.textDim : Grok.accent)
-                        }
-                        .padding(.top, 1)
-                        .accessibilityLabel("Attach a file")
-                    }
-                    if dictation.supported {
-                        Button { dictation.toggle(base: draft) } label: {
-                            Image(systemName: dictation.isRecording ? "waveform" : "mic")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
-                                .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
-                        }
-                        .padding(.top, 1)
-                        .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
-                        .accessibilityHint(Text("Long-press to change the dictation language"))
-                        // Recognition language ≠ app language: someone using the app
-                        // in English may well dictate in French.
-                        .contextMenu {
-                            Section("Dictation language: \(dictation.currentLanguageLabel)") {
-                                ForEach(Dictation.languageChoices, id: \.id) { choice in
-                                    Button {
-                                        dictation.localeId = choice.id
-                                        Haptics.tap()
-                                    } label: {
-                                        if choice.id == dictation.localeId {
-                                            Label(choice.label, systemImage: "checkmark")
-                                        } else {
-                                            Text(choice.label)
-                                        }
-                                    }
-                                }
+            composerCard
+                .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
+        }
+        .background(Grok.bg)
+        .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
+    }
+
+    private var composerCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TextField("", text: $draft,
+                      prompt: (vm.busy ? Text("Queue a follow-up") : Text("Ask Grok anything"))
+                          .foregroundColor(Grok.textFaint),
+                      axis: .vertical)
+                .font(Grok.body())
+                .foregroundStyle(Grok.text)
+                .lineLimit(1...6)
+                .focused($composerFocused)
+
+            HStack(spacing: 8) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) { attachMenu; controlChips }
+                }
+                .scrollClipDisabled()
+                trailingButtons
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(Grok.raised)
+        .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
+            .stroke(dictation.isRecording ? Color.white.opacity(0.35) : .clear, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
+    }
+
+    /// The `+`: one affordance for everything that can ride along with a message.
+    @ViewBuilder private var attachMenu: some View {
+        if !vm.busy {
+            Menu {
+                Button { importingFile = true } label: { Label("Attach a file", systemImage: "doc") }
+                Button { showPhotoPicker = true } label: { Label("Attach images", systemImage: "photo") }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(attachments.isEmpty && files.isEmpty ? Grok.textDim : Color.black)
+                    .frame(width: 32, height: 32)
+                    .background(attachments.isEmpty && files.isEmpty ? Color.white.opacity(0.08) : Color.white,
+                                in: Circle())
+            }
+            .accessibilityLabel("Add an attachment")
+            .photosPicker(isPresented: $showPhotoPicker, selection: $pickedItems,
+                          maxSelectionCount: 3, matching: .images)
+        }
+    }
+
+    /// Dictation lives at the end of the row, where Grok puts its mic — and gives way
+    /// to send the moment there is something to send.
+    @ViewBuilder private var micButton: some View {
+        if dictation.supported {
+            Button { dictation.toggle(base: draft) } label: {
+                Image(systemName: dictation.isRecording ? "waveform" : "mic")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
+                    .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
+            .accessibilityHint(Text("Long-press to change the dictation language"))
+            // Recognition language ≠ app language: someone using the app in English
+            // may well dictate in French.
+            .contextMenu {
+                Section("Dictation language: \(dictation.currentLanguageLabel)") {
+                    ForEach(Dictation.languageChoices, id: \.id) { choice in
+                        Button {
+                            dictation.localeId = choice.id
+                            Haptics.tap()
+                        } label: {
+                            if choice.id == dictation.localeId {
+                                Label(choice.label, systemImage: "checkmark")
+                            } else {
+                                Text(choice.label)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 18).padding(.vertical, 13)
-                .background(Grok.raised)
-                .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
-                    .stroke(dictation.isRecording ? Color.white.opacity(0.35) : .clear, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
-
-                trailingButtons
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
         }
-        .background(Grok.bg)
-        .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
     }
 
     // Failures here used to be written to vm.errorMessage and never shown, so a
@@ -516,6 +543,7 @@ struct ChatView: View {
     @ViewBuilder private var trailingButtons: some View {
         if vm.busy {
             HStack(spacing: 8) {
+                if isEmptyDraft { micButton }
                 if !isEmptyDraft {
                     CircleIconButton(system: "arrow.up", a11y: "Queue follow-up") {
                         // Must stop dictation here too, or the recogniser's next partial
@@ -531,10 +559,12 @@ struct ChatView: View {
             }
         } else {
             let sendable = !isEmptyDraft || !attachments.isEmpty || !files.isEmpty
-            CircleIconButton(system: "arrow.up", filled: sendable, enabled: sendable, a11y: "Send") {
-                submit(draft)
+            if sendable {
+                CircleIconButton(system: "arrow.up", filled: true, a11y: "Send") { submit(draft) }
+                    .keyboardShortcut(.return, modifiers: .command)
+            } else {
+                micButton
             }
-            .keyboardShortcut(.return, modifiers: .command)
         }
     }
 
@@ -697,10 +727,10 @@ struct ChatView: View {
         }
     }
 
-    // AI-app-style controls right by the composer: plan mode, reasoning effort, auto-approve.
-    private var chatControls: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+    // Plan mode, reasoning effort and the approval floor, as chips inside the
+    // composer card — the same place Grok keeps DeepSearch and Think.
+    @ViewBuilder private var controlChips: some View {
+        Group {
                 Button { Task { await vm.setConfig(planMode: !vm.planMode) } } label: {
                     Label("Plan", systemImage: "list.bullet.clipboard").chip(on: vm.planMode)
                 }
@@ -726,35 +756,42 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
 
-                // (The context meter moved under the session title, where it's always visible.)
-            }
-            .padding(.horizontal, 14)
+            // (The context meter moved under the session title, where it's always visible.)
         }
-        .padding(.top, 10)
     }
 
     // Tappable reusable prompts, shown above the composer while the draft is empty.
+    /// Your reusable prompts, stacked above the composer the way Grok stacks its
+    /// suggestions: full pills, left-aligned, one per line, readable at a glance
+    /// rather than a horizontal strip you have to swipe.
     @ViewBuilder private var snippetsRow: some View {
-        if isEmptyDraft && !snippets.items.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(snippets.items) { prompt in
-                        Button {
-                            draft = prompt.text
-                            composerFocused = true
-                        } label: {
-                            let label = prompt.title
-                            HStack(spacing: 5) {
-                                Image(systemName: "text.badge.plus").font(.system(size: 9, weight: .semibold))
-                                Text(label.count > 26 ? String(label.prefix(26)) + "…" : label)
-                            }.chip(on: false)
+        if isEmptyDraft && !snippets.items.isEmpty && !vm.busy {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(snippets.items.prefix(3)) { prompt in
+                    Button {
+                        Haptics.tap()
+                        draft = prompt.text
+                        composerFocused = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkle").font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Grok.textFaint)
+                                .accessibilityHidden(true)
+                            Text(prompt.title)
+                                .font(Grok.sans(15))
+                                .foregroundStyle(Grok.textDim)
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .background(Grok.raised)
+                        .clipShape(Capsule())
+                        .contentShape(Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 14)
             }
-            .padding(.top, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14).padding(.bottom, 4)
         }
     }
 
@@ -1011,24 +1048,89 @@ struct HandoffCard: View {
 struct TypingIndicator: View {
     @State private var animating = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Eyebrow("GROK")
-            HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .fill(Grok.textDim)
-                        .frame(width: 6, height: 6)
-                        .opacity(animating ? 1 : 0.22)
-                        .scaleEffect(animating ? 1 : 0.7)
-                        .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)
-                            .delay(Double(i) * 0.18), value: animating)
+        // No label above it: a reply has no header either, so the dots simply appear
+        // where the reply will.
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(Grok.text)
+                    .frame(width: 7, height: 7)
+                    .opacity(animating ? 0.95 : 0.25)
+                    .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.16), value: animating)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
+        .onAppear { animating = true }
+        .accessibilityElement()
+        .accessibilityLabel(Text("Grok is thinking"))
+    }
+}
+
+/// Grok's reasoning, as a trace you can open rather than a wall you have to scroll
+/// past. It stays open while the thinking is live — that is the interesting part —
+/// and folds itself to "Thought for 12s" the moment an answer starts.
+struct ThoughtTrace: View {
+    let item: ChatItem
+    var highlight: String = ""
+    @State private var expanded = true
+
+    private var live: Bool { item.endedAt == nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                Haptics.tap()
+                withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Grok.textDim)
+                        .symbolEffect(.variableColor.iterative, isActive: live)
+                        .accessibilityHidden(true)
+                    header
+                        .font(Grok.sans(15, .medium))
+                        .foregroundStyle(Grok.textDim)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Grok.textFaint)
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                HStack(alignment: .top, spacing: 12) {
+                    Capsule().fill(Grok.hairlineStrong).frame(width: 2)
+                    Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
+                        .font(Grok.sans(15))
+                        .foregroundStyle(Grok.textDim)
+                        .lineSpacing(5)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear { animating = true }
-        .accessibilityElement()
-        .accessibilityLabel(Text("Grok is thinking"))
+        // Fold as soon as the answer starts: by then the reasoning is history and the
+        // reply is what someone is waiting to read.
+        .onChange(of: item.endedAt) { _, ended in
+            guard ended != nil else { return }
+            withAnimation(.easeInOut(duration: 0.2)) { expanded = false }
+        }
+        .onAppear { expanded = live }
+    }
+
+    @ViewBuilder private var header: some View {
+        if let seconds = item.thoughtDuration {
+            Text("Thought for \(Int(seconds.rounded()))s")
+        } else {
+            Text("Thinking")
+        }
     }
 }
 
@@ -1169,14 +1271,7 @@ struct ChatBubble: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .thought:
-            HStack(alignment: .top, spacing: 12) {
-                Capsule().fill(Grok.hairlineStrong).frame(width: 2)
-                Text(marked(item.text))
-                    .font(Grok.sans(15))
-                    .foregroundStyle(Grok.textDim)
-                    .lineSpacing(4)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            ThoughtTrace(item: item, highlight: highlight)
 
         case .tool:
             ToolLine(item: item, highlight: highlight)
@@ -1609,10 +1704,10 @@ struct PermissionCard: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(risk.label)
-                    .font(Grok.mono(9, .bold)).tracking(1.0)
+                    .font(Grok.sans(11, .bold)).tracking(0.5)
                     .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.text)
                 Text(risk.reason)
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)

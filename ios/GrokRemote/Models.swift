@@ -554,6 +554,17 @@ struct ChatItem: Identifiable, Equatable {
     // is revised in place — every revision used to append another bullet dump.
     var planEntries: [PlanEntry] = []
 
+    // Reasoning: when this block of thinking started, and when it gave way to an
+    // answer. The pair is what lets the trace collapse to "Thought for 12s" instead
+    // of leaving a wall of reasoning above every reply.
+    var startedAt: Date? = nil
+    var endedAt: Date? = nil
+    /// Nil while Grok is still thinking.
+    var thoughtDuration: TimeInterval? {
+        guard let startedAt, let endedAt else { return nil }
+        return max(0, endedAt.timeIntervalSince(startedAt))
+    }
+
     // Permission request (ACP transport)
     var requestId: String? = nil
     var options: [PermissionOption] = []
