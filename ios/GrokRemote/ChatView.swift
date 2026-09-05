@@ -77,7 +77,7 @@ struct ChatView: View {
                         if vm.busy, let started = vm.turnStartedAt {
                             TimelineView(.periodic(from: .now, by: 1)) { context in
                                 Text(verbatim: "· \(Fmt.elapsed(since: started, now: context.date))")
-                                    .font(Grok.mono(9)).monospacedDigit()
+                                    .font(Grok.sans(11)).monospacedDigit()
                                     .foregroundStyle(Grok.textFaint)
                             }
                             .accessibilityHidden(true)
@@ -188,7 +188,7 @@ struct ChatView: View {
                 PlanProgressPill(entries: vm.plan)
             }
             if vm.mode == "plan" {
-                Text("PLAN").font(Grok.mono(9, .bold)).tracking(0.8).foregroundStyle(.black)
+                Text("PLAN").font(Grok.sans(11, .bold)).tracking(0.8).foregroundStyle(.black)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(Grok.accent).clipShape(Capsule())
             }
@@ -224,7 +224,7 @@ struct ChatView: View {
                 .onSubmit { step(+1, in: matches) }
             if !matches.isEmpty {
                 Text(verbatim: "\(min(findCursor + 1, matches.count))/\(matches.count)")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).monospacedDigit()
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).monospacedDigit()
                 Button { step(-1, in: matches) } label: {
                     Image(systemName: "chevron.up").font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Grok.textDim).frame(width: 36, height: 36).contentShape(Rectangle())
@@ -382,7 +382,7 @@ struct ChatView: View {
             HStack(spacing: 7) {
                 Image(systemName: "hand.raised.fill").font(.system(size: 11, weight: .bold))
                     .accessibilityHidden(true)
-                Text("Waiting for you").font(Grok.mono(12, .semibold))
+                Text("Waiting for you").font(Grok.sans(15, .semibold))
                 Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold))
                     .accessibilityHidden(true)
             }
@@ -537,7 +537,7 @@ struct ChatView: View {
     @ViewBuilder private var errorBanner: some View {
         if let message = vm.errorMessage {
             HStack(alignment: .top, spacing: 8) {
-                Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
                 Text(message).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
                 Spacer(minLength: 0)
                 Button { vm.errorMessage = nil } label: {
@@ -635,7 +635,7 @@ struct ChatView: View {
                             }
                             .accessibilityLabel(Text("Remove attachment"))
                         }
-                        .font(Grok.mono(11, .medium))
+                        .font(Grok.sans(14, .medium))
                         .foregroundStyle(Grok.textDim)
                         .padding(.leading, 10)
                         .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
@@ -730,7 +730,7 @@ struct ChatView: View {
                             }
                             .accessibilityLabel("Remove queued follow-up")
                         }
-                        .font(Grok.mono(11, .medium))
+                        .font(Grok.sans(14, .medium))
                         .foregroundStyle(Grok.textDim)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .overlay(Capsule().stroke(Grok.hairlineStrong, lineWidth: 1))
@@ -1024,7 +1024,7 @@ struct HandoffCard: View {
                 Text("CARRIED OVER").font(Grok.sans(13, .bold)).tracking(1.2).foregroundStyle(Grok.text)
             }
             Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message — nothing to paste.")
-                .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
@@ -1034,7 +1034,7 @@ struct HandoffCard: View {
                         .font(.system(size: 9, weight: .bold))
                         .accessibilityHidden(true)
                     Text(expanded ? "Hide the summary" : "Read the summary")
-                        .font(Grok.mono(11, .medium))
+                        .font(Grok.sans(14, .medium))
                 }
                 .foregroundStyle(Grok.textDim)
                 .contentShape(Rectangle())
@@ -1042,7 +1042,7 @@ struct HandoffCard: View {
             .buttonStyle(.plain)
             if expanded {
                 Text(summary)
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1248,7 +1248,7 @@ struct ChatBubble: View {
                             Image(systemName: "photo").font(.system(size: 10, weight: .semibold))
                             Text("\(item.imageCount) image\(item.imageCount == 1 ? "" : "s") attached")
                         }
-                        .font(Grok.mono(10, .medium))
+                        .font(Grok.sans(13, .medium))
                         .foregroundStyle(Grok.textDim)
                         .padding(.horizontal, 9).padding(.vertical, 5)
                         .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
@@ -1331,7 +1331,7 @@ struct CodeBlock: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text(language.isEmpty ? "code" : language.lowercased())
-                    .font(Grok.mono(9, .medium)).tracking(0.6).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(11, .medium)).tracking(0.6).foregroundStyle(Grok.textFaint)
                 Spacer(minLength: 0)
                 Button {
                     UIPasteboard.general.string = code
@@ -1482,7 +1482,7 @@ struct DiffView: View {
             if hidden > 0 {
                 Button { showAll = true } label: {
                     Text("Show \(hidden) more lines")
-                        .font(Grok.mono(10, .medium)).foregroundStyle(Grok.textDim)
+                        .font(Grok.sans(13, .medium)).foregroundStyle(Grok.textDim)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -1525,11 +1525,11 @@ struct DiffRowView: View {
         switch row.kind {
         case .gap:
             HStack(spacing: 8) {
-                Text(verbatim: "⋯").font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                Text(verbatim: "⋯").font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     .frame(width: 10, alignment: .leading)
                     .accessibilityHidden(true)
                 (row.hidden == 1 ? Text("1 unchanged line") : Text("\(row.hidden) unchanged lines"))
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12).padding(.vertical, 3)
@@ -1656,7 +1656,7 @@ struct PermissionCard: View {
 
             if let decided = item.decided {
                 Text(outcomeLabel(decided))
-                    .font(Grok.mono(12, .semibold))
+                    .font(Grok.sans(15, .semibold))
                     .foregroundStyle(Grok.textDim)
             } else if explaining, let deny = denyOptions.first {
                 explainBox(deny)
@@ -1845,17 +1845,21 @@ struct SessionDetailsSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("CONTEXT WINDOW")
             if u.contextWindow > 0 {
-                UsageBar(fraction: u.contextFraction)
-                HStack {
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    Text(verbatim: "\(Int(u.contextFraction * 100))")
+                        .font(Grok.display(34)).tracking(-1).monospacedDigit()
+                        .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.text)
+                    Text(verbatim: "%").font(Grok.sans(17, .medium)).foregroundStyle(Grok.textDim)
+                    Spacer(minLength: 0)
                     Text("\(Fmt.tokens(u.contextTokens)) / \(Fmt.tokens(u.contextWindow))")
-                        .font(Grok.mono(13, .semibold)).foregroundStyle(Grok.text)
-                    Spacer()
-                    Text("\(Int(u.contextFraction * 100))% used · \(Fmt.tokens(u.contextRemaining)) left")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textDim)
+                        .font(Grok.sans(14)).monospacedDigit().foregroundStyle(Grok.textDim)
                 }
+                UsageBar(fraction: u.contextFraction)
+                Text("\(Fmt.tokens(u.contextRemaining)) left")
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             } else {
                 Text("Send a message to see context usage.")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
             }
 
             if session.turnCount > 0, !vm.busy, !vm.isDemo {
@@ -1869,7 +1873,7 @@ struct SessionDetailsSheet: View {
                 .buttonStyle(PillButton(kind: u.contextFraction > 0.85 ? .prominent : .subtle))
                 .disabled(compacting)
                 Text("Grok writes a handoff summary of this conversation, and a fresh session starts from it. This one stays untouched.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 if let compactError {
                     Text(compactError).font(Grok.sans(14)).foregroundStyle(Grok.danger)
                 }
@@ -1886,7 +1890,7 @@ struct SessionDetailsSheet: View {
                 .buttonStyle(PillButton(kind: .subtle))
                 .disabled(branching)
                 Text("Starts a second session that already knows everything this one knows — for trying another approach without losing this one.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 if let branchError {
                     Text(branchError).font(Grok.sans(14)).foregroundStyle(Grok.danger)
                 }
@@ -1901,7 +1905,7 @@ struct SessionDetailsSheet: View {
                 }
                 .buttonStyle(PillButton(kind: .subtle))
                 Text("Use this if Grok has stopped responding. It ends the stuck turn and keeps the conversation.")
-                    .font(Grok.mono(10)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
         }
         // Deliberately not "Restart this session?": a string catalog derives its symbol
@@ -1964,17 +1968,22 @@ struct SessionDetailsSheet: View {
     private var tokens: some View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("THIS SESSION")
-            row("Total tokens", Fmt.tokens(u.totalTokens))
+            HStack(alignment: .top, spacing: 0) {
+                Readout(value: Fmt.tokens(u.totalTokens), label: "Tokens")
+                Spacer(minLength: 12)
+                Readout(value: "\(u.turns)", label: "Turns")
+                Spacer(minLength: 12)
+                Readout(value: Fmt.cost(u.costUSD), label: "Est. cost")
+                Spacer(minLength: 0)
+            }
+            Rectangle().fill(Grok.rule).frame(height: 1)
             row("Input", Fmt.tokens(u.inputTokens))
             row("Output", Fmt.tokens(u.outputTokens))
             row("Thinking", Fmt.tokens(u.reasoningTokens))
             row("Cached read", Fmt.tokens(u.cachedReadTokens))
-            Rectangle().fill(Grok.hairline).frame(height: 1).padding(.vertical, 2)
-            row("Turns", "\(u.turns)")
-            row("Est. cost", Fmt.cost(u.costUSD))
             row("Compute time", Fmt.duration(u.apiDurationMs))
             Text("Cost is grok's own reported estimate.")
-                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
         }
     }
 
@@ -1992,10 +2001,15 @@ struct SessionDetailsSheet: View {
     }
 
     private func row(_ k: LocalizedStringKey, _ v: String) -> some View {
-        HStack {
-            Text(k).font(Grok.sans(15)).foregroundStyle(Grok.textDim)
-            Spacer()
-            Text(v).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+        VStack(spacing: 0) {
+            HStack {
+                Text(k).font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+                Spacer()
+                Text(v).font(Grok.sans(15)).monospacedDigit()
+                    .foregroundStyle(Grok.text).lineLimit(1).truncationMode(.middle)
+            }
+            .padding(.vertical, 7)
+            Rectangle().fill(Grok.rule).frame(height: 1)
         }
     }
 }
@@ -2071,13 +2085,12 @@ struct UsageBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Grok.raised)
-                Capsule().fill(Grok.accent)
-                    .frame(width: max(4, geo.size.width * min(1, max(0, fraction))))
+                Capsule().fill(Color.white.opacity(0.10))
+                Capsule().fill(fraction > 0.85 ? Grok.danger : Grok.accent)
+                    .frame(width: max(3, geo.size.width * min(1, max(0, fraction))))
             }
         }
-        .frame(height: 8)
-        .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
+        .frame(height: 4)
     }
 }
 
@@ -2106,7 +2119,7 @@ struct PlanCard: View {
 
             if let decided = item.decided {
                 (decided == "approved" ? Text("✓ Approved — building") : Text("✗ Kept planning"))
-                    .font(Grok.mono(12, .semibold)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
             } else {
                 VStack(spacing: 8) {
                     Button { onDecide(true) } label: { Text("Approve & build").frame(maxWidth: .infinity) }

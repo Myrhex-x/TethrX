@@ -219,7 +219,7 @@ struct SettingsView: View {
     private var defaults: some View {
         VStack(alignment: .leading, spacing: 16) {
             Eyebrow("NEW SESSION DEFAULTS")
-            Text("How every new session starts. Nothing here is locked in — the same controls sit above the message box inside each session.")
+            Text("How every new session starts. Nothing here is locked in — the same controls sit inside the message box in every session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reasoning effort").font(Grok.sans(14)).foregroundStyle(Grok.textDim)

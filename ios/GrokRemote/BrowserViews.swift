@@ -42,7 +42,7 @@ struct DirectoryPickerSheet: View {
                         }
                         if let errorText {
                             HStack(alignment: .top, spacing: 8) {
-                                Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                                Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
                                 Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger)
                             }
                         }
@@ -85,7 +85,7 @@ struct DirectoryPickerSheet: View {
             Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
                 .accessibilityHidden(true)
             TextField("", text: $query, prompt: Text("search folders by name").foregroundColor(Grok.textFaint))
-                .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                .font(Grok.sans(16)).foregroundStyle(Grok.text)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             if searching { ProgressView().controlSize(.mini).tint(Grok.textFaint) }
             if !query.isEmpty {
@@ -106,7 +106,7 @@ struct DirectoryPickerSheet: View {
         if let results {
             if results.isEmpty, !searching {
                 Text("// no folders match")
-                    .font(Grok.mono(12)).foregroundStyle(Grok.textDim)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(results.enumerated()), id: \.element.path) { i, dir in
@@ -119,8 +119,8 @@ struct DirectoryPickerSheet: View {
                             HStack(spacing: 10) {
                                 Image(systemName: "folder").font(.system(size: 13)).foregroundStyle(Grok.textDim)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(dir.name).font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1)
-                                    Text(dir.path).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                    Text(dir.name).font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1)
+                                    Text(dir.path).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                         .lineLimit(1).truncationMode(.head)
                                 }
                                 Spacer(minLength: 0)
@@ -149,7 +149,7 @@ struct DirectoryPickerSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow("THIS FOLDER")
             Text(l.path)
-                .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                .font(Grok.sans(15)).foregroundStyle(Grok.text)
                 .lineLimit(1).truncationMode(.head)
             Button {
                 app.defaultCwd = l.path
@@ -168,7 +168,7 @@ struct DirectoryPickerSheet: View {
             }
             if l.dirs.isEmpty {
                 Text("// no subfolders")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     .padding(.vertical, 14).padding(.horizontal, 14)
             }
             ForEach(l.dirs) { d in
@@ -193,8 +193,8 @@ struct DirectoryPickerSheet: View {
                     HStack(spacing: 10) {
                         Image(systemName: "clock.arrow.circlepath").font(.system(size: 12)).foregroundStyle(Grok.textDim)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text((cwd as NSString).lastPathComponent).font(Grok.mono(13)).foregroundStyle(Grok.text)
-                            Text(cwd).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                            Text((cwd as NSString).lastPathComponent).font(Grok.sans(16)).foregroundStyle(Grok.text)
+                            Text(cwd).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                 .lineLimit(1).truncationMode(.head)
                         }
                         Spacer(minLength: 0)
@@ -214,7 +214,7 @@ struct DirectoryPickerSheet: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: icon).font(.system(size: 12)).foregroundStyle(Grok.textDim).frame(width: 16)
-                Text(name).font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1)
+                Text(name).font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(Grok.textFaint)
             }
@@ -294,9 +294,9 @@ struct FileFolderScreen: View {
                                     .font(.system(size: 12))
                                     .foregroundStyle(e.dir ? Grok.textDim : Grok.textFaint)
                                     .frame(width: 18)
-                                Text(e.name).font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1)
+                                Text(e.name).font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1)
                                 Spacer(minLength: 0)
-                                if !e.dir { Text(sizeLabel(e.size)).font(Grok.mono(10)).foregroundStyle(Grok.textFaint) }
+                                if !e.dir { Text(sizeLabel(e.size)).font(Grok.sans(13)).foregroundStyle(Grok.textFaint) }
                                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(Grok.textFaint)
                             }
                             .padding(.horizontal, 16).padding(.vertical, 11)
@@ -309,7 +309,7 @@ struct FileFolderScreen: View {
                     }
                 } else if let errorText {
                     HStack(alignment: .top, spacing: 8) {
-                        Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                        Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
                         Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger)
                     }
                     .padding(16)
@@ -352,7 +352,7 @@ struct FileViewerScreen: View {
             if let file {
                 if file.binary {
                     Text("// binary file · \(file.size) bytes")
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).padding(16)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).padding(16)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(rendered ?? AttributedString(file.content ?? ""))
@@ -363,7 +363,7 @@ struct FileViewerScreen: View {
                             .padding(14)
                         if file.truncated == true {
                             Text("… truncated — the full file is \(file.size) bytes")
-                                .font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                 .padding(.horizontal, 14).padding(.bottom, 12)
                         }
                     }

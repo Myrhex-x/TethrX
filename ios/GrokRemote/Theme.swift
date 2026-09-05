@@ -11,20 +11,27 @@ import UIKit
 enum Grok {
     // MARK: Canvas
     static let bg = Color.black
-    static let raised = Color.white.opacity(0.07)                   // cards, bubbles, fields
+    static let raised = Color.white.opacity(0.05)                   // panels, bubbles, fields
     static let raisedPressed = Color.white.opacity(0.14)
     static let hairline = Color.white.opacity(0.10)
     static let hairlineStrong = Color.white.opacity(0.20)
 
     // MARK: Shape
-    /// One radius scale, so nothing is rounded by accident. Grok's surfaces are much
-    /// softer than a 10pt terminal box.
+    /// One radius scale, so nothing is rounded by accident.
+    ///
+    /// Structure is tighter than conversation: a card is a panel and reads precise,
+    /// while a bubble and the composer stay soft because they are things you speak
+    /// into and out of.
     enum R {
-        static let card: CGFloat = 20
+        static let card: CGFloat = 16
         static let bubble: CGFloat = 22
-        static let field: CGFloat = 24
-        static let small: CGFloat = 14
+        static let field: CGFloat = 26
+        static let small: CGFloat = 12
     }
+
+    /// A single hairline. Structure here is drawn with rules and space rather than
+    /// with filled boxes stacked on filled boxes.
+    static let rule = Color.white.opacity(0.09)
 
     // MARK: Ink
     static let text = Color.white
@@ -52,6 +59,45 @@ enum Grok {
     static func body(_ weight: Font.Weight = .regular) -> Font { sans(17, weight) }
     /// Secondary line under a title.
     static func caption(_ weight: Font.Weight = .regular) -> Font { sans(14, weight) }
+    /// A screen's own name. Big, and tracked in rather than out — the tightening is
+    /// what makes a large grotesque read as engineered instead of merely large.
+    static func display(_ size: CGFloat = 28) -> Font { sans(size, .semibold) }
+}
+
+// MARK: - Section label
+
+/// The wide-tracked uppercase micro-label that runs through everything xAI and
+/// SpaceX put on a screen. It is deliberately small and dim: it names a region,
+/// it does not compete with the region's contents.
+struct SectionLabel: View {
+    let text: String
+    init(_ key: LocalizedStringResource) { self.text = String(localized: key).uppercased() }
+    init(verbatim: String) { self.text = verbatim.uppercased() }
+
+    var body: some View {
+        Text(text)
+            .font(Grok.sans(11, .semibold))
+            .tracking(1.7)
+            .foregroundStyle(Grok.textFaint)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// A number worth reading as an instrument: tabular figures, a tracked caption.
+struct Readout: View {
+    let value: String
+    let label: LocalizedStringResource
+    var emphasis: Color = Grok.text
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(Grok.sans(20, .semibold)).monospacedDigit()
+                .foregroundStyle(emphasis)
+            SectionLabel(label)
+        }
+        .accessibilityElement(children: .combine)
+    }
 }
 
 // MARK: - Eyebrow (mono, uppercase, reads like a code comment)
@@ -69,9 +115,10 @@ struct Eyebrow: View {
     }
     var body: some View {
         Text(text)
-            .font(Grok.sans(12, .semibold))
-            .tracking(0.6)
+            .font(Grok.sans(11, .semibold))
+            .tracking(1.7)
             .foregroundStyle(Grok.textFaint)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

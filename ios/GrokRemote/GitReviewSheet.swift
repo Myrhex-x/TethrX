@@ -38,16 +38,16 @@ struct GitReviewSheet: View {
                     } else if status?.repo == false {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("// no repository to review yet")
-                                .font(Grok.mono(12)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                             Text("Changes show up here once Grok edits files inside a git repository — this session hasn't yet.")
-                                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint).lineSpacing(2)
+                                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                         }
                     } else if files.isEmpty {
                         repoPicker
                         VStack(alignment: .leading, spacing: 8) {
                             Text("No changes").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
                             Text("The working tree is clean\(status?.branch.map { " on \($0)" } ?? "").")
-                                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                         }
                     } else {
                         repoPicker
@@ -61,7 +61,7 @@ struct GitReviewSheet: View {
                     }
                     if let errorText {
                         HStack(alignment: .top, spacing: 8) {
-                            Text("!").font(Grok.mono(12, .bold)).foregroundStyle(Grok.danger)
+                            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
                             Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
                         }
                     }
@@ -132,13 +132,13 @@ struct GitReviewSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.triangle.branch").font(.system(size: 12)).foregroundStyle(Grok.textDim)
                 .accessibilityHidden(true)
-            Text(status?.branch ?? "·").font(Grok.mono(12, .semibold)).foregroundStyle(Grok.text)
+            Text(status?.branch ?? "·").font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
             Spacer()
             // Whole phrases per case. Interpolating an English "s" made the catalog key
             // "%lld file%@", passing the letter s as a format argument, which most of the
             // seven shipped languages cannot express at all.
             (files.count == 1 ? Text("1 file") : Text("\(files.count) files"))
-                .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Branch \(status?.branch ?? "unknown"), \(files.count) changed files"))
@@ -151,14 +151,14 @@ struct GitReviewSheet: View {
                 NavigationLink(value: file) {
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(file.filename).font(Grok.mono(13)).foregroundStyle(Grok.text).lineLimit(1)
+                            Text(file.filename).font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1)
                             if !file.folder.isEmpty {
-                                Text(file.folder).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                Text(file.folder).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                     .lineLimit(1).truncationMode(.head)
                             }
                         }
                         Spacer(minLength: 0)
-                        Text(file.label).font(Grok.mono(9, .medium)).tracking(0.5)
+                        Text(file.label).font(Grok.sans(11, .medium)).tracking(0.5)
                             .foregroundStyle(Grok.textDim)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .overlay(Capsule().stroke(Grok.hairline, lineWidth: 1))
@@ -183,7 +183,7 @@ struct GitReviewSheet: View {
             FieldBox {
                 TextField("", text: $commitMessage,
                           prompt: Text("what changed…").foregroundColor(Grok.textFaint), axis: .vertical)
-                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
                     .lineLimit(1...4)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -273,10 +273,10 @@ struct GitDiffScreen: View {
                     .accessibilityLabel(Text("Loading diff"))
             } else if failed {
                 Text("// couldn't load the diff — check the connection and try again")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).padding(16)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).padding(16)
             } else if text.isEmpty {
                 Text("// no textual diff (binary file, or nothing to show)")
-                    .font(Grok.mono(11)).foregroundStyle(Grok.textDim).padding(16)
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).padding(16)
             } else {
                 // Split ONCE (in the task below), rendered lazily, and capped. This used
                 // to re-split the whole diff on every body evaluation and then build one
@@ -292,7 +292,7 @@ struct GitDiffScreen: View {
                     if lines.count > shownLines.count {
                         Button { showAllLines = true } label: {
                             Text("Show \(lines.count - shownLines.count) more lines")
-                                .font(Grok.mono(11, .medium)).foregroundStyle(Grok.textDim)
+                                .font(Grok.sans(14, .medium)).foregroundStyle(Grok.textDim)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.plain)

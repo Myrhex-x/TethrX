@@ -41,7 +41,7 @@ struct AddComputerSheet: View {
                                         Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(bridge.name).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(1)
-                                            Text(bridge.address).font(Grok.mono(10)).foregroundStyle(Grok.textFaint)
+                                            Text(bridge.address).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                         }
                                         Spacer(minLength: 0)
                                         if address == bridge.address {

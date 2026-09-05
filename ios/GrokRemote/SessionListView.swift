@@ -156,14 +156,13 @@ struct SessionListView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            HStack(spacing: 10) {
-                TethrXMark(size: 22)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(verbatim: "TethrX").font(Grok.sans(20, .semibold)).foregroundStyle(Grok.text)
-                    if let grok = app.health?.grok {
-                        Text(grok.replacingOccurrences(of: "grok ", with: "v"))
-                            .font(Grok.sans(12)).foregroundStyle(Grok.textFaint).lineLimit(1)
-                    }
+            HStack(spacing: 12) {
+                TethrXMark(size: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(verbatim: "TethrX")
+                        .font(Grok.display(26)).tracking(-0.4).foregroundStyle(Grok.text)
+                    SectionLabel(verbatim: statusLine)
+                        .lineLimit(1)
                 }
             }
             Spacer()
@@ -177,6 +176,20 @@ struct SessionListView: View {
             .keyboardShortcut("n", modifiers: .command)
         }
         .padding(.bottom, 4)
+    }
+
+    /// What this phone is attached to, said the way a console says it.
+    private var statusLine: String {
+        if app.demoMode { return String(localized: "Tour") }
+        var parts: [String] = []
+        if let host = app.health?.host, !host.isEmpty {
+            parts.append(host.replacingOccurrences(of: ".home", with: ""))
+        }
+        if let grok = app.health?.grok, !grok.isEmpty {
+            parts.append(grok.replacingOccurrences(of: "grok ", with: ""))
+        }
+        if parts.isEmpty { return String(localized: "Not connected") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: Error banner
@@ -245,13 +258,10 @@ struct SessionListView: View {
                 if !running.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(running.enumerated()), id: \.element.id) { index, session in
-                            if index > 0 { Rectangle().fill(Grok.hairline).frame(height: 1) }
+                            if index > 0 { Rectangle().fill(Grok.rule).frame(height: 1) }
                             runningRow(session)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .background(Grok.raised)
-                    .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
                 }
             }
         }
@@ -425,10 +435,7 @@ struct SessionListView: View {
                     if !collapsed.contains(section.key) {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(section.items.enumerated()), id: \.element.id) { index, session in
-                                if index > 0 {
-                                    Rectangle().fill(Grok.hairline).frame(height: 1)
-                                        .padding(.leading, 2)
-                                }
+                                if index > 0 { Rectangle().fill(Grok.rule).frame(height: 1) }
                                 sessionLink(session)
                             }
                             if section.items.isEmpty {
@@ -437,9 +444,6 @@ struct SessionListView: View {
                                     .padding(.vertical, 14)
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .background(Grok.raised)
-                        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
                     }
                     Color.clear.frame(height: 16)
                 }
@@ -592,7 +596,7 @@ struct SessionListView: View {
     }
 
     private func sectionHeader(_ section: HistorySection) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     if collapsed.contains(section.key) { collapsed.remove(section.key) }
@@ -601,16 +605,16 @@ struct SessionListView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: section.systemImage)
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Grok.textFaint)
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Grok.textFaint)
                         .accessibilityHidden(true)
-                    Text(section.title)
-                        .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
+                    SectionLabel(verbatim: section.title)
                     Text(verbatim: "\(section.items.count)")
-                        .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(11, .semibold)).monospacedDigit()
+                        .foregroundStyle(Grok.textFaint.opacity(0.7))
                     Image(systemName: collapsed.contains(section.key) ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Grok.textFaint)
+                        .font(.system(size: 9, weight: .bold)).foregroundStyle(Grok.textFaint)
                         .accessibilityHidden(true)
-                    Spacer(minLength: 0)
+                    Rectangle().fill(Grok.rule).frame(height: 1)
                 }
                 .contentShape(Rectangle())
             }
@@ -755,7 +759,7 @@ struct InlineAnswer: View {
         VStack(alignment: .leading, spacing: 9) {
             if !command.isEmpty, !isPlan {
                 Text(command)
-                    .font(Grok.mono(12)).foregroundStyle(Grok.text)
+                    .font(Grok.sans(15)).foregroundStyle(Grok.text)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -903,7 +907,7 @@ struct SessionRow: View {
                     }
                     // An id is an identifier, so it keeps the mono face.
                     Text(session.id.prefix(8))
-                        .font(Grok.mono(11)).foregroundStyle(Grok.textFaint)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
                     // Blocked on you outranks running: it is the state that needs an
                     // action, and it used to be invisible.
                     if session.isWaitingOnYou {
