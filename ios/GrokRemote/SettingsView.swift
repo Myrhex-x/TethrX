@@ -110,9 +110,9 @@ struct SettingsView: View {
     /// button. None of that belongs in a demo, so it is replaced wholesale.
     private var demoConnection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("CONNECTION")
+            ListSectionLabel("Connection")
             row("Computer", DemoData.health.host ?? "demo")
-            row("Mode", String(localized: "Tour — nothing is connected"))
+            row("Mode", String(localized: "Tour: nothing is connected"))
             Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Button { dismiss(); app.exitDemo() } label: {
@@ -125,8 +125,8 @@ struct SettingsView: View {
 
     private var connection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("CONNECTION")
-            Text("The bridge is the small helper program running on your computer — this phone talks only to it, never to a cloud.")
+            ListSectionLabel("Connection")
+            Text("The bridge is the small helper program running on your computer. This phone talks only to it, never to a cloud.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             row("Bridge", app.normalizedBase.isEmpty ? "·" : app.normalizedBase)
             HStack {
@@ -140,7 +140,7 @@ struct SettingsView: View {
                 .font(Grok.sans(15)).foregroundStyle(pinned ? Grok.text : Grok.textDim)
             }
             if !pinned {
-                Text("Update the bridge (npm i -g tethrx-bridge) and reconnect — the app upgrades to pinned HTTPS automatically.")
+                Text("Update the bridge (npm i -g tethrx-bridge) and reconnect. The app upgrades to pinned HTTPS automatically.")
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
             HStack {
@@ -174,7 +174,7 @@ struct SettingsView: View {
     private var usage: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Eyebrow("USAGE")
+                ListSectionLabel("Usage")
                 Spacer()
                 Button { Task { await loadUsage() } } label: {
                     Image(systemName: "arrow.clockwise").font(.caption)
@@ -203,7 +203,7 @@ struct SettingsView: View {
             } else if app.connected {
                 // Connected but the call failed — saying "connect to the bridge"
                 // here sent people debugging a connection that was fine.
-                Text("Couldn't load usage — tap refresh to retry.")
+                Text("Couldn't load usage. Tap refresh to retry.")
                     .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             } else {
                 Text("Connect to the bridge to see usage.").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
@@ -227,8 +227,8 @@ struct SettingsView: View {
 
     private var defaults: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Eyebrow("NEW SESSION DEFAULTS")
-            Text("How every new session starts. Nothing here is locked in — the same controls sit inside the message box in every session.")
+            ListSectionLabel("New session defaults")
+            Text("How every new session starts. Nothing here is locked in. The same controls sit inside the message box in every session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Reasoning effort").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
@@ -245,7 +245,7 @@ struct SettingsView: View {
                 }
             }
             toggleRow("Plan mode", "Grok drafts a plan for you to approve before touching anything", $app.defaultPlanMode)
-            toggleRow("Auto-approve tools", "Run commands and edits without asking each time — faster, less oversight", $app.defaultAutoApprove)
+            toggleRow("Auto-approve tools", "Run commands and edits without asking each time: faster, less oversight", $app.defaultAutoApprove)
         }
     }
 
@@ -253,7 +253,7 @@ struct SettingsView: View {
     /// even installed?" is answered in the app rather than by hunting on the wrist.
     private var appleWatch: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("APPLE WATCH")
+            ListSectionLabel("Apple Watch")
             HStack(spacing: 10) {
                 Image(systemName: watch.active ? "applewatch" : "applewatch.slash")
                     .font(.system(size: 15, weight: .medium))
@@ -293,19 +293,19 @@ struct SettingsView: View {
 
     private var security: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("SECURITY")
+            ListSectionLabel("Security")
             // A device with no biometry gets its own whole sentence: "Require %@"
             // translates verb-first in half the languages, so a bare noun in the
             // slot came out ungrammatical.
             toggleRow(lock.biometryName.isEmpty ? "Require a passcode" : "Require \(lock.biometryName)",
-                      "Lock the app on open — it can run commands on your computer", $lock.enabled)
+                      "Lock the app on open: it can run commands on your computer", $lock.enabled)
         }
     }
 
     private var computers: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Eyebrow("COMPUTERS")
+                ListSectionLabel("Computers")
                 if probingComputers {
                     ProgressView().controlSize(.mini).tint(Grok.textFaint)
                         .accessibilityLabel(Text("Checking which computers answer"))
@@ -440,14 +440,14 @@ struct SettingsView: View {
     @ViewBuilder private var pluginsSection: some View {
         if pluginsSupported {
             VStack(alignment: .leading, spacing: 12) {
-                Eyebrow("GROK PLUGINS")
+                ListSectionLabel("Grok plugins")
                 if let plugins, plugins.isEmpty {
                     Text("No plugins installed. Their skills appear in the \u{201C}/\u{201D} menu once you add some.")
                         .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
                 } else if let plugins {
                     ForEach(plugins) { plugin in pluginRow(plugin) }
                 } else if pluginsFailed {
-                    Text("Couldn't load plugins — check that grok is installed on the computer.")
+                    Text("Couldn't load plugins. Check that grok is installed on the computer.")
                         .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 } else {
                     HStack(spacing: 8) {
@@ -481,7 +481,7 @@ struct SettingsView: View {
                     .disabled(installDisabled || pluginBusy != nil)
                     .accessibilityLabel(Text("Install plugin"))
                 }
-                Text("Plugins bundle skills, agents, and tools for Grok — and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
+                Text("Plugins bundle skills, agents, and tools for Grok, and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
             }
             .task(id: pluginsReloadKey) { await loadPlugins() }
@@ -577,7 +577,7 @@ struct SettingsView: View {
         pluginError = nil
         defer { pluginBusy = nil }
         do { plugins = try await client.grokPluginAction(action, name: name) }
-        catch { pluginError = String(localized: "That didn't go through — check the bridge log for details.") }
+        catch { pluginError = String(localized: "That didn't go through. Check the bridge log for details.") }
     }
 
     private func installPlugin() async {
@@ -592,15 +592,15 @@ struct SettingsView: View {
             installSource = ""
             Haptics.success()
         } catch {
-            pluginError = String(localized: "Install failed — check the URL and that the computer can reach it.")
+            pluginError = String(localized: "Install failed. Check the URL and that the computer can reach it.")
         }
     }
 
     private var notifications: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("NOTIFICATIONS")
+            ListSectionLabel("Notifications")
             toggleRow("Push notifications",
-                      "Get alerted when Grok finishes a turn or needs approval — even with the app closed",
+                      "Get alerted when Grok finishes a turn or needs approval, even with the app closed",
                       Binding(get: { push.enabled }, set: { $0 ? push.enable() : push.disable() }))
             Text("Requires an APNs key configured on your bridge. Delivered to this phone when it isn't actively watching a session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
@@ -609,7 +609,7 @@ struct SettingsView: View {
 
     private var snippetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("PROMPTS")
+            ListSectionLabel("Prompts")
             Text("Reusable prompts you write on this phone. They need no computer, and appear above the composer in every session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             Button { showingLibrary = true } label: {
@@ -632,7 +632,7 @@ struct SettingsView: View {
 
     private var about: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("ABOUT")
+            ListSectionLabel("About")
             row("App", "TethrX \(appVersion)")
             row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "·")
             grokUpdateRows
@@ -700,11 +700,11 @@ struct SettingsView: View {
             Haptics.success()
             grokUpdateNote = version.isEmpty
                 ? String(localized: "Updated.")
-                : String(localized: "Updated — now \(version).")
+                : String(localized: "Updated to \(version).")
             grokUpdate = try? await client.grokUpdateStatus()
         } catch {
             grokUpdateNote = (error as? BridgeError)?.errorDescription
-                ?? String(localized: "Update didn't finish — try again when no session is running.")
+                ?? String(localized: "Update didn't finish. Try again when no session is running.")
         }
     }
 

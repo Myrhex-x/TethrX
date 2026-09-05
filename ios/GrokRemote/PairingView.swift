@@ -111,7 +111,7 @@ struct PairingView: View {
             }
         case .run:
             cardShell("Start the bridge") {
-                para("One command downloads and starts the bridge on your computer. It prints a pairing token and keeps running — leave it going.")
+                para("One command downloads and starts the bridge on your computer. It prints a pairing token and keeps running. Leave it going.")
                 codeLine("npx tethrx-bridge")
                 note("Want it always-on? Install once with  npm i -g tethrx-bridge  then run  tethrx-bridge.")
                 nav("The bridge is running")
@@ -119,13 +119,13 @@ struct PairingView: View {
         case .choose:
             cardShell("How will your phone reach it?") {
                 para("Pick how this phone connects to the bridge:")
-                choice("Same Wi-Fi", "phone + computer on one network — simplest") { path = .wifi; idx = firstTailIndex }
+                choice("Same Wi-Fi", "phone + computer on one network, simplest") { path = .wifi; idx = firstTailIndex }
                 choice("From anywhere", "works on cellular too, via Tailscale") { path = .tailscale; idx = firstTailIndex }
                 if idx > 0 { backButton }
             }
         case .tsMac:
             cardShell("Install Tailscale on your computer") {
-                para("Tailscale is a free private network that links this phone to your computer from anywhere. Install it on your computer, then sign in to create a free account — you can use Google, Apple, GitHub, or email.")
+                para("Tailscale is a free private network that links this phone to your computer from anywhere. Install it on your computer, then sign in to create a free account. You can use Google, Apple, GitHub, or email.")
                 note("Get it from the Mac App Store or tailscale.com/download. Once you're signed in, a menu-bar icon shows it's connected.")
                 nav("Installed and signed in")
             }
@@ -139,7 +139,7 @@ struct PairingView: View {
             cardShell("Open the pairing page") {
                 para("On your computer, type this address into the browser's address bar:")
                 codeLine("http://localhost:4180/pair")
-                note("Type it yourself — for your security the page refuses to open from a clicked link. It shows QR codes for Wi-Fi and Tailscale plus your token, and only works on the computer running the bridge.")
+                note("Type it yourself. For your security the page refuses to open from a clicked link. It shows QR codes for Wi-Fi and Tailscale plus your token, and only works on the computer running the bridge.")
                 nav("I see the QR codes")
             }
         case .scan:
@@ -156,7 +156,7 @@ struct PairingView: View {
                 // address, then only the token is left to enter.
                 if path == .wifi, !discovery.found.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Eyebrow("FOUND NEARBY")
+                        ListSectionLabel("Found nearby")
                         ForEach(discovery.found) { bridge in
                             Button {
                                 Haptics.tap()
@@ -193,17 +193,17 @@ struct PairingView: View {
                 }
                 .padding(.vertical, 2)
 
-                field(label: "BRIDGE ADDRESS", placeholder: path == .tailscale ? "100.x.y.z:4180" : "192.168.1.10:4180", text: $app.baseURLString, secure: false)
+                field(label: "Bridge address", placeholder: path == .tailscale ? "100.x.y.z:4180" : "192.168.1.10:4180", text: $app.baseURLString, secure: false)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .focused($focus, equals: .address).submitLabel(.next).onSubmit { focus = .token }
-                field(label: "PAIRING TOKEN", placeholder: "from the pairing page", text: $app.token, secure: true)
+                field(label: "Pairing token", placeholder: "from the pairing page", text: $app.token, secure: true)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .focused($focus, equals: .token).submitLabel(.go).onSubmit { focus = nil; Task { await app.connect() } }
 
                 Button { focus = nil; Task { await app.connect() } } label: {
                     HStack(spacing: 10) {
                         if app.connecting { ProgressView().controlSize(.small).tint(.white) }
-                        (app.connecting ? Text("CONNECTING") : Text("CONNECT")).latinTracking(1.5)
+                        (app.connecting ? Text("Connecting…") : Text("Connect"))
                     }
                 }
                 .buttonStyle(PillButton(kind: .prominent)).disabled(app.connecting)
@@ -217,7 +217,7 @@ struct PairingView: View {
 
     private func cardShell<C: View>(_ title: LocalizedStringKey, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Eyebrow("STEP \(idx + 1) / \(steps.count)")
+            ListSectionLabel("Step \(idx + 1) / \(steps.count)")
             Text(title).font(Grok.sans(23, .semibold)).latinTracking(-0.4)
                 .foregroundStyle(Grok.text).fixedSize(horizontal: false, vertical: true)
             content()
@@ -292,7 +292,7 @@ struct PairingView: View {
 
     private func field(label: LocalizedStringResource, placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Eyebrow(label)
+            ListSectionLabel(label)
             FieldBox {
                 Group {
                     if secure {

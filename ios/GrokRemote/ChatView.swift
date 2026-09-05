@@ -207,7 +207,7 @@ struct ChatView: View {
                     .layoutPriority(1)
             }
             if vm.mode == "plan" {
-                Text("PLAN").font(Grok.sans(11, .bold)).latinTracking(0.8).foregroundStyle(.black)
+                Text("Plan").font(Grok.sans(12, .semibold)).foregroundStyle(.black)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(Grok.accent).clipShape(Capsule())
                     .layoutPriority(1)
@@ -423,11 +423,13 @@ struct ChatView: View {
         Button {
             withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomID, anchor: .bottom) }
         } label: {
+            // The one control in the app that genuinely hovers over moving text, so
+            // it is the one that most wants a lens: you can see the conversation
+            // through it, which is how you know it is over the conversation.
             Image(systemName: "arrow.down")
                 .font(.system(size: 15, weight: .bold)).foregroundStyle(Grok.text)
                 .frame(width: 44, height: 44)
-                .background(Grok.raisedPressed, in: Circle())
-                .overlay(Circle().stroke(Grok.hairlineStrong, lineWidth: 1))
+                .floatingGlass(in: Circle())
         }
         .accessibilityLabel(Text("Scroll to latest"))
         .padding(.trailing, 16).padding(.bottom, 12)
@@ -502,22 +504,15 @@ struct ChatView: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
-        // A little glass, not a lot: a thin material with a faint tint over it, and a
-        // top-edge highlight so the card catches light along its rim the way a real
-        // pane would. Enough to lift it off the page; not enough to compete with what
-        // is written in it.
-        .background(.ultraThinMaterial)
-        .background(Color.white.opacity(0.04))
-        .overlay(
-            RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.05)],
-                                   startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1)
-        )
+        // The composer floats over the conversation rather than sitting in it, which
+        // is the one thing that earns real glass. On iOS 26 the messages pass behind
+        // a lens; below it, the hand-built version of the same idea. The recording
+        // ring goes on last either way — it has to be legible against whatever the
+        // material happens to be showing at that moment.
+        .floatingGlass(in: RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous),
+                       interactive: false)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
             .stroke(dictation.isRecording ? Color.white.opacity(0.4) : .clear, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
     }
 
     /// The `+`: one affordance for everything that can ride along with a message.
@@ -1087,9 +1082,9 @@ struct HandoffCard: View {
                 Image(systemName: "arrow.triangle.merge")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.accent)
                     .accessibilityHidden(true)
-                SectionLabel("CARRIED OVER")
+                ListSectionLabel("Carried over")
             }
-            Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message — nothing to paste.")
+            Text("This session starts with a summary of the previous conversation. Grok receives it automatically with your first message. Nothing to paste.")
                 .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
@@ -1776,7 +1771,7 @@ struct PermissionCard: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Grok.textFaint)
                 .accessibilityHidden(true)
-            SectionLabel("PERMISSION")
+            ListSectionLabel("Permission")
             Spacer(minLength: 8)
             if let risk {
                 HStack(spacing: 5) {
@@ -1968,7 +1963,7 @@ struct SessionDetailsSheet: View {
 
     private var exportSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("EXPORT")
+            ListSectionLabel("Export")
             Button {
                 if let url = TranscriptExporter.write(session: session, items: vm.items) {
                     shareURL = ShareFile(url: url)
@@ -1983,7 +1978,7 @@ struct SessionDetailsSheet: View {
 
     private var context: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("CONTEXT WINDOW")
+            ListSectionLabel("Context window")
             if u.contextWindow > 0 {
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text(verbatim: "\(Int(u.contextFraction * 100))")
@@ -2029,7 +2024,7 @@ struct SessionDetailsSheet: View {
                 }
                 .buttonStyle(PillButton(kind: .subtle))
                 .disabled(branching)
-                Text("Starts a second session that already knows everything this one knows — for trying another approach without losing this one.")
+                Text("Starts a second session that already knows everything this one knows, for trying another approach without losing this one.")
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 if let branchError {
                     Text(branchError).font(Grok.sans(14)).foregroundStyle(Grok.danger)
@@ -2086,7 +2081,7 @@ struct SessionDetailsSheet: View {
             dismiss()
             app.pendingOpenSessionId = fresh.id
         } catch {
-            branchError = String(localized: "Couldn't branch this session — check the connection and try again.")
+            branchError = String(localized: "Couldn't branch this session. Check the connection and try again.")
         }
     }
 
@@ -2104,13 +2099,13 @@ struct SessionDetailsSheet: View {
             // A bare literal here never reaches the string table: the sentence shipped
             // in English to all seven translations, and to English in its uncorrected
             // wording. Same shape as `branch()` above.
-            compactError = String(localized: "Compaction failed — check the connection and try again.")
+            compactError = String(localized: "Compaction failed. Check the connection and try again.")
         }
     }
 
     private var tokens: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("THIS SESSION")
+            ListSectionLabel("This session")
             HStack(alignment: .top, spacing: 0) {
                 Readout(value: Fmt.tokens(u.totalTokens), label: "Tokens")
                 Spacer(minLength: 12)
@@ -2132,7 +2127,7 @@ struct SessionDetailsSheet: View {
 
     private var technical: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("TECHNICAL")
+            ListSectionLabel("Technical")
             row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : String(localized: "grok default")) : u.lastModelId)
             row("Reasoning effort", effortText)
             row("Plan mode", vm.planMode ? String(localized: "on") : String(localized: "off"))
@@ -2269,7 +2264,7 @@ struct PlanCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "list.bullet.clipboard.fill").font(.system(size: 13, weight: .semibold))
-                Eyebrow("PLAN", comment: false)
+                ListSectionLabel("Plan")
                 Spacer()
             }
             .foregroundStyle(Grok.accent)
@@ -2282,7 +2277,7 @@ struct PlanCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let decided = item.decided {
-                (decided == "approved" ? Text("✓ Approved — building") : Text("✗ Kept planning"))
+                (decided == "approved" ? Text("✓ Approved, building") : Text("✗ Kept planning"))
                     .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.textDim)
             } else {
                 VStack(spacing: 8) {

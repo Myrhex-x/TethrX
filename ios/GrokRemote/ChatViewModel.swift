@@ -306,7 +306,7 @@ final class ChatViewModel: ObservableObject {
                 queued.removeAll()
             }
         } catch {
-            errorMessage = String(localized: "Couldn't reach the computer to stop the turn — it may still be running.")
+            errorMessage = String(localized: "Couldn't reach the computer to stop the turn. It may still be running.")
         }
     }
 
@@ -369,7 +369,7 @@ final class ChatViewModel: ObservableObject {
                 // 409: nothing is waiting on this anymore (answered elsewhere, or the
                 // session restarted). Re-showing the buttons would just fail again.
                 if let idx, items.indices.contains(idx) { items[idx].decided = "cancelled" }
-                errorMessage = String(localized: "That approval was no longer pending — grok isn't waiting on it.")
+                errorMessage = String(localized: "That approval was no longer pending. Grok isn't waiting on it.")
             } else {
                 // The bridge never heard the decision, so Grok is still blocked. Put the
                 // buttons back rather than leaving a card that claims it was answered.

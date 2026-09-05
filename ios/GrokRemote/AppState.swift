@@ -197,7 +197,7 @@ final class AppState: ObservableObject {
     /// dead entry must not cost you the live one you were on.
     func switchTo(_ bridge: SavedBridge) async {
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
-            errorMessage = String(localized: "No saved token for \(bridge.name) — pair that computer again.")
+            errorMessage = String(localized: "No saved token for \(bridge.name). Pair that computer again.")
             return
         }
         let prev = (base: baseURLString, pin: pin, plain: plainBase, token: token,
@@ -226,7 +226,7 @@ final class AppState: ObservableObject {
             // Say "staying on the current computer" only when that's true — if the
             // rollback also failed, its own error is the honest one to keep.
             if connected {
-                errorMessage = failure.map { String(localized: "\(bridge.name) didn't answer — staying on the current computer. (\($0))") }
+                errorMessage = failure.map { String(localized: "\(bridge.name) didn't answer. Staying on the current computer. (\($0))") }
             }
         }
     }
@@ -539,7 +539,7 @@ final class AppState: ObservableObject {
             // 409 means it stopped being pending while you were looking at it, which
             // is worth saying rather than leaving the row unchanged and unexplained.
             if case .badStatus(409) = (error as? BridgeError) ?? .badURL {
-                errorMessage = String(localized: "That approval was no longer pending — grok isn't waiting on it.")
+                errorMessage = String(localized: "That approval was no longer pending. Grok isn't waiting on it.")
                 await reloadSessions(quiet: true)
             } else {
                 errorMessage = friendly(error)

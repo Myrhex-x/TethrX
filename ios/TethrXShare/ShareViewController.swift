@@ -296,7 +296,7 @@ struct ShareSheetView: View {
         VStack(alignment: .leading, spacing: ShareTheme.gap) {
             ShareLabel("WHAT SHOULD GROK DO?")
             TextField("", text: $note,
-                      prompt: Text("optional — e.g. summarize this, or fix this error")
+                      prompt: Text("optional, e.g. summarize this, or fix this error")
                           .foregroundColor(ShareTheme.textFaint),
                       axis: .vertical)
                 .font(ShareTheme.sans(13))

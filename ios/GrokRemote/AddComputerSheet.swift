@@ -31,7 +31,7 @@ struct AddComputerSheet: View {
 
                     if !discovery.found.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Eyebrow("NEARBY")
+                            ListSectionLabel("Nearby")
                             ForEach(discovery.found) { bridge in
                                 Button {
                                     Haptics.tap()
@@ -56,7 +56,7 @@ struct AddComputerSheet: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            Text("Found on your network. Tap to fill the address — then enter that computer's token.")
+                            Text("Found on your network. Tap to fill the address, then enter that computer's token.")
                                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                         }
                     }
@@ -67,8 +67,8 @@ struct AddComputerSheet: View {
                         divider
                     }
 
-                    field("BRIDGE ADDRESS", "192.168.1.10:4180", $address, secure: false)
-                    field("PAIRING TOKEN", "from the pairing page", $pairingToken, secure: true)
+                    field("Bridge address", "192.168.1.10:4180", $address, secure: false)
+                    field("Pairing token", "from the pairing page", $pairingToken, secure: true)
 
                     if let failure {
                         HStack(alignment: .top, spacing: 8) {
@@ -80,14 +80,14 @@ struct AddComputerSheet: View {
                     Button { Task { await add() } } label: {
                         HStack(spacing: 10) {
                             if working { ProgressView().controlSize(.small).tint(.white) }
-                            (working ? Text("CONNECTING") : Text("ADD COMPUTER")).latinTracking(1.4)
+                            (working ? Text("Connecting…") : Text("Add computer"))
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))
                     .disabled(working || address.trimmingCharacters(in: .whitespaces).isEmpty
                               || pairingToken.trimmingCharacters(in: .whitespaces).isEmpty)
 
-                    Text("Adding a computer switches to it. Your other computers stay paired — swap between them any time.")
+                    Text("Adding a computer switches to it. Your other computers stay paired. Swap between them any time.")
                         .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(3)
                 }
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
@@ -167,7 +167,7 @@ struct AddComputerSheet: View {
 
     private func field(_ label: LocalizedStringResource, _ placeholder: LocalizedStringKey, _ text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Eyebrow(label)
+            ListSectionLabel(label)
             FieldBox {
                 Group {
                     if secure {

@@ -98,7 +98,7 @@ struct TaskListCard: View {
                 Image(systemName: entries.allDone ? "checklist.checked" : "checklist")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(Grok.accent)
                     .accessibilityHidden(true)
-                Eyebrow("PLAN", comment: false)
+                ListSectionLabel("Plan")
                 Spacer(minLength: 0)
                 Text(verbatim: "\(entries.completedCount)/\(entries.count)")
                     .font(Grok.sans(14, .semibold)).foregroundStyle(Grok.textDim)

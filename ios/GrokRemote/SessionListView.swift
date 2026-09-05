@@ -59,7 +59,8 @@ struct SessionListView: View {
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
-            .safeAreaInset(edge: .bottom) { bottomBar }
+            .softScrollEdge(.bottom)
+            .floatingBottomBar { bottomBar }
             .refreshable { await app.reloadSessions() }
             .alert("Rename session", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Name", text: $renameText)
@@ -120,7 +121,7 @@ struct SessionListView: View {
                 } else if let client = app.client {
                     ChatView(vm: ChatViewModel(client: client, session: session))
                 } else {
-                    ZStack { Grok.bg.ignoresSafeArea(); Eyebrow("DISCONNECTED") }
+                    ZStack { Grok.bg.ignoresSafeArea(); ListSectionLabel("Disconnected") }
                 }
             }
         }
@@ -193,10 +194,12 @@ struct SessionListView: View {
             showSettings = true
         } label: {
             HStack(spacing: 12) {
-                TethrXMark(size: 26)
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.07), in: Circle())
-                    .overlay(Circle().strokeBorder(Grok.hairline, lineWidth: 1))
+                // The mark sits on the canvas at the size a masthead wants. It used
+                // to be dropped into a translucent disc with a ring around it, which
+                // is the shape a contact photo goes in: it made the app's own logo
+                // read as somebody's avatar, pasted on top of the screen rather than
+                // drawn as part of it.
+                TethrXMark(size: 28)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: hostTitle)
                         .font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
@@ -209,10 +212,8 @@ struct SessionListView: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Grok.textDim)
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.07), in: Circle())
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Grok.textFaint)
                     .accessibilityHidden(true)
             }
             .padding(.vertical, 8)
@@ -329,37 +330,49 @@ struct SessionListView: View {
     /// They used to sit in the top corners, which is the part of a phone you have to
     /// shift your grip to touch.
     private var bottomBar: some View {
-        HStack(spacing: 10) {
-            searchPill
-            barButton("gearshape", label: "Settings") {
-                settingsAnchor = nil
-                showSettings = true
-            }
-            .keyboardShortcut(",", modifiers: .command)
-            barButton("square.and.pencil", label: "New session", busy: creating) {
-                Task { await startNew() }
-            }
-            .keyboardShortcut("n", modifiers: .command)
-            // A folder is made about as often as the app is reinstalled, so it lives
-            // behind a long press rather than taking a fourth slot.
-            .contextMenu {
-                Button { newFolderName = ""; creatingFolder = true } label: {
-                    Label("New folder", systemImage: "folder.badge.plus")
+        // Three lenses over the same moving list, so they belong to one container:
+        // it samples the backdrop once for all of them instead of letting each work
+        // out its own answer for the same patch of screen.
+        GlassCluster {
+            HStack(spacing: 12) {
+                searchPill
+                barButton("gearshape", label: "Settings") {
+                    settingsAnchor = nil
+                    showSettings = true
+                }
+                .keyboardShortcut(",", modifiers: .command)
+                barButton("square.and.pencil", label: "New session", busy: creating) {
+                    Task { await startNew() }
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                // A folder is made about as often as the app is reinstalled, so it
+                // lives behind a long press rather than taking a fourth slot.
+                .contextMenu {
+                    Button { newFolderName = ""; creatingFolder = true } label: {
+                        Label("New folder", systemImage: "folder.badge.plus")
+                    }
                 }
             }
         }
         .padding(.horizontal, Grok.gutter)
         .padding(.top, 8)
         .padding(.bottom, 4)
-        .background(
-            // The list scrolls under the bar, so it needs something to come out of.
-            // A fade rather than a hard edge: a line across the screen here reads as
-            // a second window.
+        .background(legacyBarFade)
+    }
+
+    /// Before iOS 26 the list had to be given something to come out of, or rows slid
+    /// out from under the bar with a hard edge. A fade rather than a rule: a line
+    /// across the screen here reads as a second window. iOS 26 draws this itself, as
+    /// a soft blur along the scroll edge, and does it better.
+    @ViewBuilder private var legacyBarFade: some View {
+        if #available(iOS 26.0, *) {
+            EmptyView()
+        } else {
             LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg.opacity(0.92), Grok.bg],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
-        )
+        }
     }
 
     private var searchPill: some View {
@@ -387,9 +400,7 @@ struct SessionListView: View {
             }
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
-        .background(.ultraThinMaterial, in: Capsule())
-        .background(Color.white.opacity(0.05), in: Capsule())
-        .overlay(Capsule().strokeBorder(Grok.hairline, lineWidth: 1))
+        .floatingGlass(in: Capsule(), interactive: false)
         .contentShape(Capsule())
         .onTapGesture { searchFocused = true }
     }
@@ -398,10 +409,7 @@ struct SessionListView: View {
                            busy: Bool = false,
                            action: @escaping () -> Void) -> some View {
         Button { Haptics.tap(); action() } label: {
-            ZStack {
-                Circle().fill(.ultraThinMaterial)
-                Circle().fill(Color.white.opacity(0.05))
-                Circle().strokeBorder(Grok.hairline, lineWidth: 1)
+            Group {
                 if busy {
                     ProgressView().controlSize(.small).tint(.white)
                 } else {
@@ -411,6 +419,7 @@ struct SessionListView: View {
                 }
             }
             .frame(width: 48, height: 48)
+            .floatingGlass(in: Circle())
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -419,54 +428,65 @@ struct SessionListView: View {
         .accessibilityValue(busy ? Text("busy") : Text(""))
     }
 
+    // MARK: Banners
+
+    /// One shape for everything the screen says to you before you have asked it
+    /// anything: the tour notice, an error, the bridge-update warning. All three
+    /// used to draw their own, and had drifted a point apart in every direction.
+    private func banner<C: View>(alarming: Bool = false,
+                                 @ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .padding(.horizontal, Grok.pad).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Grok.raised)
+            .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
+                .strokeBorder(alarming ? Grok.danger.opacity(0.35) : Grok.hairlineStrong,
+                              lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+    }
+
     // MARK: Error banner
 
     /// Failures used to be written to `app.errorMessage` and rendered nowhere once
     /// connected — a failed delete/rename/switch just silently did nothing.
     private func errorBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
-                .accessibilityHidden(true)
-            Text(message).font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(2)
-            Spacer(minLength: 0)
-            Button { app.errorMessage = nil } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Grok.textDim)
-                    // 44pt to tap, 32pt to the layout, so the banner keeps its height.
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                    .frame(width: 32, height: 32)
+        banner(alarming: true) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
+                    .accessibilityHidden(true)
+                Text(message).font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                Spacer(minLength: 0)
+                Button { app.errorMessage = nil } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Grok.textDim)
+                        // 44pt to tap, 32pt to the layout, so the banner keeps its height.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Dismiss error"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Dismiss error"))
         }
-        .padding(.horizontal, Grok.pad).padding(.vertical, 11)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
-            .stroke(Grok.danger.opacity(0.35), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Demo banner
 
     private var demoBanner: some View {
-        HStack(spacing: 10) {
-            Text("TOUR").font(Grok.sans(11, .bold)).latinTracking(0.8).foregroundStyle(.black)
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .background(Grok.accent).clipShape(Capsule())
-            Text("Sample data — nothing is connected.")
-                .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
-            Spacer(minLength: 0)
-            Button { app.exitDemo() } label: {
-                Text("Exit").font(Grok.sans(14, .semibold)).foregroundStyle(Grok.text)
+        banner {
+            HStack(spacing: 10) {
+                Text("Tour").font(Grok.sans(12, .semibold)).foregroundStyle(.black)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Grok.accent).clipShape(Capsule())
+                Text("Sample data: nothing is connected.")
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                Spacer(minLength: 0)
+                Button { app.exitDemo() } label: {
+                    Text("Exit").font(Grok.sans(14, .semibold)).foregroundStyle(Grok.text)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, Grok.pad).padding(.vertical, 12)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
-            .stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Running now
@@ -559,46 +579,43 @@ struct SessionListView: View {
     /// Shown when the connected bridge predates what this app was built for —
     /// without it, the newer features fail with bare errors and no explanation.
     private var updateBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12)).foregroundStyle(Grok.text)
-                Text("Your bridge needs an update").font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
-            }
-            Text("This version of the app needs bridge \(AppState.wantedBridgeVersion) or newer. On your computer, run:")
-                .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Text("npm i -g tethrx-bridge")
-                    .font(Grok.mono(13)).foregroundStyle(Grok.text)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-                Button {
-                    UIPasteboard.general.string = "npm i -g tethrx-bridge"
-                    Haptics.tap()
-                } label: {
-                    Image(systemName: "doc.on.doc").font(.system(size: 11, weight: .medium)).foregroundStyle(Grok.textDim)
-                        // 44pt to tap, 40pt to the layout, so the code box keeps its height.
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                        .frame(width: 40, height: 40)
+        banner {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12)).foregroundStyle(Grok.text)
+                    Text("Your bridge needs an update").font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
                 }
-                .accessibilityLabel(Text("Copy command"))
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(Grok.bg)
-            .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
-                .stroke(Grok.hairline, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
-            Text("Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.")
+                Text("This version of the app needs bridge \(AppState.wantedBridgeVersion) or newer. On your computer, run:")
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Text("npm i -g tethrx-bridge")
+                        .font(Grok.mono(13)).foregroundStyle(Grok.text)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                    Button {
+                        UIPasteboard.general.string = "npm i -g tethrx-bridge"
+                        Haptics.tap()
+                    } label: {
+                        Image(systemName: "doc.on.doc").font(.system(size: 11, weight: .medium)).foregroundStyle(Grok.textDim)
+                            // 44pt to tap, 40pt to the layout, so the code box keeps its height.
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                            .frame(width: 40, height: 40)
+                    }
+                    .accessibilityLabel(Text("Copy command"))
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Grok.bg)
+                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
+                    .stroke(Grok.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                Text("Then restart the bridge and reconnect. Chat keeps working meanwhile; the newest features need the update.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(Grok.pad)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
-            .stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     // MARK: Sessions
@@ -733,21 +750,6 @@ struct SessionListView: View {
         return out
     }
 
-    // Kept for the iPad sidebar's older call sites.
-    private var groupedSessions: [(folder: String, items: [SessionInfo])] {
-        let groups = Dictionary(grouping: filteredSessions) { ($0.folder?.isEmpty == false) ? $0.folder! : "" }
-        let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
-        let matched = Set(groups.keys.filter { !$0.isEmpty })
-        var out: [(String, [SessionInfo])] = []
-        // Folders first, in the user's chosen order. While searching, only ones with hits.
-        for name in app.orderedFolders where !searching || matched.contains(name) {
-            out.append((name, groups[name] ?? []))
-        }
-        // Ungrouped last, so the folders you made are what you see first.
-        if let ungrouped = groups[""], !ungrouped.isEmpty { out.append(("", ungrouped)) }
-        return out
-    }
-
     /// A heading is a heading. This one used to carry a folder glyph, an uppercase
     /// tracked label, a count, a chevron and a rule that ran to the edge of the
     /// screen, above three conversations.
@@ -760,7 +762,7 @@ struct SessionListView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    ListSectionLabel(verbatim: section.title)
+                    ListSectionLabel(verbatim: section.title).lineLimit(1)
                     // Collapsed, the rows are gone and the heading is all that is left
                     // to say the section is still there. Open, it says nothing worth a
                     // glyph, so it does not draw one.
@@ -821,30 +823,28 @@ struct SessionListView: View {
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 2) {
-                if let onSelect {
-                    Button { onSelect(session) } label: { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
-                        .buttonStyle(.plain)
-                } else {
-                    NavigationLink(value: session) { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
-                        .buttonStyle(.plain)
-                }
-                // Visible affordance — the same actions used to be long-press only.
-                Menu {
-                    menuItems(session)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Grok.textDim)
-                        .frame(width: 44, height: 48)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(Text("Session options for \(session.displayName)"))
+        // The answer lives ONLY in the block at the top of the screen. A session
+        // still shows its state dot down here, but two identical approval cards on
+        // one screen is a question asked twice.
+        HStack(spacing: 2) {
+            if let onSelect {
+                Button { onSelect(session) } label: { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink(value: session) { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
+                    .buttonStyle(.plain)
             }
-            // The answer lives ONLY in the section at the top. A session still shows
-            // its WAITING badge down here, but two identical approval cards on one
-            // screen is a question asked twice.
+            // Visible affordance — the same actions used to be long-press only.
+            Menu {
+                menuItems(session)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Grok.textDim)
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(Text("Session options for \(session.displayName)"))
         }
         .contextMenu { menuItems(session) }
     }
@@ -1080,8 +1080,11 @@ struct SessionRow: View {
     /// says, in capitals, on every row.
     private var subtitle: Text {
         var parts: [Text] = []
+        // A session with no title of its own IS its folder name up top, so printing
+        // the same word again directly underneath is a row that says one thing twice.
         if let cwd = session.cwd, !cwd.isEmpty {
-            parts.append(Text(verbatim: (cwd as NSString).lastPathComponent))
+            let leaf = (cwd as NSString).lastPathComponent
+            if leaf != name { parts.append(Text(verbatim: leaf)) }
         }
         parts.append(session.turnCount == 1 ? Text("1 turn") : Text("\(session.turnCount) turns"))
         if let touched = Fmt.date(fromISO: session.updatedAt) {

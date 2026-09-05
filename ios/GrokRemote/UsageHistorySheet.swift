@@ -96,7 +96,7 @@ struct UsageHistorySheet: View {
     private var chart: some View {
         let peak = max(days.map(\.totalTokens).max() ?? 0, 1)
         return VStack(alignment: .leading, spacing: 8) {
-            Eyebrow("TOKENS PER DAY")
+            ListSectionLabel("Tokens per day")
             HStack(alignment: .bottom, spacing: 3) {
                 ForEach(days) { day in
                     let height = day.totalTokens > 0
@@ -127,7 +127,7 @@ struct UsageHistorySheet: View {
 
     private var breakdown: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Eyebrow("BY DAY")
+            ListSectionLabel("By day")
             ForEach(recent.filter { $0.turns > 0 }) { day in
                 HStack(spacing: 10) {
                     Text(day.date).font(Grok.sans(14)).monospacedDigit().foregroundStyle(Grok.textDim)

@@ -148,7 +148,7 @@ struct DirectoryPickerSheet: View {
 
     @ViewBuilder private func currentFolder(_ l: DirListing) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Eyebrow("THIS FOLDER")
+            ListSectionLabel("This folder")
             Text(l.path)
                 .font(Grok.sans(15)).foregroundStyle(Grok.text)
                 .lineLimit(1).truncationMode(.head)
@@ -199,7 +199,7 @@ struct DirectoryPickerSheet: View {
 
     private var recentsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Eyebrow("RECENT PROJECTS")
+            ListSectionLabel("Recent projects")
             ForEach(recents.prefix(6), id: \.self) { cwd in
                 Button {
                     app.defaultCwd = cwd
@@ -379,7 +379,7 @@ struct FileViewerScreen: View {
                             .textSelection(.enabled)
                             .padding(Grok.pad)
                         if file.truncated == true {
-                            Text("… truncated — the full file is \(file.size) bytes")
+                            Text("… truncated. The full file is \(file.size) bytes")
                                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                                 .padding(.horizontal, Grok.pad).padding(.bottom, 12)
                         }

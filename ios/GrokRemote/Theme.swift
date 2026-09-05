@@ -97,58 +97,36 @@ extension Text {
     }
 }
 
-// MARK: - Section label
-
-/// The wide-tracked uppercase micro-label that runs through everything xAI and
-/// SpaceX put on a screen. It is deliberately small and dim: it names a region,
-/// it does not compete with the region's contents.
-struct SectionLabel: View {
-    let text: String
-    init(_ key: LocalizedStringResource) { self.text = String(localized: key).uppercased() }
-    init(verbatim: String) { self.text = verbatim.uppercased() }
-
-    var body: some View {
-        Text(text)
-            .font(Grok.sans(11, .semibold))
-            // Letter-spacing is a Latin device. Applied to Japanese or Chinese it
-            // only pulls a word apart, and uppercasing does nothing there at all, so
-            // in those languages this is simply a small dim label.
-            .tracking(text.isCJK ? 0 : 1.7)
-            .foregroundStyle(Grok.textFaint)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
-extension String {
-    /// True when the string carries Han, Kana or Hangul, i.e. when Latin
-    /// micro-typography (tracking, small caps, uppercasing) should be left alone.
-    var isCJK: Bool {
-        unicodeScalars.contains { scalar in
-            (0x3040...0x30FF).contains(scalar.value)      // kana
-            || (0x3400...0x4DBF).contains(scalar.value)   // CJK ext A
-            || (0x4E00...0x9FFF).contains(scalar.value)   // CJK unified
-            || (0xF900...0xFAFF).contains(scalar.value)   // compatibility ideographs
-            || (0xAC00...0xD7AF).contains(scalar.value)   // hangul
-        }
-    }
-}
-
-/// The quiet grey heading that names a run of rows in a list.
+/// The one heading in the app: quiet grey, sentence case, the weight of a label
+/// rather than a shout.
 ///
-/// Not the tracked uppercase `SectionLabel`: that one is an instrument label and it
-/// earns its shout on a dense technical panel. A list of conversations is not dense,
-/// and shouting "PINNED" over two entries is louder than the entries. This is what
-/// Grok's own sidebar uses, and it is the reason that screen reads calm.
+/// It replaced two others that both said the same thing in wide-tracked capitals.
+/// Capitals are an instrument label, and they are convincing on a dense technical
+/// panel, but almost nothing here is one: shouting "PINNED" over two conversations
+/// is louder than the conversations, and a home screen that speaks quietly should
+/// not open a sheet that shouts. This is the register Grok's own sidebar uses.
+///
+/// No line limit by default. A heading that reads "Usage" in English reads "Valores
+/// por defecto para sesiones nuevas" in Spanish, and truncating a heading loses the
+/// only thing on the row that says what the rows below it are. Callers that really
+/// are tight on width (a folder name beside a count and a menu) ask for one.
 struct ListSectionLabel: View {
     let text: String
-    init(_ key: LocalizedStringResource) { self.text = String(localized: key) }
-    init(verbatim: String) { self.text = verbatim }
+    /// Smaller under a numeral, where the label is a unit and not a heading.
+    var size: CGFloat = 13
+    init(_ key: LocalizedStringResource, size: CGFloat = 13) {
+        self.text = String(localized: key); self.size = size
+    }
+    init(verbatim: String, size: CGFloat = 13) { self.text = verbatim; self.size = size }
 
     var body: some View {
         Text(text)
-            .font(Grok.sans(13, .medium))
-            .foregroundStyle(Grok.textFaint)
-            .lineLimit(1)
+            // Semibold at 60%, which is the only small semibold text in the app.
+            // Faint grey worked over the home list, where the rows underneath are
+            // white and bold, and inverted the hierarchy everywhere else: in Settings
+            // a heading came out dimmer and lighter than the paragraph it headed.
+            .font(Grok.sans(size, .semibold))
+            .foregroundStyle(Grok.textDim)
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -164,34 +142,9 @@ struct Readout: View {
             Text(value)
                 .font(Grok.sans(20, .semibold)).monospacedDigit()
                 .foregroundStyle(emphasis)
-            SectionLabel(label)
+            ListSectionLabel(label, size: 12)
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-// MARK: - Eyebrow (mono, uppercase, reads like a code comment)
-
-struct Eyebrow: View {
-    let text: String
-    /// Kept for source compatibility; the `// ` prefix is gone either way.
-    var comment: Bool = true
-    /// Localizes then uppercases. The uppercasing has to stay: every key in the
-    /// catalog is authored uppercase, so lowercasing here would only be right in
-    /// English.
-    init(_ key: LocalizedStringResource, comment: Bool = true) {
-        self.text = String(localized: key).uppercased()
-        self.comment = comment
-    }
-    var body: some View {
-        Text(text)
-            .font(Grok.sans(11, .semibold))
-            // Letter-spacing is a Latin device. Applied to Japanese or Chinese it
-            // only pulls a word apart, and uppercasing does nothing there at all, so
-            // in those languages this is simply a small dim label.
-            .tracking(text.isCJK ? 0 : 1.7)
-            .foregroundStyle(Grok.textFaint)
-            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -366,6 +319,89 @@ struct TethrXMark: View {
             .frame(width: size, height: size)
             .foregroundStyle(color)
             .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Liquid Glass
+
+/// Liquid Glass, where it belongs.
+///
+/// iOS 26 renders the control layer as a lens: it refracts what scrolls underneath
+/// it and catches light along its own rim, rather than being a frosted sheet laid
+/// flat on top. That is a property of things that FLOAT above the page — the bar at
+/// the bottom of the list, the composer you type into — and it is the wrong material
+/// for the page itself. A conversation, an approval, a banner: glass under those
+/// only puts moving content behind the words, which is the one thing this app cannot
+/// afford. So it is used in exactly two places, and both of them float.
+///
+/// Below iOS 26 the same shapes get that era's answer to the same problem: a
+/// vibrancy material, a faint tint, and a rim that is brighter at the top than the
+/// bottom. The geometry is identical either way; only the material changes.
+extension View {
+    @ViewBuilder
+    func floatingGlass<S: InsettableShape>(in shape: S, interactive: Bool = true) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(interactive), in: shape)
+        } else {
+            self
+                .background(.ultraThinMaterial, in: shape)
+                .background(Color.white.opacity(0.05), in: shape)
+                .overlay(
+                    shape.strokeBorder(
+                        LinearGradient(colors: [Color.white.opacity(0.20), Color.white.opacity(0.06)],
+                                       startPoint: .top, endPoint: .bottom),
+                        lineWidth: 1)
+                )
+        }
+    }
+}
+
+/// Floating glass controls that sit near one another belong in one of these.
+///
+/// Inside a container they sample a single backdrop and render in one pass, so a row
+/// of them reads as one instrument instead of three separate lenses that each found
+/// a slightly different answer for the same patch of screen behind them. Shapes that
+/// come within `mergeWithin` of each other flow together; the default is deliberately
+/// tighter than any spacing this app uses, so nothing merges by accident.
+struct GlassCluster<Content: View>: View {
+    var mergeWithin: CGFloat = 8
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: mergeWithin) { content }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// The soft blur the system draws where scrolling content passes under a floating
+    /// bar. Before iOS 26 that was a gradient painted by hand, which is what the
+    /// callers fall back to.
+    @ViewBuilder
+    func softScrollEdge(_ edges: Edge.Set) -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: edges)
+        } else {
+            self
+        }
+    }
+
+    /// Content pinned along the bottom that the list scrolls underneath.
+    ///
+    /// The distinction matters on iOS 26: a plain safe-area inset is just reserved
+    /// space, and the system leaves the rows passing behind it perfectly sharp right
+    /// down to the bezel, so the bar reads as floating in the middle of a list. A
+    /// *bar* is a thing the list ends at, and the system softens the content into it.
+    @ViewBuilder
+    func floatingBottomBar<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        if #available(iOS 26.0, *) {
+            self.safeAreaBar(edge: .bottom, content: content)
+        } else {
+            self.safeAreaInset(edge: .bottom, content: content)
+        }
     }
 }
 

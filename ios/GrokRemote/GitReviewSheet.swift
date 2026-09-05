@@ -39,7 +39,7 @@ struct GitReviewSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("// no repository to review yet")
                                 .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
-                            Text("Changes show up here once Grok edits files inside a git repository — this session hasn't yet.")
+                            Text("Changes show up here once Grok edits files inside a git repository. This session hasn't yet.")
                                 .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(2)
                         }
                     } else if files.isEmpty {
@@ -188,7 +188,7 @@ struct GitReviewSheet: View {
 
     private var commitBox: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Eyebrow("COMMIT MESSAGE")
+            ListSectionLabel("Commit message")
             FieldBox {
                 TextField("", text: $commitMessage,
                           prompt: Text("what changed…").foregroundColor(Grok.textFaint), axis: .vertical)
@@ -199,7 +199,7 @@ struct GitReviewSheet: View {
             Button { Task { await commit() } } label: {
                 HStack(spacing: 10) {
                     if working { ProgressView().controlSize(.small).tint(.white) }
-                    (working ? Text("COMMITTING") : Text("COMMIT ALL")).latinTracking(1.3)
+                    (working ? Text("Committing…") : Text("Commit all"))
                 }
             }
             .buttonStyle(PillButton(kind: .prominent))
@@ -281,7 +281,7 @@ struct GitDiffScreen: View {
                 ProgressView().controlSize(.small).tint(.white).padding(20)
                     .accessibilityLabel(Text("Loading diff"))
             } else if failed {
-                Text("// couldn't load the diff — check the connection and try again")
+                Text("Couldn't load the diff. Check the connection and try again.")
                     .font(Grok.sans(14)).foregroundStyle(Grok.textDim).padding(16)
             } else if text.isEmpty {
                 Text("// no textual diff (binary file, or nothing to show)")

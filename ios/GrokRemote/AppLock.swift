@@ -58,9 +58,7 @@ struct LockView: View {
         ZStack {
             Grok.bg.ignoresSafeArea()
             VStack(spacing: 20) {
-                TethrXMark(size: 40)
-                    .frame(width: 68, height: 68)
-                    .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+                TethrXMark(size: 44)
                 Text("TethrX is locked").font(Grok.sans(18, .semibold)).foregroundStyle(Grok.text)
                 Button { lock.authenticate() } label: {
                     Label("Unlock", systemImage: "lock.open").frame(maxWidth: 220)

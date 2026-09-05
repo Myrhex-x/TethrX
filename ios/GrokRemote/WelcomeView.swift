@@ -51,11 +51,9 @@ struct WelcomeView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 13) {
-                TethrXMark(size: 30)
-                    .frame(width: 52, height: 52)
-                    .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
+                TethrXMark(size: 34)
                 VStack(alignment: .leading, spacing: 4) {
-                    Eyebrow("TETHRX")
+                    ListSectionLabel("TethrX")
                     Text("Your coding tasks, in your pocket")
                         .font(Grok.sans(20, .semibold)).latinTracking(-0.3).foregroundStyle(Grok.text)
                         .fixedSize(horizontal: false, vertical: true)
@@ -95,7 +93,7 @@ struct WelcomeView: View {
     private var promptsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Eyebrow("YOUR PROMPTS")
+                ListSectionLabel("Your prompts")
                 Spacer(minLength: 8)
                 Button { library = true } label: {
                     HStack(spacing: 4) {

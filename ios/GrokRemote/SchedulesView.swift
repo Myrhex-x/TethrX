@@ -45,16 +45,16 @@ struct SchedulesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if showsHeading { Eyebrow("SCHEDULED TASKS") }
+            if showsHeading { ListSectionLabel("Scheduled tasks") }
 
             if let schedules, !schedules.isEmpty {
                 ForEach(schedules) { s in row(s) }
             } else if schedules != nil {
-                Text("Run a prompt automatically — every morning, weekdays, whenever.")
+                Text("Run a prompt automatically: every morning, weekdays, whenever.")
                     .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             } else if loadFailed {
                 // "nil forever" looked like schedules had been deleted; say what happened.
-                Text("Couldn't load schedules — the bridge may need an update.")
+                Text("Couldn't load schedules. The bridge may need an update.")
                     .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             } else if app.client != nil {
                 HStack(spacing: 8) {
@@ -73,7 +73,7 @@ struct SchedulesSection: View {
             .buttonStyle(PillButton(kind: .subtle))
             .disabled(app.sessions.isEmpty)
             if app.sessions.isEmpty {
-                Text("Create a session first — a schedule runs inside one.")
+                Text("Create a session first. A schedule runs inside one.")
                     .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             }
             Text("Runs on your computer's clock, even with this phone off. You'll get a push when it finishes.")
@@ -164,7 +164,7 @@ struct ScheduleEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Eyebrow("SESSION")
+                        ListSectionLabel("Session")
                         Menu {
                             ForEach(app.sessions) { s in
                                 Button(s.displayName) { sessionId = s.id }
@@ -185,12 +185,12 @@ struct ScheduleEditorSheet: View {
                             .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
                             .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                         }
-                        Text("The task runs in this session — its folder, effort, and approval settings apply.")
+                        Text("The task runs in this session. Its folder, effort, and approval settings apply.")
                             .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Eyebrow("PROMPT")
+                        ListSectionLabel("Prompt")
                         FieldBox {
                             TextField("", text: $prompt,
                                       prompt: Text("pull main, run the tests, summarize failures…").foregroundColor(Grok.textFaint),
@@ -200,7 +200,7 @@ struct ScheduleEditorSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Eyebrow("WHEN")
+                        ListSectionLabel("When")
                         DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
                             .labelsHidden().datePickerStyle(.wheel)
                             .colorScheme(.dark)
@@ -245,7 +245,7 @@ struct ScheduleEditorSheet: View {
                     Button { Task { await save() } } label: {
                         HStack(spacing: 10) {
                             if saving { ProgressView().controlSize(.small).tint(.white) }
-                            (saving ? Text("SAVING") : Text("SAVE SCHEDULE")).latinTracking(1.3)
+                            (saving ? Text("Saving…") : Text("Save schedule"))
                         }
                     }
                     .buttonStyle(PillButton(kind: .prominent))
@@ -282,7 +282,7 @@ struct ScheduleEditorSheet: View {
             Haptics.success()
             dismiss()
         } catch {
-            errorText = String(localized: "Couldn't save — check the connection.")
+            errorText = String(localized: "Couldn't save. Check the connection.")
         }
     }
 }

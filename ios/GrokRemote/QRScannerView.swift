@@ -58,7 +58,7 @@ struct ScanSheet: View {
         VStack(spacing: 14) {
             Image(systemName: "camera.fill").font(.system(size: 30)).foregroundStyle(Grok.textDim)
             Text("Camera access is off").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
-            Text("Turn on the camera for TethrX in Settings to scan the pairing code — or just type the address and token by hand.")
+            Text("Turn on the camera for TethrX in Settings to scan the pairing code, or just type the address and token by hand.")
                 .font(Grok.sans(15)).foregroundStyle(Grok.textDim).multilineTextAlignment(.center).lineSpacing(2)
             Button("Open Settings") {
                 if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
