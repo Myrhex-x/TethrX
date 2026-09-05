@@ -18,7 +18,11 @@ final class AppState: ObservableObject {
     /// otherwise the new buttons would just 404 with no explanation.
     /// nonisolated: it is an immutable constant, and DemoMode reads it from outside the
     /// main actor. Left isolated it is only a warning today, and a hard error in Swift 6.
-    nonisolated static let wantedBridgeVersion = "0.1.20"
+    /// 0.1.22 is where `waiting` started carrying the request and option ids. Below
+    /// it, answering an approval from the session list and the whole watch app go
+    /// quietly missing rather than failing — which is exactly the kind of silently
+    /// inert feature the update banner exists to prevent.
+    nonisolated static let wantedBridgeVersion = "0.1.22"
     var bridgeNeedsUpdate: Bool {
         connected && Semver.isOlder(health?.version, than: Self.wantedBridgeVersion)
     }
