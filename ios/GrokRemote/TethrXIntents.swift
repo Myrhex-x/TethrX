@@ -58,7 +58,7 @@ struct SendToGrokIntent: AppIntent {
             try await client.send(sessionId: target.id, text: text)
             // The fallback used to be a bare Swift string spliced into a localized
             // frame, so it stayed English in all seven languages.
-            let name = target.cwd.map { ($0 as NSString).lastPathComponent } ?? String(localized: "your session")
+            let name = target.cwd.map { ($0 as NSString).lastPathComponent } ?? String(loc: "your session")
             return .result(dialog: "Sent to \(name). I'll notify you when Grok is done.")
         } catch {
             return .result(dialog: "Couldn't reach your computer. Check that the bridge is running.")
@@ -89,7 +89,7 @@ struct GrokStatusIntent: AppIntent {
                 return .result(dialog: dialog)
             }
             let names = running.compactMap { $0.cwd.map { ($0 as NSString).lastPathComponent } }
-            let first = names.first ?? String(localized: "a session")
+            let first = names.first ?? String(loc: "a session")
             let dialog: IntentDialog = running.count > 1
                 ? "Grok is working on \(first) and \(running.count - 1) more."
                 : "Grok is working on \(first)."

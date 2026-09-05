@@ -5,7 +5,6 @@ import PhotosUI
 /// Live conversation for one session, styled as a Grok Build console.
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
-    @EnvironmentObject var snippets: SnippetStore
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var showDetails = false
@@ -32,8 +31,14 @@ struct ChatView: View {
     // so a log or a config that only exists on the phone has to travel in the prompt.
     @State private var files: [TextAttachment] = []
     @State private var importingFile = false
+    @State private var importingAudio = false
+    /// Transcribing a recording takes a moment; the + button says so meanwhile.
+    @State private var transcribing = false
     @State private var showPhotoPicker = false
     @State private var fileError: String?
+    /// The exact draft text dictation last wrote. Anything else appearing in the
+    /// draft is the person typing, and re-bases the recogniser.
+    @State private var dictated = ""
     /// A command that costs a full expensive turn, held until the user confirms.
     @State private var pendingCostlyCommand: String?
     // Find in this conversation. The session list searches ACROSS conversations; this
@@ -156,6 +161,10 @@ struct ChatView: View {
                       allowedContentTypes: [.plainText, .sourceCode, .json, .yaml, .xml, .commaSeparatedText, .log, .data],
                       allowsMultipleSelection: true) { result in
             importFiles(result)
+        }
+        .fileImporter(isPresented: $importingAudio,
+                      allowedContentTypes: [.audio], allowsMultipleSelection: false) { result in
+            importAudio(result)
         }
         .alert("Couldn't attach that file", isPresented: Binding(
             get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
@@ -314,11 +323,10 @@ struct ChatView: View {
                             HandoffCard(summary: seed)
                         }
                         if vm.items.isEmpty, vm.session.seedContext?.isEmpty != false {
-                            // An empty conversation is a blank page, not a bug. Grok
-                            // puts its mark in the middle of one; so does this.
-                            TethrXMark(size: 64, color: .white.opacity(0.10))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 90)
+                            // Filling the viewport is what stops the transcript's
+                            // bottom anchor from parking a short blank page against
+                            // the composer with a screen of void above it.
+                            blankSession.frame(minHeight: max(0, outer.size.height - 56))
                         }
                         ForEach(vm.items) { item in
                             switch item.role {
@@ -393,6 +401,59 @@ struct ChatView: View {
     /// A permission request ends the turn until you answer it, so it is always the
     /// last thing in the transcript — which is exactly where you are not looking
     /// when you have scrolled up to read what it did.
+    /// An empty conversation, with the three things worth asking first.
+    ///
+    /// The openers used to be the person's own saved prompts, offered as pills above
+    /// the composer. A saved prompt is a library entry, not a suggestion: three
+    /// arbitrary snippets stacked over the box answered a question nobody had asked,
+    /// and pushed the box itself down the screen. These are openers for a coding
+    /// agent that has just been pointed at a folder, and they sit on the blank page
+    /// where the blank page already was.
+    private var blankSession: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: 24)
+            TethrXMark(size: 44, color: .white.opacity(0.12))
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 30)
+            ListSectionLabel("Start with").padding(.bottom, 2)
+            ForEach(starters.indices, id: \.self) { i in
+                let text = String(loc: starters[i])
+                Button {
+                    Haptics.tap()
+                    draft = text
+                    dictated = draft
+                    composerFocused = true
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(verbatim: text)
+                            .font(Grok.sans(16))
+                            .foregroundStyle(Grok.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.left")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Grok.textFaint)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Puts this in the message box"))
+            }
+            Spacer(minLength: 24)
+        }
+    }
+
+    /// Deliberately about the work rather than about the app: orient, review, verify.
+    private var starters: [String.LocalizationValue] {
+        ["What does this project do?",
+         "What changed recently?",
+         "Run the tests and tell me what fails"]
+    }
+
     private var pendingApproval: ChatItem? {
         vm.items.last { ($0.role == .permission || $0.role == .plan) && $0.decided == nil }
     }
@@ -452,7 +513,6 @@ struct ChatView: View {
             queuedRow
             attachmentsRow
             filesRow
-            snippetsRow
             commandPalette
             composerCard
                 .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 10)
@@ -461,7 +521,20 @@ struct ChatView: View {
             LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg, Grok.bg],
                            startPoint: .top, endPoint: .bottom)
         )
-        .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { draft = v } }
+        // The recogniser reports the whole utterance each time it revises, so
+        // mirroring it into the draft unconditionally undid every edit made while the
+        // mic was live. The draft is the source of truth: dictation writes into it,
+        // and an edit that did not come from dictation re-bases the recogniser.
+        .onChange(of: dictation.transcript) { _, v in
+            guard dictation.isRecording else { return }
+            dictated = v
+            if draft != v { draft = v }
+        }
+        .onChange(of: draft) { _, v in
+            guard dictation.isRecording, v != dictated else { return }
+            dictated = v
+            dictation.rebase(to: v)
+        }
     }
 
     private var composerCard: some View {
@@ -518,31 +591,25 @@ struct ChatView: View {
     /// The `+`: one affordance for everything that can ride along with a message.
     @ViewBuilder private var attachMenu: some View {
         if !vm.busy {
+            // Attachments and nothing else. Saved prompts used to hang off the
+            // bottom of this menu, which made a paperclip mean two unrelated things.
+            // They live on the home screen and in Settings, where they are a library.
             Menu {
                 Button { importingFile = true } label: { Label("Attach a file", systemImage: "doc") }
                 Button { showPhotoPicker = true } label: { Label("Attach images", systemImage: "photo") }
-                // Where the saved prompts go once the conversation has started and
-                // they no longer earn a row of their own above the composer.
-                if !snippets.items.isEmpty {
-                    Section("Saved prompts") {
-                        ForEach(snippets.items) { prompt in
-                            Button {
-                                Haptics.tap()
-                                draft = prompt.text
-                                composerFocused = true
-                            } label: {
-                                Label(prompt.title, systemImage: "sparkle")
-                            }
-                        }
+                Button { importingAudio = true } label: { Label("Attach audio", systemImage: "waveform") }
+            } label: {
+                let loaded = !attachments.isEmpty || !files.isEmpty
+                Group {
+                    if transcribing {
+                        ProgressView().controlSize(.small).tint(Grok.textDim)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(loaded ? Color.black : Grok.textDim)
                     }
                 }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(attachments.isEmpty && files.isEmpty ? Grok.textDim : Color.black)
-                    .frame(width: 32, height: 32)
-                    .background(attachments.isEmpty && files.isEmpty ? Color.white.opacity(0.08) : Color.white,
-                                in: Circle())
+                .roundControl(on: loaded)
             }
             .accessibilityLabel("Add an attachment")
             .photosPicker(isPresented: $showPhotoPicker, selection: $pickedItems,
@@ -555,12 +622,25 @@ struct ChatView: View {
     @ViewBuilder private var micButton: some View {
         if dictation.supported {
             Button { dictation.toggle(base: draft) } label: {
-                Image(systemName: dictation.isRecording ? "waveform" : "mic")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(dictation.isRecording ? Grok.accent : Grok.textDim)
-                    .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                ZStack {
+                    // While recording, the ring swells with your voice. A mic that
+                    // looks identical whether or not it can hear you is half of what
+                    // "the mic doesn\u{2019}t work" means.
+                    if dictation.isRecording {
+                        Circle()
+                            .fill(Grok.accent.opacity(0.22))
+                            .scaleEffect(1 + 0.35 * dictation.level)
+                            .animation(.easeOut(duration: 0.12), value: dictation.level)
+                    }
+                    Image(systemName: dictation.isRecording ? "waveform" : "mic")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(dictation.isRecording ? .black : Grok.textDim)
+                        .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
+                }
+                .roundControl(on: dictation.isRecording)
+                // 34pt to the eye, 44pt to the finger.
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate")
             .accessibilityHint(Text("Long-press to change the dictation language"))
@@ -706,6 +786,34 @@ struct ChatView: View {
     /// Read the picked files as text. Grok reads files on the computer itself, so
     /// anything that only exists on the phone has to be carried in the prompt, which
     /// is why this is capped and why binaries are refused rather than mangled.
+    /// An attached recording becomes words before it becomes a message. Nothing in
+    /// the prompt pipeline can carry audio, and transcribing on the phone is also the
+    /// only version of this that keeps the recording off the network.
+    private func importAudio(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else {
+            if case .failure(let error) = result { fileError = error.localizedDescription }
+            return
+        }
+        transcribing = true
+        Task {
+            defer { transcribing = false }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let text = try await AudioTranscription.text(from: url, localeId: dictation.localeId)
+                let name = url.lastPathComponent
+                let block = String(loc: "Transcript of \(name):") + "\n\n" + text
+                draft = draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? block : draft + "\n\n" + block
+                dictated = draft
+                Haptics.success()
+                composerFocused = true
+            } catch {
+                fileError = error.localizedDescription
+            }
+        }
+    }
+
     private func importFiles(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result else {
             if case .failure(let error) = result { fileError = error.localizedDescription }
@@ -717,16 +825,16 @@ struct ChatView: View {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else {
-                fileError = String(localized: "That file couldn't be read.")
+                fileError = String(loc: "That file couldn't be read.")
                 continue
             }
             guard data.count <= TextAttachment.limit else {
-                fileError = String(localized: "That file is too large to send. The limit is 64 KB.")
+                fileError = String(loc: "That file is too large to send. The limit is 64 KB.")
                 continue
             }
             guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1),
                   !text.contains("\u{0}") else {
-                fileError = String(localized: "That looks like a binary file. Only text can be sent.")
+                fileError = String(loc: "That looks like a binary file. Only text can be sent.")
                 continue
             }
             files.append(TextAttachment(name: url.lastPathComponent, text: text, bytes: data.count))
@@ -813,7 +921,7 @@ struct ChatView: View {
                         Button(pair.0) { Task { await vm.setConfig(effort: pair.1) } }
                     }
                 } label: {
-                    Label(effortLabel, systemImage: "gauge.with.dots.needle.50percent").chip(on: effectiveEffort != "high")
+                    Label(effortLabel, systemImage: "gauge.with.needle").chip(on: effectiveEffort != "high")
                 }
 
                 // Three states, not two. "Auto-approve" used to mean everything, so
@@ -829,42 +937,6 @@ struct ChatView: View {
                 .buttonStyle(.plain)
 
             // (The context meter moved under the session title, where it's always visible.)
-        }
-    }
-
-    // Tappable reusable prompts, offered only at the start of a session.
-    /// A starter prompt is worth the space on an empty session, where the question is
-    /// "what do I ask it". It is not worth the space after every answer, where you
-    /// already know what you want to say and three pills are simply in the way of the
-    /// box you are reaching for. Mid-conversation they live under the `+` instead.
-    @ViewBuilder private var snippetsRow: some View {
-        if isEmptyDraft && !snippets.items.isEmpty && !vm.busy && vm.items.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(snippets.items.prefix(3)) { prompt in
-                    Button {
-                        Haptics.tap()
-                        draft = prompt.text
-                        composerFocused = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "sparkle").font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Grok.textFaint)
-                                .accessibilityHidden(true)
-                            Text(prompt.title)
-                                .font(Grok.sans(15))
-                                .foregroundStyle(Grok.textDim)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        .background(Grok.raised)
-                        .clipShape(Capsule())
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Grok.gutter).padding(.bottom, 4)
         }
     }
 
@@ -944,7 +1016,7 @@ struct ChatView: View {
         if !files.isEmpty {
             let body = files.map(\.fenced).joined(separator: "\n\n")
             let images = attachments, thumbs = attachmentThumbs
-            let prompt = text.isEmpty ? String(localized: "Here is a file:") + "\n\n" + body
+            let prompt = text.isEmpty ? String(loc: "Here is a file:") + "\n\n" + body
                                       : text + "\n\n" + body
             files = []
             attachments = []
@@ -979,7 +1051,7 @@ struct ChatView: View {
                     Task { await vm.setConfig(autoApprove: on) }
                     return
                 case .unsupported:
-                    vm.errorMessage = String(localized: "Grok does not run /\(name) from here.")
+                    vm.errorMessage = String(loc: "Grok does not run /\(name) from here.")
                     return
                 case .send:
                     // A bare /loop or /deep-research is a full, expensive turn that keeps
@@ -1034,7 +1106,9 @@ struct ChatView: View {
         switch vm.approvalPolicy {
         case "all":   return "Auto"
         case "reads": return "Reads"
-        default:      return "Ask"
+        // Not "Ask": the box directly above this chip already says "Ask Grok
+        // anything", and the two words meant entirely different things.
+        default:      return "Ask me"
         }
     }
     private var approvalIcon: String {
@@ -1155,18 +1229,29 @@ struct TypingIndicator: View {
 /// Grok's reasoning, as a trace you can open rather than a wall you have to scroll
 /// past. It stays open while the thinking is live — that is the interesting part —
 /// and folds itself to "Thought for 12s" the moment an answer starts.
+/// Grok reasoning out loud.
+///
+/// While it is live this is the only thing on screen that is moving, and it used to
+/// move like a text file being appended to: the label sat still, the seconds were
+/// invisible until the end, and the trace grew downward without bound until the
+/// answer pushed it off. Now the label shimmers while it is thinking, the elapsed
+/// seconds tick, and the trace runs in a window pinned to its newest line, which is
+/// the line worth reading.
 struct ThoughtTrace: View {
     let item: ChatItem
     var highlight: String = ""
     @State private var expanded = true
 
     private var live: Bool { item.endedAt == nil }
+    /// Tall enough for four or five lines. Beyond that a live trace is scrollback,
+    /// and scrollback belongs to the conversation, not to the thing still running.
+    private let liveWindow: CGFloat = 132
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 Haptics.tap()
-                withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { expanded.toggle() }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
@@ -1175,11 +1260,12 @@ struct ThoughtTrace: View {
                         .symbolEffect(.variableColor.iterative, isActive: live)
                         .accessibilityHidden(true)
                     header
-                        .font(Grok.sans(15, .medium))
-                        .foregroundStyle(Grok.textDim)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Grok.textFaint)
+                        // One glyph that turns, rather than two that swap: a swap
+                        // cannot be animated and read as a flicker.
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
                         .accessibilityHidden(true)
                     Spacer(minLength: 0)
                 }
@@ -1189,32 +1275,100 @@ struct ThoughtTrace: View {
 
             if expanded {
                 HStack(alignment: .top, spacing: 12) {
-                    Capsule().fill(Grok.hairlineStrong).frame(width: 2)
-                    Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
-                        .font(Grok.sans(15))
-                        .foregroundStyle(Grok.textDim)
-                        .lineSpacing(5)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Capsule()
+                        .fill(live
+                              ? AnyShapeStyle(LinearGradient(
+                                  colors: [Grok.hairlineStrong.opacity(0), Grok.hairlineStrong],
+                                  startPoint: .top, endPoint: .bottom))
+                              : AnyShapeStyle(Grok.hairlineStrong))
+                        .frame(width: 2)
+                    trace
                 }
+                .frame(maxHeight: live ? liveWindow : nil, alignment: .bottom)
+                .clipped()
+                .mask(live ? AnyView(topFade) : AnyView(Color.black))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Each streamed chunk changes the height; easing that is the difference
+        // between a trace that is being written and one that is being redrawn.
+        .animation(.easeOut(duration: 0.18), value: item.text)
         // Fold as soon as the answer starts: by then the reasoning is history and the
         // reply is what someone is waiting to read.
         .onChange(of: item.endedAt) { _, ended in
             guard ended != nil else { return }
-            withAnimation(.easeInOut(duration: 0.2)) { expanded = false }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { expanded = false }
         }
         .onAppear { expanded = live }
+    }
+
+    private var trace: some View {
+        Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
+            .font(Grok.sans(15))
+            .foregroundStyle(Grok.textDim)
+            .lineSpacing(5)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The window shows the newest lines; the older ones fade out of the top rather
+    /// than being cut off by a hard edge.
+    private var topFade: some View {
+        LinearGradient(stops: [.init(color: .clear, location: 0),
+                               .init(color: .black, location: 0.28),
+                               .init(color: .black, location: 1)],
+                       startPoint: .top, endPoint: .bottom)
     }
 
     @ViewBuilder private var header: some View {
         if let seconds = item.thoughtDuration {
             Text("Thought for \(Int(seconds.rounded()))s")
+                .font(Grok.sans(15, .medium))
+                .foregroundStyle(Grok.textDim)
+        } else if let since = item.startedAt {
+            // Ticking, because "Thinking" on its own looks the same after four
+            // seconds and after four minutes.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                ShimmerLabel(
+                    Text("Thinking \(Int(context.date.timeIntervalSince(since).rounded()))s"))
+            }
+            .accessibilityLabel(Text("Thinking"))
         } else {
-            Text("Thinking")
+            ShimmerLabel(Text("Thinking"))
         }
+    }
+}
+
+/// A highlight that sweeps across the glyphs, for the one label on screen that is
+/// meant to look busy.
+struct ShimmerLabel: View {
+    private let label: Text
+    @State private var phase: CGFloat = -1
+    init(_ label: Text) { self.label = label }
+
+    var body: some View {
+        label
+            .font(Grok.sans(15, .medium))
+            .foregroundStyle(Grok.textFaint)
+            .overlay {
+                GeometryReader { geo in
+                    LinearGradient(colors: [.clear, Grok.text, .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.55)
+                        .offset(x: phase * geo.size.width * 1.6)
+                }
+                // Masked to the text, so the sweep lights the letters rather than
+                // painting a band across the row.
+                .mask(label.font(Grok.sans(15, .medium)))
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                phase = -0.6
+                withAnimation(.linear(duration: 1.7).repeatForever(autoreverses: false)) {
+                    phase = 1.0
+                }
+            }
     }
 }
 
@@ -1657,8 +1811,8 @@ struct DiffRowView: View {
     }
     private var spoken: String {
         switch row.kind {
-        case .added: return String(localized: "Added: \(row.text)")
-        case .removed: return String(localized: "Removed: \(row.text)")
+        case .added: return String(loc: "Added: \(row.text)")
+        case .removed: return String(loc: "Removed: \(row.text)")
         default: return row.text
         }
     }
@@ -1907,7 +2061,7 @@ struct PermissionCard: View {
     }
 
     private func outcomeLabel(_ optionId: String) -> String {
-        if optionId == "cancelled" { return String(localized: "· cancelled ·") }
+        if optionId == "cancelled" { return String(loc: "· cancelled ·") }
         if let opt = item.options.first(where: { $0.optionId == optionId }) {
             return (opt.isAllow ? "✓ " : "✗ ") + opt.name
         }
@@ -2081,7 +2235,7 @@ struct SessionDetailsSheet: View {
             dismiss()
             app.pendingOpenSessionId = fresh.id
         } catch {
-            branchError = String(localized: "Couldn't branch this session. Check the connection and try again.")
+            branchError = String(loc: "Couldn't branch this session. Check the connection and try again.")
         }
     }
 
@@ -2099,7 +2253,7 @@ struct SessionDetailsSheet: View {
             // A bare literal here never reaches the string table: the sentence shipped
             // in English to all seven translations, and to English in its uncorrected
             // wording. Same shape as `branch()` above.
-            compactError = String(localized: "Compaction failed. Check the connection and try again.")
+            compactError = String(loc: "Compaction failed. Check the connection and try again.")
         }
     }
 
@@ -2128,9 +2282,9 @@ struct SessionDetailsSheet: View {
     private var technical: some View {
         VStack(alignment: .leading, spacing: 12) {
             ListSectionLabel("Technical")
-            row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : String(localized: "grok default")) : u.lastModelId)
+            row("Model", u.lastModelId.isEmpty ? (session.model?.isEmpty == false ? session.model! : String(loc: "grok default")) : u.lastModelId)
             row("Reasoning effort", effortText)
-            row("Plan mode", vm.planMode ? String(localized: "on") : String(localized: "off"))
+            row("Plan mode", vm.planMode ? String(loc: "on") : String(loc: "off"))
             row("Approvals", approvalText)
             row("Transport", session.transport ?? "acp")
             row("Directory", session.cwd.map { ($0 as NSString).lastPathComponent } ?? "-")
@@ -2143,9 +2297,9 @@ struct SessionDetailsSheet: View {
     /// "auto" for a session that is in fact running high.
     private var effortText: String {
         switch vm.effort {
-        case "medium": return String(localized: "Medium")
-        case "low":    return String(localized: "Low")
-        default:       return String(localized: "High")
+        case "medium": return String(loc: "Medium")
+        case "low":    return String(loc: "Low")
+        default:       return String(loc: "High")
         }
     }
 
@@ -2153,9 +2307,9 @@ struct SessionDetailsSheet: View {
     /// while its chip in the composer was lit.
     private var approvalText: String {
         switch vm.approvalPolicy {
-        case "all":   return String(localized: "Auto")
-        case "reads": return String(localized: "Reads")
-        default:      return String(localized: "Ask")
+        case "all":   return String(loc: "Auto")
+        case "reads": return String(loc: "Reads")
+        default:      return String(loc: "Ask")
         }
     }
 

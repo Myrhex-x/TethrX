@@ -290,7 +290,7 @@ struct PairingView: View {
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private func field(label: LocalizedStringResource, placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool) -> some View {
+    private func field(label: LocalizedStringKey, placeholder: LocalizedStringKey, text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             ListSectionLabel(label)
             FieldBox {
@@ -316,7 +316,7 @@ struct PairingView: View {
               let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
               let tok = c.queryItems?.first(where: { $0.name == "token" })?.value,
               !addr.isEmpty, !tok.isEmpty else {
-            app.errorMessage = String(localized: "That doesn't look like a TethrX pairing code.")
+            app.errorMessage = String(loc: "That doesn't look like a TethrX pairing code.")
             return
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""

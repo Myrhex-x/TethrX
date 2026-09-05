@@ -64,9 +64,9 @@ final class PushManager: NSObject, ObservableObject {
                                           options: [.destructive])
         // Denying with a correction attached, without unlocking into the app.
         let replyWhileWaiting = UNTextInputNotificationAction(
-            identifier: "REPLY", title: String(localized: "Reply"), options: [.authenticationRequired],
-            textInputButtonTitle: String(localized: "Send"),
-            textInputPlaceholder: String(localized: "Message Grok…"))
+            identifier: "REPLY", title: String(loc: "Reply"), options: [.authenticationRequired],
+            textInputButtonTitle: String(loc: "Send"),
+            textInputPlaceholder: String(loc: "Message Grok…"))
         let permission = UNNotificationCategory(identifier: "PERMISSION",
                                                 actions: [approve, reject, replyWhileWaiting],
                                                 intentIdentifiers: [], options: [])
@@ -74,9 +74,9 @@ final class PushManager: NSObject, ObservableObject {
         // "Grok finished" is the moment you most often want to say what's next. Typing
         // it here queues it on the computer without ever opening the app.
         let reply = UNTextInputNotificationAction(
-            identifier: "REPLY", title: String(localized: "Reply"), options: [.authenticationRequired],
-            textInputButtonTitle: String(localized: "Send"),
-            textInputPlaceholder: String(localized: "Message Grok…"))
+            identifier: "REPLY", title: String(loc: "Reply"), options: [.authenticationRequired],
+            textInputButtonTitle: String(loc: "Send"),
+            textInputPlaceholder: String(loc: "Message Grok…"))
         let replyCategory = UNNotificationCategory(identifier: "REPLY",
                                                    actions: [reply],
                                                    intentIdentifiers: [], options: [])

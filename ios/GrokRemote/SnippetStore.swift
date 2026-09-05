@@ -51,7 +51,7 @@ final class SnippetStore: ObservableObject {
             items = legacy.map { Prompt(text: $0) }
             persist()
         } else {
-            items = Self.starters.map { Prompt(text: String(localized: $0)) }
+            items = Self.starters.map { Prompt(text: String(loc: $0)) }
             persist()   // writing the key now is what stops a fully emptied library re-seeding
         }
     }

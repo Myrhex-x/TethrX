@@ -244,7 +244,7 @@ struct DirectoryPickerSheet: View {
         loading = true
         errorText = nil
         defer { loading = false }
-        guard let client = app.client else { errorText = String(localized: "Not connected."); return }
+        guard let client = app.client else { errorText = String(loc: "Not connected."); return }
         do { listing = try await client.listDirs(path: path) }
         catch { errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription }
     }
@@ -263,7 +263,7 @@ struct FileBrowserSheet: View {
         NavigationStack {
             FileFolderScreen(client: client, sessionId: session.id, relPath: "",
                              title: session.cwd.map { ($0 as NSString).lastPathComponent }
-                                ?? String(localized: "Files"))
+                                ?? String(loc: "Files"))
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }.foregroundStyle(Grok.text).fontWeight(.semibold)

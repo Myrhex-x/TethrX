@@ -8,6 +8,7 @@ struct TethrXApp: App {
     @StateObject private var lock = AppLock()
     @StateObject private var snippets = SnippetStore()
     @StateObject private var push = PushManager.shared
+    @StateObject private var language = AppLanguage.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -21,6 +22,13 @@ struct TethrXApp: App {
                     LockView().environmentObject(lock).transition(.opacity)
                 }
             }
+            .environmentObject(language)
+            // The language is chosen in this app's own settings, not only in iOS's.
+            // The locale carries dates, numbers and plural agreement; the id forces a
+            // rebuild so every string already on screen is resolved again out of the
+            // newly chosen .lproj instead of waiting for the next relaunch.
+            .environment(\.locale, language.locale)
+            .id(language.code)
             .tint(.white)                          // outline-pill language: white, not a color accent
             .preferredColorScheme(.dark)
             // Fonts scale with Dynamic Type (see Grok.mono/sans); cap the growth
@@ -166,6 +174,10 @@ struct SplitRootView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: selected) { _, now in
+            guard let id = app.unusedSessionId, now?.id != id else { return }
+            Task { await app.discardUnusedSession() }
+        }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
         .onChange(of: app.sessions) { _, _ in openPending() }
         .task { openPending() }

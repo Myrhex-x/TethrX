@@ -87,7 +87,7 @@ struct SchedulesSection: View {
 
     private func row(_ s: BridgeSchedule) -> some View {
         let sessionName = app.sessions.first(where: { $0.id == s.sessionId })?.displayName
-            ?? String(localized: "session")
+            ?? String(loc: "session")
         return HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(s.prompt).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(2)
@@ -129,7 +129,7 @@ struct SchedulesSection: View {
         do {
             try await client.setScheduleEnabled(s.id, enabled: on)
             if let i = schedules?.firstIndex(where: { $0.id == s.id }) { schedules?[i].enabled = on }
-        } catch { errorText = String(localized: "Couldn't update that schedule.") }
+        } catch { errorText = String(loc: "Couldn't update that schedule.") }
     }
 
     private func remove(_ s: BridgeSchedule) async {
@@ -137,7 +137,7 @@ struct SchedulesSection: View {
         do {
             try await client.deleteSchedule(s.id)
             schedules?.removeAll { $0.id == s.id }
-        } catch { errorText = String(localized: "Couldn't delete that schedule.") }
+        } catch { errorText = String(loc: "Couldn't delete that schedule.") }
     }
 }
 
@@ -282,7 +282,7 @@ struct ScheduleEditorSheet: View {
             Haptics.success()
             dismiss()
         } catch {
-            errorText = String(localized: "Couldn't save. Check the connection.")
+            errorText = String(loc: "Couldn't save. Check the connection.")
         }
     }
 }

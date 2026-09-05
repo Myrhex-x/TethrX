@@ -170,18 +170,18 @@ struct UsageHistorySheet: View {
             // An older bridge has no history endpoint at all; say what to do about it
             // rather than showing a bare failure.
             if case .badStatus(404) = (error as? BridgeError) ?? .badURL {
-                errorText = String(localized: "Your computer needs bridge 0.1.15 or newer for daily usage. Update it with: npm i -g tethrx-bridge")
+                errorText = String(loc: "Your computer needs bridge 0.1.15 or newer for daily usage. Update it with: npm i -g tethrx-bridge")
             } else {
-                errorText = String(localized: "Couldn't load usage from your computer.")
+                errorText = String(loc: "Couldn't load usage from your computer.")
             }
         }
     }
 
     private func dayCountLabel(_ n: Int) -> String {
-        String(format: String(localized: "%lld days"), n)
+        String(format: String(loc: "%lld days"), n)
     }
 
     private func turnsLabel(_ n: Int) -> String {
-        String(format: String(localized: "%lld turns"), n)
+        String(format: String(loc: "%lld turns"), n)
     }
 }

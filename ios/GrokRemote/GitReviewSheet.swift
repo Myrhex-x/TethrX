@@ -240,10 +240,10 @@ struct GitReviewSheet: View {
             let out = try await client.gitCommit(sessionId: session.id, message: commitMessage, dir: dir)
             Haptics.success()
             commitMessage = ""
-            note = out.isEmpty ? String(localized: "Committed.") : out
+            note = out.isEmpty ? String(loc: "Committed.") : out
             await load()
         } catch {
-            errorText = String(localized: "Commit failed. Check that git is configured (user.name / user.email) on that computer.")
+            errorText = String(loc: "Commit failed. Check that git is configured (user.name / user.email) on that computer.")
         }
     }
 
@@ -253,7 +253,7 @@ struct GitReviewSheet: View {
         do {
             _ = try await client.gitDiscard(sessionId: session.id, dir: dir)
             Haptics.tap(.medium)
-            note = String(localized: "Changes discarded.")
+            note = String(loc: "Changes discarded.")
             await load()
         } catch {
             errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription

@@ -152,6 +152,12 @@ struct SessionListView: View {
                 await app.reloadSessions(quiet: true)
             }
         }
+        // Backing out of a session that was created by the compose button and never
+        // written in: it goes, rather than sitting at the top of the list forever.
+        .onChange(of: path) { _, now in
+            guard let id = app.unusedSessionId, !now.contains(where: { $0.id == id }) else { return }
+            Task { await app.discardUnusedSession() }
+        }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
         // The whole array, not just its count: switching to another computer can
         // land on the same number of sessions, which would swallow the deep-open.
@@ -229,16 +235,16 @@ struct SessionListView: View {
     /// host normally arrives as "Name-MacBook-Pro.local"; the suffix is the one part
     /// of it that says nothing about which computer this is.
     private var hostTitle: String {
-        if app.demoMode { return String(localized: "Tour") }
+        if app.demoMode { return String(loc: "Tour") }
         let host = (app.health?.host ?? "")
             .replacingOccurrences(of: ".local", with: "")
             .replacingOccurrences(of: ".home", with: "")
-        return host.isEmpty ? String(localized: "No computer") : host
+        return host.isEmpty ? String(loc: "No computer") : host
     }
 
     /// The line under it: what is running over there, or why nothing is.
     private var hostSubtitle: String {
-        if app.demoMode { return String(localized: "Sample data") }
+        if app.demoMode { return String(loc: "Sample data") }
         if let grok = app.health?.grok, !grok.isEmpty {
             // The bridge reports "grok 1.0.13 (5e9a58528b76) [stable]". The build hash
             // and the channel are for a bug report, not for the line under the
@@ -250,7 +256,7 @@ struct SessionListView: View {
                                       options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
         }
-        return app.connected ? String(localized: "Connected") : String(localized: "Not connected")
+        return app.connected ? String(loc: "Connected") : String(loc: "Not connected")
     }
 
     private var somethingNeedsYou: Bool { app.sessions.contains { $0.isWaitingOnYou } }
@@ -725,7 +731,7 @@ struct SessionListView: View {
 
         let pinned = filteredSessions.filter { app.pinned.contains($0.id) }
         if !pinned.isEmpty {
-            out.append(HistorySection(key: "\u{1}pinned", title: String(localized: "Pinned"),
+            out.append(HistorySection(key: "\u{1}pinned", title: String(loc: "Pinned"),
                                       items: pinned, isFolder: false))
             used.formUnion(pinned.map(\.id))
         }
@@ -875,7 +881,7 @@ struct SessionListView: View {
             await app.reloadSessions()
             app.pendingOpenSessionId = fresh.id
         } catch {
-            app.errorMessage = String(localized: "Couldn't branch that session.")
+            app.errorMessage = String(loc: "Couldn't branch that session.")
         }
     }
 
@@ -1044,11 +1050,11 @@ enum RecencyBucket: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .today:     return String(localized: "Today")
-        case .yesterday: return String(localized: "Yesterday")
-        case .week:      return String(localized: "Previous 7 days")
-        case .month:     return String(localized: "Previous 30 days")
-        case .older:     return String(localized: "Older")
+        case .today:     return String(loc: "Today")
+        case .yesterday: return String(loc: "Yesterday")
+        case .week:      return String(loc: "Previous 7 days")
+        case .month:     return String(loc: "Previous 30 days")
+        case .older:     return String(loc: "Older")
         }
     }
 

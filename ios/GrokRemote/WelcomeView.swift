@@ -118,7 +118,7 @@ struct WelcomeView: View {
                         .focused($draftFocused)
                 }
                 CircleIconButton(system: "plus", filled: !isBlankDraft, enabled: !isBlankDraft,
-                                 a11y: String(localized: "Save prompt")) {
+                                 a11y: String(loc: "Save prompt")) {
                     snippets.add(draft)
                     draft = ""
                     draftFocused = false

@@ -243,6 +243,7 @@ final class ChatViewModel: ObservableObject {
         if !thumbnails.isEmpty { pendingEcho = thumbnails }
         let sentAt = Date()
         do {
+            AppState.shared.markSessionUsed(session.id)
             try await client.send(sessionId: session.id, text: trimmed, images: images)
             watchdogAfterSend(sentAt)
         } catch {
@@ -306,7 +307,7 @@ final class ChatViewModel: ObservableObject {
                 queued.removeAll()
             }
         } catch {
-            errorMessage = String(localized: "Couldn't reach the computer to stop the turn. It may still be running.")
+            errorMessage = String(loc: "Couldn't reach the computer to stop the turn. It may still be running.")
         }
     }
 
@@ -324,6 +325,7 @@ final class ChatViewModel: ObservableObject {
         let pending = QueuedMessage(id: UUID().uuidString, text: t, source: "phone", at: nil)
         queued.append(pending)
         do {
+            AppState.shared.markSessionUsed(session.id)
             let confirmed = try await client.enqueue(sessionId: session.id, text: t)
             queued = confirmed
         } catch {
@@ -369,12 +371,12 @@ final class ChatViewModel: ObservableObject {
                 // 409: nothing is waiting on this anymore (answered elsewhere, or the
                 // session restarted). Re-showing the buttons would just fail again.
                 if let idx, items.indices.contains(idx) { items[idx].decided = "cancelled" }
-                errorMessage = String(localized: "That approval was no longer pending. Grok isn't waiting on it.")
+                errorMessage = String(loc: "That approval was no longer pending. Grok isn't waiting on it.")
             } else {
                 // The bridge never heard the decision, so Grok is still blocked. Put the
                 // buttons back rather than leaving a card that claims it was answered.
                 if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-                errorMessage = String(localized: "Couldn't send that decision. Check the connection and try again.")
+                errorMessage = String(loc: "Couldn't send that decision. Check the connection and try again.")
             }
         }
     }
@@ -391,10 +393,10 @@ final class ChatViewModel: ObservableObject {
         } catch {
             if Self.isConflict(error) {
                 if let idx, items.indices.contains(idx) { items[idx].decided = "rejected" }
-                errorMessage = String(localized: "That plan review was no longer pending.")
+                errorMessage = String(loc: "That plan review was no longer pending.")
             } else {
                 if let idx, items.indices.contains(idx) { items[idx].decided = nil }
-                errorMessage = String(localized: "Couldn't send that decision. Check the connection and try again.")
+                errorMessage = String(loc: "Couldn't send that decision. Check the connection and try again.")
             }
         }
     }
@@ -649,9 +651,9 @@ final class ChatViewModel: ObservableObject {
             let before = event["tokensBefore"] as? Int
             let after = event["tokensAfter"] as? Int
             if let before, let after, after < before {
-                append(.status, String(localized: "· compacted to \(Fmt.tokens(after)) tokens ·"))
+                append(.status, String(loc: "· compacted to \(Fmt.tokens(after)) tokens ·"))
             } else {
-                append(.status, String(localized: "· compacted ·"))
+                append(.status, String(loc: "· compacted ·"))
             }
 
         case "_open":

@@ -31,55 +31,84 @@ struct SettingsView: View {
     @State private var installSource = ""
     @State private var removingPlugin: GrokPlugin?
     @ObservedObject private var watch = WatchLink.shared
+    @EnvironmentObject private var language: AppLanguage
+    @State private var path: [SettingsPage] = []
+
+    /// Settings used to be eleven blocks in one scroll, every one of them expanded,
+    /// every one of them carrying a paragraph of explanation: about fifteen hundred
+    /// points of grey text with no way in. A subject per page, and an index that
+    /// tells you what is behind each one.
+    enum SettingsPage: String, Hashable {
+        case computers, usage, plugins, defaults, schedules, prompts
+        case notifications, watch, language, security, about
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .computers:     return "Computers"
+            case .usage:         return "Usage"
+            case .plugins:       return "Grok plugins"
+            case .defaults:      return "New session defaults"
+            case .schedules:     return "Schedules"
+            case .prompts:       return "Prompts"
+            case .notifications: return "Notifications"
+            case .watch:         return "Apple Watch"
+            case .language:      return "Language"
+            case .security:      return "Security"
+            case .about:         return "About"
+            }
+        }
+    }
+
+    @ViewBuilder private func body(of page: SettingsPage) -> some View {
+        switch page {
+        case .computers:     connection; computers
+        case .usage:         usage
+        case .plugins:       pluginsSection
+        case .defaults:      defaults
+        case .schedules:     SchedulesSection(showsHeading: false)
+        case .prompts:       snippetsSection
+        case .notifications: notifications
+        case .watch:         appleWatch
+        case .language:      languageSection
+        case .security:      security
+        case .about:         about
+        }
+    }
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
-                ScrollViewReader { proxy in
-                VStack(alignment: .leading, spacing: Grok.groupGap) {
-                    if app.demoMode {
-                        // Anything that needs a real computer is left out entirely
-                        // rather than shown empty or, worse, filled from the machine
-                        // this phone happens to still be paired with.
-                        demoConnection
-                        defaults
-                        security
-                        snippetsSection
-                        about
-                    } else {
-                        connection
-                        computers.id("computers")
-                        usage
-                        defaults
-                        SchedulesSection()
-                        pluginsSection.id("plugins")
-                        notifications
-                        appleWatch.id("watch")
-                        security
-                        snippetsSection
-                        about
-                    }
-                }
-                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
-                .task {
-                    #if DEBUG
-                    // Headless screenshots: `-settingsAnchor plugins` opens scrolled there.
-                    let args = ProcessInfo.processInfo.arguments
-                    if let i = args.firstIndex(of: "-settingsAnchor"), i + 1 < args.count {
-                        try? await Task.sleep(nanoseconds: 600_000_000)
-                        proxy.scrollTo(args[i + 1], anchor: .top)
-                    }
-                    #endif
-                    // No animation: arriving already scrolled reads as "this sheet is
-                    // about computers", where a scroll on open reads as a glitch.
-                    if let anchor {
-                        try? await Task.sleep(nanoseconds: 120_000_000)
-                        proxy.scrollTo(anchor, anchor: .top)
-                    }
-                }
-                }
+                index
+                    .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
             .scrollIndicators(.hidden)
+            .navigationDestination(for: SettingsPage.self) { page in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Grok.groupGap) {
+                        body(of: page)
+                    }
+                    .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
+                }
+                .background(Grok.bg)
+                .scrollIndicators(.hidden)
+                .navigationTitle(page.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .grokBar()
+            }
+            .task {
+                #if DEBUG
+                // Headless screenshots: `-settingsAnchor plugins` opens on that page.
+                let args = ProcessInfo.processInfo.arguments
+                if let i = args.firstIndex(of: "-settingsAnchor"), i + 1 < args.count,
+                   let page = SettingsPage(rawValue: args[i + 1]) {
+                    path.append(page)
+                }
+                #endif
+                // The home screen's computer row opens this sheet already on the
+                // Computers page, which is two taps fewer than landing on the index
+                // and hunting for it.
+                if let anchor, let page = SettingsPage(rawValue: anchor) { path.append(page) }
+            }
             .task { await loadUsage() }
             // Switching computers happens inside this very sheet — without this the
             // usage panel kept showing the PREVIOUS computer's totals.
@@ -105,6 +134,170 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    /// What is in Settings, and what each thing currently says. A row that reads
+    /// "Language · Italiano" answers the question without being opened at all, which
+    /// is most of what an index is for.
+    private var index: some View {
+        VStack(alignment: .leading, spacing: Grok.groupGap) {
+            if app.demoMode {
+                // Anything that needs a real computer is left out entirely rather
+                // than shown empty or, worse, filled from the machine this phone
+                // happens to still be paired with.
+                demoConnection
+                indexGroup(nil) {
+                    indexRow(.defaults, "slider.horizontal.3")
+                    indexRow(.prompts, "text.badge.star", value: promptCountLabel)
+                    indexRow(.language, "globe", value: language.currentLabel)
+                    indexRow(.security, "lock")
+                    indexRow(.about, "info.circle")
+                }
+            } else {
+                computerCard
+                indexGroup("Your computer") {
+                    indexRow(.computers, "desktopcomputer", value: computerCountLabel)
+                    indexRow(.usage, "chart.bar")
+                    indexRow(.plugins, "puzzlepiece.extension")
+                }
+                indexGroup("Sessions") {
+                    indexRow(.defaults, "slider.horizontal.3")
+                    indexRow(.schedules, "clock.arrow.2.circlepath")
+                    indexRow(.prompts, "text.badge.star", value: promptCountLabel)
+                }
+                indexGroup("This phone") {
+                    indexRow(.notifications, "bell", value: push.enabled ? "On" : "Off")
+                    indexRow(.watch, "applewatch", value: watchShortLabel)
+                    indexRow(.language, "globe", value: language.currentLabel)
+                    indexRow(.security, "lock", value: lock.enabled ? "On" : "Off")
+                }
+                indexGroup(nil) { indexRow(.about, "info.circle") }
+            }
+        }
+    }
+
+    @ViewBuilder private func indexGroup<C: View>(_ title: LocalizedStringKey?,
+                                                 @ViewBuilder _ rows: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title { ListSectionLabel(title).padding(.bottom, 2) }
+            rows()
+        }
+    }
+
+    private func indexRow(_ page: SettingsPage, _ icon: String, value: String? = nil) -> some View {
+        Button { Haptics.tap(); path.append(page) } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Grok.textDim)
+                    // One fixed column, so the labels start at the same x however
+                    // wide their glyphs happen to be.
+                    .frame(width: 22)
+                    .accessibilityHidden(true)
+                Text(page.title).font(Grok.sans(16, .medium)).foregroundStyle(Grok.text)
+                    .lineLimit(1).layoutPriority(1)
+                Spacer(minLength: 10)
+                if let value {
+                    Text(verbatim: value)
+                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Grok.textFaint)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The computer this phone is pointed at, at the top where the question "which
+    /// machine am I about to change" gets answered before anything else.
+    private var computerCard: some View {
+        Button { Haptics.tap(); path.append(.computers) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: app.connected ? "desktopcomputer" : "desktopcomputer.trianglebadge.exclamationmark")
+                    .font(.system(size: 20))
+                    .foregroundStyle(app.connected ? Grok.text : Grok.textFaint)
+                    .frame(width: 30)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: hostLabel)
+                        .font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
+                        .lineLimit(1).truncationMode(.middle)
+                    (app.connected ? Text("Connected") : Text("Not connected"))
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textDim)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Grok.textFaint)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, Grok.pad).padding(.vertical, 14)
+            .background(Grok.raised)
+            .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A Mac reports its Bonjour name, so the host arrives as "Name-MacBook.local";
+    /// the suffix is the one part of it that says nothing about which computer it is.
+    private var hostLabel: String {
+        let host = (app.health?.host ?? "")
+            .replacingOccurrences(of: ".local", with: "")
+            .replacingOccurrences(of: ".home", with: "")
+        return host.isEmpty ? String(loc: "No computer") : host
+    }
+    private var computerCountLabel: String? {
+        app.savedBridges.count > 1 ? "\(app.savedBridges.count)" : nil
+    }
+    private var promptCountLabel: String? {
+        snippets.items.isEmpty ? nil : "\(snippets.items.count)"
+    }
+    private var watchShortLabel: String? {
+        watch.active ? String(loc: "Installed") : nil
+    }
+
+    /// Choosing the app's language without leaving the app.
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TethrX picks up the language of your iPhone. Choose another one here and it changes straight away, in this app only.")
+                .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
+            VStack(alignment: .leading, spacing: 0) {
+                languageRow(nil, label: String(loc: "System"))
+                ForEach(AppLanguage.available, id: \.code) { choice in
+                    languageRow(choice.code, label: choice.label)
+                }
+            }
+        }
+    }
+
+    private func languageRow(_ code: String?, label: String) -> some View {
+        let target = code ?? ""
+        let selected = language.code == target
+        return Button {
+            Haptics.tap()
+            language.set(target)
+        } label: {
+            HStack(spacing: 12) {
+                Text(verbatim: label)
+                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
+                Spacer(minLength: 8)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Grok.text)
+                }
+            }
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
     /// The demo has no computer behind it, and someone who paired one earlier still
     /// has a real address and token sitting in this screen — including a reveal
     /// button. None of that belongs in a demo, so it is replaced wholesale.
@@ -112,7 +305,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             ListSectionLabel("Connection")
             row("Computer", DemoData.health.host ?? "demo")
-            row("Mode", String(localized: "Tour: nothing is connected"))
+            row("Mode", String(loc: "Tour: nothing is connected"))
             Text("You're looking at sample data. Nothing here reaches a real computer, and nothing you type is sent anywhere.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             Button { dismiss(); app.exitDemo() } label: {
@@ -125,7 +318,6 @@ struct SettingsView: View {
 
     private var connection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("Connection")
             Text("The bridge is the small helper program running on your computer. This phone talks only to it, never to a cloud.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             row("Bridge", app.normalizedBase.isEmpty ? "·" : app.normalizedBase)
@@ -174,7 +366,6 @@ struct SettingsView: View {
     private var usage: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                ListSectionLabel("Usage")
                 Spacer()
                 Button { Task { await loadUsage() } } label: {
                     Image(systemName: "arrow.clockwise").font(.caption)
@@ -227,7 +418,6 @@ struct SettingsView: View {
 
     private var defaults: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ListSectionLabel("New session defaults")
             Text("How every new session starts. Nothing here is locked in. The same controls sit inside the message box in every session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             VStack(alignment: .leading, spacing: 8) {
@@ -253,7 +443,6 @@ struct SettingsView: View {
     /// even installed?" is answered in the app rather than by hunting on the wrist.
     private var appleWatch: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("Apple Watch")
             HStack(spacing: 10) {
                 Image(systemName: watch.active ? "applewatch" : "applewatch.slash")
                     .font(.system(size: 15, weight: .medium))
@@ -293,7 +482,6 @@ struct SettingsView: View {
 
     private var security: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("Security")
             // A device with no biometry gets its own whole sentence: "Require %@"
             // translates verb-first in half the languages, so a bare noun in the
             // slot came out ungrammatical.
@@ -305,7 +493,6 @@ struct SettingsView: View {
     private var computers: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                ListSectionLabel("Computers")
                 if probingComputers {
                     ProgressView().controlSize(.mini).tint(Grok.textFaint)
                         .accessibilityLabel(Text("Checking which computers answer"))
@@ -405,15 +592,15 @@ struct SettingsView: View {
 
     private func statusLine(_ bridge: SavedBridge, reachable: Bool?) -> String {
         guard let reachable else { return bridge.address }
-        return reachable ? bridge.address : String(localized: "not answering · \(bridge.address)")
+        return reachable ? bridge.address : String(loc: "not answering · \(bridge.address)")
     }
 
     /// VoiceOver name for a computer row, from localized pieces.
     private func rowA11y(_ bridge: SavedBridge, isActive: Bool, reachable: Bool?) -> String {
         var parts = [bridge.name]
-        if isActive { parts.append(String(localized: "active")) }
-        if reachable == true { parts.append(String(localized: "online")) }
-        if reachable == false { parts.append(String(localized: "not answering")) }
+        if isActive { parts.append(String(loc: "active")) }
+        if reachable == true { parts.append(String(loc: "online")) }
+        if reachable == false { parts.append(String(loc: "not answering")) }
         return parts.joined(separator: ", ")
     }
 
@@ -440,7 +627,6 @@ struct SettingsView: View {
     @ViewBuilder private var pluginsSection: some View {
         if pluginsSupported {
             VStack(alignment: .leading, spacing: 12) {
-                ListSectionLabel("Grok plugins")
                 if let plugins, plugins.isEmpty {
                     Text("No plugins installed. Their skills appear in the \u{201C}/\u{201D} menu once you add some.")
                         .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
@@ -577,7 +763,7 @@ struct SettingsView: View {
         pluginError = nil
         defer { pluginBusy = nil }
         do { plugins = try await client.grokPluginAction(action, name: name) }
-        catch { pluginError = String(localized: "That didn't go through. Check the bridge log for details.") }
+        catch { pluginError = String(loc: "That didn't go through. Check the bridge log for details.") }
     }
 
     private func installPlugin() async {
@@ -592,13 +778,12 @@ struct SettingsView: View {
             installSource = ""
             Haptics.success()
         } catch {
-            pluginError = String(localized: "Install failed. Check the URL and that the computer can reach it.")
+            pluginError = String(loc: "Install failed. Check the URL and that the computer can reach it.")
         }
     }
 
     private var notifications: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("Notifications")
             toggleRow("Push notifications",
                       "Get alerted when Grok finishes a turn or needs approval, even with the app closed",
                       Binding(get: { push.enabled }, set: { $0 ? push.enable() : push.disable() }))
@@ -609,7 +794,6 @@ struct SettingsView: View {
 
     private var snippetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("Prompts")
             Text("Reusable prompts you write on this phone. They need no computer, and appear above the composer in every session.")
                 .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
             Button { showingLibrary = true } label: {
@@ -632,12 +816,11 @@ struct SettingsView: View {
 
     private var about: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ListSectionLabel("About")
             row("App", "TethrX \(appVersion)")
             row("Grok", app.health?.grok?.replacingOccurrences(of: "grok ", with: "") ?? "·")
             grokUpdateRows
             if let v = app.health?.version, !v.isEmpty {
-                row("Bridge", bridgeOutdated ? String(localized: "v\(v) · update available") : "v\(v)")
+                row("Bridge", bridgeOutdated ? String(loc: "v\(v) · update available") : "v\(v)")
             }
             if bridgeOutdated {
                 Text("On your computer: npm i -g tethrx-bridge, then restart the bridge.")
@@ -699,12 +882,12 @@ struct SettingsView: View {
             let version = try await client.grokUpdateInstall()
             Haptics.success()
             grokUpdateNote = version.isEmpty
-                ? String(localized: "Updated.")
-                : String(localized: "Updated to \(version).")
+                ? String(loc: "Updated.")
+                : String(loc: "Updated to \(version).")
             grokUpdate = try? await client.grokUpdateStatus()
         } catch {
             grokUpdateNote = (error as? BridgeError)?.errorDescription
-                ?? String(localized: "Update didn't finish. Try again when no session is running.")
+                ?? String(loc: "Update didn't finish. Try again when no session is running.")
         }
     }
 

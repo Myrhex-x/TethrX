@@ -152,7 +152,7 @@ final class WatchLink: NSObject, ObservableObject {
         return WatchApproval(
             requestId: requestId,
             command: command,
-            risk: risk.map { String(localized: $0.reason) },
+            risk: risk.map { String(resolving: $0.reason) },
             riskLevel: risk.map { $0.level == .destructive ? "destructive" : "sensitive" },
             allowOptionId: waiting.allow,
             denyOptionId: waiting.deny
@@ -311,7 +311,7 @@ extension WatchLink: WCSessionDelegate {
                     pending = WatchApproval(
                         requestId: requestId,
                         command: command,
-                        risk: risk.map { String(localized: $0.reason) },
+                        risk: risk.map { String(resolving: $0.reason) },
                         riskLevel: risk.map { $0.level == .destructive ? "destructive" : "sensitive" },
                         allowOptionId: allow?["optionId"] as? String,
                         denyOptionId: deny?["optionId"] as? String
@@ -356,7 +356,7 @@ extension WatchLink: WCSessionDelegate {
     /// person can actually hit has to be translated here, on the phone. This one
     /// fires whenever the phone is open with no computer paired, which is exactly
     /// when someone taps Approve on their wrist.
-    private static var notConnected: String { String(localized: "Not connected to a computer.") }
+    private static var notConnected: String { String(loc: "Not connected to a computer.") }
 }
 
 extension JSONEncoder {

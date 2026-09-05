@@ -16,10 +16,10 @@ enum BridgeError: LocalizedError {
     /// any of the seven other languages and the explanation came back in English.
     var errorDescription: String? {
         switch self {
-        case .badURL: return String(localized: "Invalid server address.")
-        case .badStatus(401): return String(localized: "Not authorized. Check your pairing token.")
-        case .badStatus(404): return String(localized: "That session no longer exists on your computer.")
-        case .badStatus(let code): return String(localized: "Your computer returned an error (status \(code)).")
+        case .badURL: return String(loc: "Invalid server address.")
+        case .badStatus(401): return String(loc: "Not authorized. Check your pairing token.")
+        case .badStatus(404): return String(loc: "That session no longer exists on your computer.")
+        case .badStatus(let code): return String(loc: "Your computer returned an error (status \(code)).")
         }
     }
 }

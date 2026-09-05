@@ -70,7 +70,7 @@ struct BridgeLogSheet: View {
             lines = try await client.logs()
         } catch {
             if case .badStatus(404) = (error as? BridgeError) ?? .badURL {
-                errorText = String(localized: "This needs bridge 0.1.14 or newer. Update it with npm i -g tethrx-bridge.")
+                errorText = String(loc: "This needs bridge 0.1.14 or newer. Update it with npm i -g tethrx-bridge.")
             } else {
                 errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
             }

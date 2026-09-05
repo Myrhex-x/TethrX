@@ -127,7 +127,7 @@ struct AddComputerSheet: View {
             Haptics.success()
             dismiss()
         } else {
-            failure = app.errorMessage ?? String(localized: "Couldn't reach that computer. Check the address and that its bridge is running.")
+            failure = app.errorMessage ?? String(loc: "Couldn't reach that computer. Check the address and that its bridge is running.")
         }
     }
 
@@ -136,7 +136,7 @@ struct AddComputerSheet: View {
               let addr = c.queryItems?.first(where: { $0.name == "addr" })?.value,
               let tok = c.queryItems?.first(where: { $0.name == "token" })?.value,
               !addr.isEmpty, !tok.isEmpty else {
-            failure = String(localized: "That doesn't look like a TethrX pairing code.")
+            failure = String(loc: "That doesn't look like a TethrX pairing code.")
             return
         }
         let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value ?? ""
@@ -165,7 +165,7 @@ struct AddComputerSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
 
-    private func field(_ label: LocalizedStringResource, _ placeholder: LocalizedStringKey, _ text: Binding<String>, secure: Bool) -> some View {
+    private func field(_ label: LocalizedStringKey, _ placeholder: LocalizedStringKey, _ text: Binding<String>, secure: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             ListSectionLabel(label)
             FieldBox {

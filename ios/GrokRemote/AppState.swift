@@ -197,7 +197,7 @@ final class AppState: ObservableObject {
     /// dead entry must not cost you the live one you were on.
     func switchTo(_ bridge: SavedBridge) async {
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
-            errorMessage = String(localized: "No saved token for \(bridge.name). Pair that computer again.")
+            errorMessage = String(loc: "No saved token for \(bridge.name). Pair that computer again.")
             return
         }
         let prev = (base: baseURLString, pin: pin, plain: plainBase, token: token,
@@ -226,7 +226,7 @@ final class AppState: ObservableObject {
             // Say "staying on the current computer" only when that's true — if the
             // rollback also failed, its own error is the honest one to keep.
             if connected {
-                errorMessage = failure.map { String(localized: "\(bridge.name) didn't answer. Staying on the current computer. (\($0))") }
+                errorMessage = failure.map { String(loc: "\(bridge.name) didn't answer. Staying on the current computer. (\($0))") }
             }
         }
     }
@@ -283,7 +283,7 @@ final class AppState: ObservableObject {
         // built, because demo mode deliberately has none.
         if demoMode { exitDemo() }
         guard let client else {
-            errorMessage = String(localized: "Enter the bridge address and pairing token.")
+            errorMessage = String(loc: "Enter the bridge address and pairing token.")
             return
         }
         userDisconnected = false     // an explicit Connect re-enables launch auto-reconnect
@@ -359,13 +359,13 @@ final class AppState: ObservableObject {
             // The bridge is answering but is no longer offering TLS at all. Continuing
             // would mean sending the token in the clear on a channel that just changed
             // shape, which is indistinguishable from an attacker holding the port down.
-            errorMessage = String(localized: "Your computer stopped offering a secure connection. Pair again from its pairing page to continue.")
+            errorMessage = String(loc: "Your computer stopped offering a secure connection. Pair again from its pairing page to continue.")
             return false
         }
         guard tls.fingerprint.lowercased() == prevPin.lowercased() else {
             // Same address, different certificate. Either the bridge regenerated its key
             // (in which case pairing again is genuinely required) or this is not it.
-            errorMessage = String(localized: "Your computer's security certificate changed. Pair again from its pairing page to continue.")
+            errorMessage = String(loc: "Your computer's security certificate changed. Pair again from its pairing page to continue.")
             return false
         }
 
@@ -482,6 +482,7 @@ final class AppState: ObservableObject {
         if demoMode {
             let s = DemoData.freshSession(cwd: defaultCwd)
             sessions.insert(s, at: 0)
+            unusedSessionId = s.id
             return s
         }
         guard let client else { return nil }
@@ -491,11 +492,55 @@ final class AppState: ObservableObject {
                                                    planMode: defaultPlanMode,
                                                    autoApprove: defaultAutoApprove)
             sessions.insert(s, at: 0)
+            unusedSessionId = s.id
             return s
         } catch {
             errorMessage = friendly(error)
             return nil
         }
+    }
+
+    /// A session the compose button has just made, which nobody has written in yet.
+    ///
+    /// Tapping "new" has to create the session up front — the chat needs an id to
+    /// stream against, and the chips write their settings to it. But a session opened
+    /// and backed out of without a word in it is a tap, not a conversation, and four
+    /// of them sitting at the top of the list a week later is what that looks like.
+    @Published var unusedSessionId: String?
+
+    /// Called the moment anything is actually sent, which settles the question well
+    /// before the bridge has counted the turn.
+    func markSessionUsed(_ id: String) {
+        if unusedSessionId == id { unusedSessionId = nil }
+    }
+
+    /// Throw away the pending unused session, if it is still unused.
+    ///
+    /// The turn count is re-read from the bridge rather than taken from `sessions`,
+    /// which is a poll snapshot: a message sent two seconds before backing out may
+    /// not be in it yet, and deleting on a stale zero would destroy a real
+    /// conversation. Anything unexpected — a failed fetch, a session that has grown a
+    /// turn, a title someone typed — leaves it alone. Doing nothing is always the
+    /// safe outcome here; the cost of a wrong delete is not symmetric.
+    func discardUnusedSession() async {
+        guard let id = unusedSessionId else { return }
+        unusedSessionId = nil
+        if demoMode {
+            sessions.removeAll { $0.id == id && $0.turnCount == 0 }
+            return
+        }
+        guard let client else { return }
+        guard let live = try? await client.listSessions() else { return }
+        guard let s = live.first(where: { $0.id == id }) else { return }
+        guard s.turnCount == 0, !s.isRunning, !s.isWaitingOnYou,
+              (s.folder ?? "").isEmpty, !pinned.contains(id),
+              s.title.trimmingCharacters(in: .whitespaces).isEmpty || s.title == "New session"
+        else {
+            sessions = live
+            return
+        }
+        try? await client.deleteSession(id)
+        sessions = live.filter { $0.id != id }
     }
 
     func deleteSession(_ id: String) async {
@@ -539,7 +584,7 @@ final class AppState: ObservableObject {
             // 409 means it stopped being pending while you were looking at it, which
             // is worth saying rather than leaving the row unchanged and unexplained.
             if case .badStatus(409) = (error as? BridgeError) ?? .badURL {
-                errorMessage = String(localized: "That approval was no longer pending. Grok isn't waiting on it.")
+                errorMessage = String(loc: "That approval was no longer pending. Grok isn't waiting on it.")
                 await reloadSessions(quiet: true)
             } else {
                 errorMessage = friendly(error)
@@ -595,7 +640,7 @@ final class AppState: ObservableObject {
         }
         // Nothing accepted it, so grok is still blocked while the notification cleared
         // as though the tap had worked. Say so rather than failing silently.
-        errorMessage = String(localized: "That decision did not reach your computer. Open the session and answer it there.")
+        errorMessage = String(loc: "That decision did not reach your computer. Open the session and answer it there.")
         return false
     }
 
@@ -804,7 +849,7 @@ final class AppState: ObservableObject {
         if let urlErr = error as? URLError {
             switch urlErr.code {
             case .cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost:
-                return String(localized: "Can't reach the bridge. Check the address and that the daemon is running.")
+                return String(loc: "Can't reach the bridge. Check the address and that the daemon is running.")
             default:
                 return urlErr.localizedDescription
             }

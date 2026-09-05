@@ -268,12 +268,12 @@ enum Fmt {
     /// just now, 12m ago, 3h ago, 2d ago.
     static func ago(_ date: Date, now: Date = Date()) -> String {
         let seconds = Int(max(0, now.timeIntervalSince(date)))
-        if seconds < 90 { return String(localized: "just now") }
+        if seconds < 90 { return String(loc: "just now") }
         let minutes = seconds / 60
-        if minutes < 60 { return String(localized: "\(minutes)m ago") }
+        if minutes < 60 { return String(loc: "\(minutes)m ago") }
         let hours = minutes / 60
-        if hours < 24 { return String(localized: "\(hours)h ago") }
-        return String(localized: "\(hours / 24)d ago")
+        if hours < 24 { return String(loc: "\(hours)h ago") }
+        return String(loc: "\(hours / 24)d ago")
     }
 
     /// A stopwatch reading for something still going: 12s, 4m, 1h20m. Short enough to
@@ -413,9 +413,9 @@ struct BridgeSchedule: Codable, Identifiable, Hashable {
     var timeLabel: String { String(format: "%02d:%02d", hour, minute) }
     /// "Every day", "Weekdays", or short day names.
     var daysLabel: String {
-        if weekdays.isEmpty { return String(localized: "Every day") }
-        if weekdays.sorted() == [1, 2, 3, 4, 5] { return String(localized: "Weekdays") }
-        if weekdays.sorted() == [0, 6] { return String(localized: "Weekends") }
+        if weekdays.isEmpty { return String(loc: "Every day") }
+        if weekdays.sorted() == [1, 2, 3, 4, 5] { return String(loc: "Weekdays") }
+        if weekdays.sorted() == [0, 6] { return String(loc: "Weekends") }
         let symbols = Calendar.current.shortWeekdaySymbols   // Sun-first, matching 0=Sunday
         return weekdays.sorted().compactMap { symbols.indices.contains($0) ? symbols[$0] : nil }.joined(separator: " ")
     }
@@ -439,11 +439,11 @@ struct GitFile: Codable, Identifiable, Hashable {
     /// never be looked up in any language. The trailing `code` stays verbatim
     /// because it is a porcelain code, not prose.
     var label: String {
-        if code == "??" { return String(localized: "new") }
-        if code.contains("D") { return String(localized: "deleted") }
-        if code.contains("R") { return String(localized: "renamed") }
-        if code.contains("A") { return String(localized: "added") }
-        if code.contains("M") { return String(localized: "modified") }
+        if code == "??" { return String(loc: "new") }
+        if code.contains("D") { return String(loc: "deleted") }
+        if code.contains("R") { return String(loc: "renamed") }
+        if code.contains("A") { return String(loc: "added") }
+        if code.contains("M") { return String(loc: "modified") }
         return code
     }
 }

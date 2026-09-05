@@ -42,6 +42,12 @@ enum Grok {
     static let gap: CGFloat = 10
     /// Between two groups of blocks.
     static let groupGap: CGFloat = 22
+    /// One height for everything sitting in the composer's control row: the add
+    /// button, the chips, the mic. Measured on device that row ran 32.0, 34.3, 31.7
+    /// and 32.3 points side by side, because each control was sized by whatever glyph
+    /// happened to be inside it. A 2.6pt spread across four adjacent things reads as
+    /// carelessness long before anyone can say why.
+    static let control: CGFloat = 34
 
     /// A single hairline. Structure here is drawn with rules and space rather than
     /// with filled boxes stacked on filled boxes.
@@ -111,16 +117,20 @@ extension Text {
 /// only thing on the row that says what the rows below it are. Callers that really
 /// are tight on width (a folder name beside a count and a menu) ask for one.
 struct ListSectionLabel: View {
-    let text: String
+    /// A `Text`, not a resolved `String`: SwiftUI resolves a `LocalizedStringKey`
+    /// through the bundle, which is what follows the app's own language setting.
+    /// Resolving it here with `String(localized:)` pinned every heading in the app to
+    /// the language iOS launched in.
+    private let label: Text
     /// Smaller under a numeral, where the label is a unit and not a heading.
     var size: CGFloat = 13
-    init(_ key: LocalizedStringResource, size: CGFloat = 13) {
-        self.text = String(localized: key); self.size = size
+    init(_ key: LocalizedStringKey, size: CGFloat = 13) {
+        self.label = Text(key); self.size = size
     }
-    init(verbatim: String, size: CGFloat = 13) { self.text = verbatim; self.size = size }
+    init(verbatim: String, size: CGFloat = 13) { self.label = Text(verbatim: verbatim); self.size = size }
 
     var body: some View {
-        Text(text)
+        label
             // Semibold at 60%, which is the only small semibold text in the app.
             // Faint grey worked over the home list, where the rows underneath are
             // white and bold, and inverted the hierarchy everywhere else: in Settings
@@ -134,7 +144,7 @@ struct ListSectionLabel: View {
 /// A number worth reading as an instrument: tabular figures, a tracked caption.
 struct Readout: View {
     let value: String
-    let label: LocalizedStringResource
+    let label: LocalizedStringKey
     var emphasis: Color = Grok.text
 
     var body: some View {
@@ -220,6 +230,22 @@ struct SegPill: ButtonStyle {
 
 // MARK: - Compact chat control chip (toggles/menus by the composer)
 
+/// Icon and label at one weight, in a fixed-width icon column.
+///
+/// The icon used to set the chip's height, so a tall glyph (a clipboard) made a
+/// taller chip than a squat one (a gauge), and the row came out ragged. Here the
+/// glyph is drawn inside a box it cannot exceed.
+struct ChipLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 14, height: 14)
+            configuration.title.lineLimit(1)
+        }
+    }
+}
+
 extension View {
     /// Small capsule for chat controls. Soft translucent fill when off, solid white
     /// when on — no hairline outlines, which read as terminal chrome.
@@ -227,9 +253,20 @@ extension View {
         self
             .font(Grok.sans(13, .medium))
             .foregroundStyle(on ? Color.black : Grok.textDim)
-            .padding(.horizontal, 10).padding(.vertical, 8)
+            .labelStyle(ChipLabelStyle())
+            .padding(.horizontal, 11)
+            .frame(height: Grok.control)
             .background(on ? Color.white : Color.white.opacity(0.08))
             .clipShape(Capsule())
+            .contentShape(Capsule())
+    }
+
+    /// The round twin of `chip`, for the icon-only controls that bracket the row.
+    func roundControl(on: Bool = false) -> some View {
+        self
+            .frame(width: Grok.control, height: Grok.control)
+            .background(on ? Color.white : Color.white.opacity(0.08), in: Circle())
+            .contentShape(Circle())
     }
 }
 
