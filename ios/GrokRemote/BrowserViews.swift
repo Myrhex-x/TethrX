@@ -35,7 +35,7 @@ struct DirectoryPickerSheet: View {
                             currentFolder(listing)
                         } else if loading {
                             HStack(spacing: 10) {
-                                ProgressView().controlSize(.small).tint(.white)
+                                ProgressView().controlSize(.small).tint(Grok.ink)
                                 Text("reading folders…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                             }
                             .accessibilityElement(children: .combine)
@@ -77,7 +77,7 @@ struct DirectoryPickerSheet: View {
                 results = found ?? []
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 
     private var searchField: some View {
@@ -139,7 +139,7 @@ struct DirectoryPickerSheet: View {
             }
         } else if searching {
             HStack(spacing: 10) {
-                ProgressView().controlSize(.small).tint(.white)
+                ProgressView().controlSize(.small).tint(Grok.ink)
                 Text("searching…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)
@@ -278,7 +278,7 @@ struct FileBrowserSheet: View {
                     }
                 }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 }
 
@@ -331,7 +331,7 @@ struct FileFolderScreen: View {
                     }
                     .padding(16)
                 } else {
-                    ProgressView().controlSize(.small).tint(.white).padding(20)
+                    ProgressView().controlSize(.small).tint(Grok.ink).padding(20)
                 }
             }
         }
@@ -388,7 +388,7 @@ struct FileViewerScreen: View {
             } else if let errorText {
                 Text(errorText).font(Grok.sans(15)).foregroundStyle(Grok.danger).padding(16)
             } else {
-                ProgressView().controlSize(.small).tint(.white).padding(20)
+                ProgressView().controlSize(.small).tint(Grok.ink).padding(20)
             }
         }
         .background(Grok.bg)

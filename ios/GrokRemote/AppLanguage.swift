@@ -51,7 +51,7 @@ final class AppLanguage: ObservableObject {
     }
 
     var currentLabel: String {
-        guard !code.isEmpty else { return String(localized: "System") }
+        guard !code.isEmpty else { return String(loc: "System") }
         return Self.available.first { $0.code == code }?.label ?? code
     }
 

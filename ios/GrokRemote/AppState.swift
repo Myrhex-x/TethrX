@@ -38,6 +38,11 @@ final class AppState: ObservableObject {
     @Published var plainBase: String { didSet { store("bridge.plainBase", plainBase) } }
     @Published var defaultCwd: String { didSet { store("bridge.cwd", defaultCwd) } }
     @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort) } }   // "", high, medium, low
+    /// "" = whatever grok picks on that computer.
+    @Published var defaultModel: String { didSet { store("bridge.model", defaultModel) } }
+    /// The connected computer's models, for the pickers. Nil until fetched, and on
+    /// bridges that predate the endpoint.
+    @Published var modelCatalog: GrokModelCatalog?
     @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
     @Published var defaultAutoApprove: Bool { didSet { UserDefaults.standard.set(defaultAutoApprove, forKey: "bridge.autoApprove") } }
     /// True after the user taps Disconnect — suppresses launch auto-reconnect until they
@@ -82,6 +87,7 @@ final class AppState: ObservableObject {
         token = d.string(forKey: "bridge.token") ?? Keychain.load() ?? ""
         defaultCwd = d.string(forKey: "bridge.cwd") ?? ""
         defaultEffort = d.string(forKey: "bridge.effort") ?? ""
+        defaultModel = d.string(forKey: "bridge.model") ?? ""
         defaultPlanMode = d.bool(forKey: "bridge.planMode")
         defaultAutoApprove = d.bool(forKey: "bridge.autoApprove")
         userDisconnected = d.bool(forKey: "bridge.userDisconnected")
@@ -196,6 +202,10 @@ final class AppState: ObservableObject {
     /// computer doesn't answer, the previous connection is put back — tapping a
     /// dead entry must not cost you the live one you were on.
     func switchTo(_ bridge: SavedBridge) async {
+        // One switch at a time. Tapping a slow computer and then another let both
+        // run: the first one's late health reply was saved against the second one's
+        // address, so a saved computer ended up holding another machine's token.
+        guard !switching else { return }
         guard let saved = Keychain.load(account: bridge.tokenAccount), !saved.isEmpty else {
             errorMessage = String(loc: "No saved token for \(bridge.name). Pair that computer again.")
             return
@@ -207,6 +217,7 @@ final class AppState: ObservableObject {
         connected = false
         health = nil
         sessions = []
+        modelCatalog = nil
         baseURLString = bridge.address
         pin = bridge.pin ?? ""
         plainBase = bridge.plainBase ?? ""   // each computer keeps its own fallback address
@@ -322,7 +333,15 @@ final class AppState: ObservableObject {
         rememberCurrentBridge()                                             // keep the paired-computer list current
         lastUsage = try? await live.usage()
         publishWidgetSnapshot()
-        if let t = pushToken { try? await live.registerDevice(t) }          // (re)register for push
+        Task { await loadModels() }
+        if let t = pushToken {                                              // (re)register for push
+            try? await live.registerDevice(t)
+            // The token usually arrives before the launch connect finishes, when
+            // registerDevice() can only store it. The other computers need it too, or
+            // after a reinstall they keep alerting a token that no longer exists.
+            let others = savedBridges.filter { $0.id != activeBridgeId }.compactMap { client(for: $0) }
+            Task.detached { for other in others { try? await other.registerDevice(t) } }
+        }
         if let t = laStartToken { try? await live.registerLiveActivity(kind: "start-token", token: t) }
         if !bootstrapping { Haptics.success() }   // confirm an explicit connect (not silent launch reconnect)
     }
@@ -434,6 +453,7 @@ final class AppState: ObservableObject {
         demoMode = true
         health = DemoData.health
         sessions = DemoData.sessions
+        modelCatalog = DemoData.models
         Haptics.tap()
     }
 
@@ -441,6 +461,7 @@ final class AppState: ObservableObject {
         demoMode = false
         health = nil
         sessions = []
+        modelCatalog = nil
     }
 
     /// `quiet` is for the list's background poll: a phone that walks out of Wi-Fi
@@ -448,8 +469,13 @@ final class AppState: ObservableObject {
     func reloadSessions(quiet: Bool = false) async {
         guard !demoMode else { return }
         guard let client else { return }
+        let bridgeAtStart = activeBridgeId, baseAtStart = normalizedBase
         do {
-            sessions = try await client.listSessions()
+            let list = try await client.listSessions()
+            // A poll that left before a computer switch must not land after it and
+            // put the previous computer's sessions back on screen.
+            guard !switching, activeBridgeId == bridgeAtStart, normalizedBase == baseAtStart else { return }
+            sessions = list
             publishWidgetSnapshot()
         }
         catch { if !quiet { errorMessage = friendly(error) } }
@@ -488,6 +514,7 @@ final class AppState: ObservableObject {
         guard let client else { return nil }
         do {
             let s = try await client.createSession(cwd: defaultCwd.isEmpty ? nil : defaultCwd,
+                                                   model: defaultModelIfOffered,
                                                    effort: defaultEffort.isEmpty ? nil : defaultEffort,
                                                    planMode: defaultPlanMode,
                                                    autoApprove: defaultAutoApprove)
@@ -657,6 +684,10 @@ final class AppState: ObservableObject {
             guard let other = client(for: bridge) else { continue }
             if (try? await other.enqueue(sessionId: sessionId, text: text, source: "reply")) != nil { return }
         }
+        // Nobody took it. The words only existed in the notification, so hand them
+        // back rather than letting them vanish.
+        errorMessage = String(loc: "Your reply did not reach your computer: \(text)")
+        PushManager.notifyUndelivered(text)
     }
 
     /// Tapping a notification should open its session — even when that session lives
@@ -668,6 +699,11 @@ final class AppState: ObservableObject {
         locatingSessionId = id
         defer { locatingSessionId = nil }
         guard !sessions.contains(where: { $0.id == id }) else { return }   // it's local after all
+        // The cached list can simply be stale: a session made from the share sheet or
+        // another device while polling was paused. Ask this computer again before
+        // concluding it lives on another one.
+        await reloadSessions(quiet: true)
+        guard !sessions.contains(where: { $0.id == id }) else { return }
         for bridge in savedBridges where bridge.id != activeBridgeId {
             guard let other = client(for: bridge),
                   let list = try? await other.listSessions(),
@@ -678,6 +714,32 @@ final class AppState: ObservableObject {
         // Nowhere to be found (deleted, or its computer is offline). Clear it so it
         // can't fire as a surprise navigation after some later manual switch.
         if pendingOpenSessionId == id { pendingOpenSessionId = nil }
+    }
+
+    /// Re-read the computer's health quietly: whether grok is signed in there changes
+    /// between connects, and the banner that says so should follow it.
+    func refreshHealth() async {
+        guard let client, connected, !switching, !demoMode else { return }
+        let bridgeAtStart = activeBridgeId
+        guard let h = try? await client.health(timeout: 8), activeBridgeId == bridgeAtStart else { return }
+        health = h
+    }
+
+    /// The connected computer's model list. Best-effort: an older bridge 404s, and the
+    /// pickers simply stay hidden.
+    func loadModels() async {
+        guard let client, !demoMode else { return }
+        let bridgeAtStart = activeBridgeId
+        guard let catalog = try? await client.models(), activeBridgeId == bridgeAtStart else { return }
+        modelCatalog = catalog.models.isEmpty ? nil : catalog
+    }
+
+    /// The default model, but only if this computer offers it. A model chosen while
+    /// paired to another machine would otherwise be sent to one that refuses it.
+    var defaultModelIfOffered: String? {
+        guard !defaultModel.isEmpty else { return nil }
+        guard let catalog = modelCatalog else { return nil }
+        return catalog.models.contains(where: { $0.id == defaultModel }) ? defaultModel : nil
     }
 
     /// Store the APNs token and push it to the bridge (if we're connected).
@@ -773,6 +835,7 @@ final class AppState: ObservableObject {
     /// Pair an additional computer without losing the current one: if the new
     /// credentials don't connect, the previous connection is restored.
     func addComputer(address: String, pairingToken: String, pin newPin: String = "") async -> Bool {
+        guard !switching else { return false }
         let prev = (base: baseURLString, pin: pin, plain: plainBase, token: token)
         switching = true               // keep the UI mounted while we probe
         defer { switching = false }

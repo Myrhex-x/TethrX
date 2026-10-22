@@ -6,7 +6,8 @@
 // a push when it finishes, an approval push if grok needs one.
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync } from "node:fs";
+import { writeAtomic } from "./sessions.mjs";
 
 export class ScheduleStore {
   constructor(persistPath) {
@@ -21,12 +22,16 @@ export class ScheduleStore {
       for (const s of JSON.parse(readFileSync(this._path, "utf8"))) {
         if (s && s.id) this._byId.set(s.id, s);
       }
-    } catch { /* ignore a corrupt file */ }
+    } catch (e) {
+      // Loading empty and saving over it was how one torn write erased every schedule.
+      console.error(`[schedules] unreadable schedules file: ${e.message}`);
+      try { renameSync(this._path, `${this._path}.corrupt`); } catch { /* best-effort */ }
+    }
   }
 
   save() {
     if (!this._path) return;
-    try { writeFileSync(this._path, JSON.stringify([...this._byId.values()], null, 2)); }
+    try { writeAtomic(this._path, JSON.stringify([...this._byId.values()], null, 2), 0o644); }
     catch { /* best-effort */ }
   }
 
@@ -59,7 +64,11 @@ export class ScheduleStore {
     if (!s) return null;
     const timing = () => `${s.hour}:${s.minute}:${s.weekdays}`;
     const was = timing();
-    if (typeof patch.enabled === "boolean") s.enabled = patch.enabled;
+    if (typeof patch.enabled === "boolean") {
+      // Switching one back on after its time has passed is not a missed run either.
+      if (patch.enabled && !s.enabled) s.retimedAt = Date.now();
+      s.enabled = patch.enabled;
+    }
     if (typeof patch.prompt === "string" && patch.prompt.trim()) s.prompt = patch.prompt.trim().slice(0, 4000);
     if (Number.isInteger(patch.hour) && patch.hour >= 0 && patch.hour <= 23) s.hour = patch.hour;
     if (Number.isInteger(patch.minute) && patch.minute >= 0 && patch.minute <= 59) s.minute = patch.minute;

@@ -38,6 +38,7 @@ struct SessionListView: View {
                     accountHeader
                     if app.demoMode { demoBanner }
                     if let err = app.errorMessage, !app.demoMode { errorBanner(err) }
+                    if app.health?.grokSignedIn == false, !app.demoMode { signedOutBanner }
                     if app.bridgeNeedsUpdate { updateBanner }
                     // What the app can do, then what you have been doing. Searching,
                     // starting and configuring all moved to the bar at the bottom,
@@ -150,6 +151,9 @@ struct SessionListView: View {
                 // the same bridge is just cellular data for nothing.
                 guard path.isEmpty, app.client != nil, !app.switching else { continue }
                 await app.reloadSessions(quiet: true)
+                // Signed out is the one health fact that changes under you, and the
+                // banner should clear once `grok login` has been run over there.
+                if app.health?.grokSignedIn == false { await app.refreshHealth() }
             }
         }
         // Backing out of a session that was created by the compose button and never
@@ -162,6 +166,9 @@ struct SessionListView: View {
         // The whole array, not just its count: switching to another computer can
         // land on the same number of sessions, which would swallow the deep-open.
         .onChange(of: app.sessions) { _, _ in openPending() }
+        // A chat left open across a computer switch kept its old view model, still
+        // streaming from the previous computer (which then held back its alerts).
+        .onChange(of: app.activeBridgeId) { _, _ in path = [] }
         // Debounced full-text search over conversation history (bridge-side).
         .task(id: query) {
             let q = query.trimmingCharacters(in: .whitespaces)
@@ -374,8 +381,7 @@ struct SessionListView: View {
         if #available(iOS 26.0, *) {
             EmptyView()
         } else {
-            LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg.opacity(0.92), Grok.bg],
-                           startPoint: .top, endPoint: .bottom)
+            Grok.bg.fade([0, 0.92, 1])
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
         }
@@ -417,7 +423,7 @@ struct SessionListView: View {
         Button { Haptics.tap(); action() } label: {
             Group {
                 if busy {
-                    ProgressView().controlSize(.small).tint(.white)
+                    ProgressView().controlSize(.small).tint(Grok.ink)
                 } else {
                     Image(systemName: system)
                         .font(.system(size: 17, weight: .medium))
@@ -476,12 +482,49 @@ struct SessionListView: View {
         }
     }
 
+    // MARK: Grok signed out
+
+    /// Every turn fails while grok is signed out on the computer, and the failure used
+    /// to arrive one message at a time, inside whichever chat you happened to be in.
+    private var signedOutBanner: some View {
+        banner(alarming: true) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Grok is signed out on \(computerName)")
+                    .font(Grok.sans(15, .semibold)).foregroundStyle(Grok.text)
+                Text("Messages sent from here will fail until you sign in again. On that computer, run this in a terminal:")
+                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Text(verbatim: "grok login")
+                        .font(Grok.mono(14, .medium)).foregroundStyle(Grok.text)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Grok.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                    Button {
+                        UIPasteboard.general.string = "grok login"
+                        Haptics.success()
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc").chip(on: false)
+                    }
+                    .buttonStyle(.plain)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var computerName: String {
+        let host = (app.health?.host ?? "")
+            .replacingOccurrences(of: ".local", with: "")
+            .replacingOccurrences(of: ".home", with: "")
+        return host.isEmpty ? String(loc: "the paired computer") : host
+    }
+
     // MARK: Demo banner
 
     private var demoBanner: some View {
         banner {
             HStack(spacing: 10) {
-                Text("Tour").font(Grok.sans(12, .semibold)).foregroundStyle(.black)
+                Text("Tour").font(Grok.sans(12, .semibold)).foregroundStyle(Grok.onInk)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Grok.accent).clipShape(Capsule())
                 Text("Sample data: nothing is connected.")
@@ -630,7 +673,7 @@ struct SessionListView: View {
         VStack(alignment: .leading, spacing: 0) {
             if app.switching || (app.connecting && app.sessions.isEmpty) {
                 HStack(spacing: 10) {
-                    ProgressView().controlSize(.small).tint(.white)
+                    ProgressView().controlSize(.small).tint(Grok.ink)
                     Text("Loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -960,14 +1003,14 @@ struct InlineAnswer: View {
                     if risk?.level == .destructive { confirmDestructive = true } else { answer(true) }
                 } label: {
                     HStack(spacing: 6) {
-                        if working { ProgressView().controlSize(.mini).tint(.black) }
+                        if working { ProgressView().controlSize(.mini).tint(Grok.onInk) }
                         // Half a card each, and "Genehmigen & umsetzen" does not fit in
                         // half a card at large text sizes. Same floor PillButton uses.
                         (isPlan ? Text("Approve & build") : Text("Approve"))
                             .lineLimit(1).minimumScaleFactor(0.75)
                     }
                     .font(Grok.sans(13, .semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Grok.onInk)
                     .frame(maxWidth: .infinity).padding(.vertical, 9)
                     .background(Grok.accent, in: Capsule())
                 }

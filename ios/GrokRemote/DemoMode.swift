@@ -149,9 +149,14 @@ enum DemoData {
         @AppStorage("darkMode") private var darkMode = false
         ```
 
-        The scheme is applied at the root view, so every screen follows it. The build passes.
+        ### What changed
+        - `SettingsView.swift` gains the toggle, stored with `@AppStorage`
+        - The root view applies the scheme, so every screen follows it
+        - No new dependencies
+
+        The build passes.
         """))
-        items.append(ChatItem(role: .status, text: "· end_turn ·"))
+        items.append(ChatItem(role: .status, text: String(loc: "Done in \("48s")")))
         return items
     }
 
@@ -226,6 +231,16 @@ enum DemoData {
         default:                   return nil
         }
     }
+
+    /// The tour's model catalog, so the model chip is part of the tour too.
+    static let models = GrokModelCatalog(
+        models: [
+            GrokModel(id: "grok-4.7-build", contextTokens: 500_000, efforts: ["xhigh", "high", "medium", "low"], defaultEffort: "high"),
+            GrokModel(id: "grok-4.6", contextTokens: 500_000, efforts: ["xhigh", "high", "medium", "low"], defaultEffort: "high"),
+            GrokModel(id: "grok-4.5", contextTokens: 256_000, efforts: ["high", "medium", "low"], defaultEffort: "high"),
+        ],
+        current: "grok-4.7-build",
+        defaultModel: nil)
 
     /// What "grok" says when you send a message inside the tour.
     static let cannedReply = """

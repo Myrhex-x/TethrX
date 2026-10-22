@@ -50,7 +50,7 @@ struct UsageHistorySheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .task { await load() }
     }
 

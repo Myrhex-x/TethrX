@@ -22,6 +22,32 @@ struct HealthInfo: Codable {
     var version: String?       // the bridge's own version
     var latestVersion: String? // newest on npm (checked at most daily; nil offline)
     var tls: TlsInfo?
+    /// Bridge 0.1.24+: false once a turn has found grok signed out on that computer,
+    /// nil while nothing has asked yet (and on older bridges).
+    var grokSignedIn: Bool? = nil
+}
+
+/// One model grok offers on the computer, as its own handshake reports it.
+struct GrokModel: Codable, Identifiable, Hashable {
+    let id: String
+    var name: String?
+    var contextTokens: Int?
+    var efforts: [String]?
+    var defaultEffort: String?
+
+    /// "grok-4.7-build" reads as "4.7 build" in a chip; the full id stays in menus.
+    var shortName: String {
+        let base = (name?.isEmpty == false ? name! : id)
+        let trimmed = base.hasPrefix("grok-") ? String(base.dropFirst(5)) : base
+        return trimmed.replacingOccurrences(of: "-", with: " ")
+    }
+}
+
+/// What `GET /api/grok/models` returns.
+struct GrokModelCatalog: Codable {
+    var models: [GrokModel]
+    var current: String?
+    var defaultModel: String?
 }
 
 /// A paired computer. Its pairing token lives in the Keychain, keyed by `id`,
@@ -160,7 +186,7 @@ struct SessionInfo: Codable, Identifiable, Hashable {
         let named = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !named.isEmpty, named != "New session" { return named }
         if let cwd, !cwd.isEmpty { return (cwd as NSString).lastPathComponent }
-        return "session"
+        return String(loc: "New session")
     }
 }
 
@@ -264,6 +290,17 @@ enum Fmt {
         return String(format: "%.1fs", s)
     }
 
+    /// How long something took: 42s, 3m 12s, 14m, 1h 5m.
+    static func span(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        if total < 60 { return "\(total)s" }
+        let minutes = total / 60
+        if minutes < 10 { return "\(minutes)m \(total % 60)s" }
+        if minutes < 60 { return "\(minutes)m" }
+        let rest = minutes % 60
+        return rest == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(rest)m"
+    }
+
     /// How long ago something happened, for a row that is not doing anything now:
     /// just now, 12m ago, 3h ago, 2d ago.
     static func ago(_ date: Date, now: Date = Date()) -> String {
@@ -306,6 +343,8 @@ enum Fmt {
 /// How a rendered conversation line should look.
 enum ChatRole: Equatable {
     case user, assistant, thought, tool, status, error, permission, plan, tasks
+    /// grok's own recap of the conversation so far ("while you were away").
+    case recap
 }
 
 /// One option grok offers for a permission request (e.g. "Yes, proceed" / "No…").

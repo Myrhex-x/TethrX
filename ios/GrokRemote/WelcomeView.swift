@@ -173,7 +173,7 @@ struct WelcomeView: View {
             } label: {
                 HStack(spacing: 9) {
                     if app.connecting {
-                        ProgressView().controlSize(.small).tint(.white)
+                        ProgressView().controlSize(.small).tint(Grok.ink)
                     } else {
                         Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
                     }

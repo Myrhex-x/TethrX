@@ -202,7 +202,7 @@ struct PairingView: View {
 
                 Button { focus = nil; Task { await app.connect() } } label: {
                     HStack(spacing: 10) {
-                        if app.connecting { ProgressView().controlSize(.small).tint(.white) }
+                        if app.connecting { ProgressView().controlSize(.small).tint(Grok.ink) }
                         (app.connecting ? Text("Connecting…") : Text("Connect"))
                     }
                 }

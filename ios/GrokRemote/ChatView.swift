@@ -50,8 +50,9 @@ struct ChatView: View {
     @State private var scrollTarget: UUID?
     @FocusState private var findFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(ReadingSize.storageKey) private var readingRaw = ReadingSize.fallback.rawValue
 
-    private var name: String { vm.session.displayName }
+    private var name: String { vm.sessionName }
 
     var body: some View {
         ZStack {
@@ -216,7 +217,7 @@ struct ChatView: View {
                     .layoutPriority(1)
             }
             if vm.mode == "plan" {
-                Text("Plan").font(Grok.sans(12, .semibold)).foregroundStyle(.black)
+                Text("Plan").font(Grok.sans(12, .semibold)).foregroundStyle(Grok.onInk)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(Grok.accent).clipShape(Capsule())
                     .layoutPriority(1)
@@ -357,6 +358,7 @@ struct ChatView: View {
                             }
                         }
                         if showTyping { TypingIndicator().id("typing") }
+                        if let retry = vm.retry { RetryLine(retry: retry).id("retry") }
                         Color.clear.frame(height: 1).id(bottomID)
                             .background(GeometryReader { g in
                                 Color.clear.preference(key: BottomOffsetKey.self,
@@ -364,7 +366,12 @@ struct ChatView: View {
                             })
                     }
                     .padding(.horizontal, Grok.gutter).padding(.vertical, 18)
+                    // A reading measure on iPad and in landscape: a reply set the full
+                    // width of a 13" screen is a line the eye cannot track back from.
+                    .frame(maxWidth: 760)
+                    .frame(maxWidth: .infinity)
                 }
+                .environment(\.readingScale, (ReadingSize(rawValue: readingRaw) ?? .fallback).scale)
                 .coordinateSpace(name: "transcript")
                 .defaultScrollAnchor(.bottom)
                 .scrollIndicators(.hidden)
@@ -413,7 +420,7 @@ struct ChatView: View {
     private var blankSession: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer(minLength: 24)
-            TethrXMark(size: 44, color: .white.opacity(0.12))
+            TethrXMark(size: 44, color: Grok.ink.opacity(0.12))
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 30)
             ListSectionLabel("Start with").padding(.bottom, 2)
@@ -471,7 +478,7 @@ struct ChatView: View {
                 Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold))
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.black)
+            .foregroundStyle(Grok.onInk)
             .padding(.horizontal, 14).padding(.vertical, 11)
             .background(Grok.accent, in: Capsule())
             .contentShape(Capsule())
@@ -518,10 +525,7 @@ struct ChatView: View {
             composerCard
                 .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 10)
         }
-        .background(
-            LinearGradient(colors: [Grok.bg.opacity(0), Grok.bg, Grok.bg],
-                           startPoint: .top, endPoint: .bottom)
-        )
+        .background(Grok.bg.fade([0, 1, 1]))
         // The recogniser reports the whole utterance each time it revises, so
         // mirroring it into the draft unconditionally undid every edit made while the
         // mic was live. The draft is the source of truth: dictation writes into it,
@@ -586,7 +590,7 @@ struct ChatView: View {
         .floatingGlass(in: RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous),
                        interactive: false)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
-            .stroke(dictation.isRecording ? Color.white.opacity(0.4) : .clear, lineWidth: 1))
+            .stroke(dictation.isRecording ? Grok.ink.opacity(0.4) : .clear, lineWidth: 1))
     }
 
     /// The `+`: one affordance for everything that can ride along with a message.
@@ -607,7 +611,7 @@ struct ChatView: View {
                     } else {
                         Image(systemName: "plus")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(loaded ? Color.black : Grok.textDim)
+                            .foregroundStyle(loaded ? Grok.onInk : Grok.textDim)
                     }
                 }
                 .roundControl(on: loaded)
@@ -635,7 +639,7 @@ struct ChatView: View {
                     }
                     Image(systemName: dictation.isRecording ? "waveform" : "mic")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(dictation.isRecording ? .black : Grok.textDim)
+                        .foregroundStyle(dictation.isRecording ? Grok.onInk : Grok.textDim)
                         .symbolEffect(.variableColor.iterative, isActive: dictation.isRecording)
                 }
                 .roundControl(on: dictation.isRecording)
@@ -917,6 +921,25 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
 
+                // Which model, when the computer offers a choice. grok picks one itself
+                // when none is set, and that stays the first option.
+                if let catalog = AppState.shared.modelCatalog, catalog.models.count > 1 || !vm.model.isEmpty {
+                    Menu {
+                        Button { Task { await vm.setConfig(model: "") } } label: {
+                            if vm.model.isEmpty { Label("Grok's default", systemImage: "checkmark") } else { Text("Grok's default") }
+                        }
+                        ForEach(catalog.models) { m in
+                            Button { Task { await vm.setConfig(model: m.id) } } label: {
+                                if vm.model == m.id { Label(m.id, systemImage: "checkmark") } else { Text(verbatim: m.id) }
+                            }
+                        }
+                    } label: {
+                        Label { modelChipTitle(catalog) } icon: { Image(systemName: "cpu") }
+                            .chip(on: !vm.model.isEmpty)
+                    }
+                    .accessibilityLabel(Text("Model"))
+                }
+
                 Menu {
                     ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
                         Button(pair.0) { Task { await vm.setConfig(effort: pair.1) } }
@@ -1087,18 +1110,40 @@ struct ChatView: View {
     /// an "Auto" option mapped to the empty string, which only meant the bridge omitted
     /// the flag: grok then ran high anyway, so anyone choosing Auto believing grok would
     /// adapt was silently on the slowest and most expensive setting every turn.
-    private var efforts: [(LocalizedStringKey, String)] { [("High", "high"), ("Medium", "medium"), ("Low", "low")] }
+    ///
+    /// Newer grok says per model which efforts it takes (some add Extra high), so the
+    /// menu follows the model when the computer has reported its catalog.
+    private var efforts: [(LocalizedStringKey, String)] {
+        let fallback: [(LocalizedStringKey, String)] = [("High", "high"), ("Medium", "medium"), ("Low", "low")]
+        guard let catalog = AppState.shared.modelCatalog else { return fallback }
+        let id = vm.model.isEmpty ? (catalog.current ?? "") : vm.model
+        guard let offered = catalog.models.first(where: { $0.id == id })?.efforts, !offered.isEmpty else { return fallback }
+        let order = ["xhigh", "high", "medium", "low", "minimal"]
+        return offered.sorted { (order.firstIndex(of: $0) ?? 9) < (order.firstIndex(of: $1) ?? 9) }
+            .map { (Self.effortName($0), $0) }
+    }
+
+    static func effortName(_ value: String) -> LocalizedStringKey {
+        switch value {
+        case "xhigh":   return "Extra high"
+        case "medium":  return "Medium"
+        case "low":     return "Low"
+        case "minimal": return "Minimal"
+        default:        return "High"
+        }
+    }
+
+    /// The model chip's words: the model's short name, or "Model" when grok chooses.
+    private func modelChipTitle(_ catalog: GrokModelCatalog) -> Text {
+        guard !vm.model.isEmpty else { return Text("Model") }
+        let m = catalog.models.first(where: { $0.id == vm.model })
+        return Text(verbatim: m?.shortName ?? vm.model)
+    }
     /// Sessions stored before that fix carry "", which is high.
     private var effectiveEffort: String { vm.effort.isEmpty ? "high" : vm.effort }
     /// `.capitalized` would render the raw wire value, so the chip read "High" in every
     /// language. Map it back to the same keys the menu uses.
-    private var effortLabel: LocalizedStringKey {
-        switch effectiveEffort {
-        case "medium": return "Medium"
-        case "low":    return "Low"
-        default:       return "High"
-        }
-    }
+    private var effortLabel: LocalizedStringKey { Self.effortName(effectiveEffort) }
 
     /// One word. The menu behind the chip spells the policy out in full; the chip
     /// only has to say which of the three you are on, and "Auto-approve" became
@@ -1242,6 +1287,7 @@ struct ThoughtTrace: View {
     let item: ChatItem
     var highlight: String = ""
     @State private var expanded = true
+    @Environment(\.readingScale) private var readingScale
 
     private var live: Bool { item.endedAt == nil }
     /// Tall enough for four or five lines. Beyond that a live trace is scrollback,
@@ -1306,9 +1352,9 @@ struct ThoughtTrace: View {
 
     private var trace: some View {
         Text(ChatBubble.marking(AttributedString(item.text), query: highlight))
-            .font(Grok.sans(15))
+            .font(Grok.sans(15 * readingScale))
             .foregroundStyle(Grok.textDim)
-            .lineSpacing(5)
+            .lineSpacing(ReadingSize.lineSpacing(for: 15 * readingScale))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1379,6 +1425,7 @@ struct ChatBubble: View {
     /// Non-empty while the find bar is open: every occurrence is marked in place, so
     /// a match is visible where it sits rather than only counted in the toolbar.
     var highlight: String = ""
+    @Environment(\.readingScale) private var readingScale
 
     /// Grok emits Markdown (**bold**, `code`, links). Render inline markdown while
     /// keeping line breaks; fall back to plain text on partial/streaming input.
@@ -1397,7 +1444,7 @@ struct ChatBubble: View {
         var cursor = out.startIndex
         while cursor < out.endIndex,
               let found = out[cursor...].range(of: needle, options: [.caseInsensitive]) {
-            out[found].backgroundColor = Color.white.opacity(0.22)
+            out[found].backgroundColor = Grok.ink.opacity(0.22)
             out[found].foregroundColor = Grok.text
             cursor = found.upperBound
         }
@@ -1479,11 +1526,11 @@ struct ChatBubble: View {
                     }
                     if !item.text.isEmpty {
                         Text(marked(item.text))
-                            .font(Grok.body())
+                            .font(Grok.sans(17 * readingScale))
                             .foregroundStyle(Grok.text)
-                            .lineSpacing(2)
+                            .lineSpacing(ReadingSize.lineSpacing(for: 17 * readingScale) - 2)
                             .padding(.horizontal, 16).padding(.vertical, 11)
-                            .background(Color.white.opacity(0.12))
+                            .background(Grok.ink.opacity(0.10))
                             .clipShape(RoundedRectangle(cornerRadius: Grok.R.bubble, style: .continuous))
                     }
                 }
@@ -1498,12 +1545,7 @@ struct ChatBubble: View {
                     if seg.isCode {
                         CodeBlock(code: seg.text, language: seg.language)
                     } else {
-                        Text(Self.marking(Self.markdown(seg.text), query: highlight))
-                            .font(Grok.body())
-                            .foregroundStyle(Grok.text)
-                            .lineSpacing(5)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        MarkdownBlocksView(text: seg.text, highlight: highlight)
                     }
                 }
             }
@@ -1518,12 +1560,29 @@ struct ChatBubble: View {
         case .permission, .plan, .tasks:
             EmptyView()   // rendered by PermissionCard / PlanCard / TaskListCard above
 
+        case .recap:
+            // grok's own summary of where things stand, for someone coming back to it.
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Recap", systemImage: "text.alignleft")
+                    .font(Grok.sans(13, .semibold)).foregroundStyle(Grok.textDim)
+                MarkdownBlocksView(text: item.text, highlight: highlight)
+            }
+            .padding(Grok.pad)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Grok.raised, in: RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+
         case .status:
-            Text(item.text)
-                .font(Grok.sans(12))
-                .foregroundStyle(Grok.textFaint)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 2)
+            // A quiet rule between turns, with what happened written into it.
+            HStack(spacing: 10) {
+                Rectangle().fill(Grok.rule).frame(height: 1)
+                Text(item.text)
+                    .font(Grok.sans(12, .medium))
+                    .foregroundStyle(Grok.textFaint)
+                    .lineLimit(1)
+                    .fixedSize()
+                Rectangle().fill(Grok.rule).frame(height: 1)
+            }
+            .padding(.vertical, 4)
 
         case .error:
             HStack(alignment: .top, spacing: 10) {
@@ -1537,6 +1596,37 @@ struct ChatBubble: View {
             .background(Grok.danger.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
         }
+    }
+}
+
+/// grok's model call failed and it is trying again. A long backoff with nothing on
+/// screen looked exactly like a hang.
+struct RetryLine: View {
+    let retry: ChatViewModel.RetryState
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Grok.textDim)
+                .symbolEffect(.pulse)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                if let attempt = retry.attempt, let max = retry.max {
+                    Text("The model didn't answer. Retrying, attempt \(attempt) of \(max).")
+                } else {
+                    Text("The model didn't answer. Retrying.")
+                }
+                if !retry.reason.isEmpty {
+                    Text(verbatim: retry.reason)
+                        .font(Grok.sans(12)).foregroundStyle(Grok.textFaint)
+                        .lineLimit(2)
+                }
+            }
+            .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1805,7 +1895,7 @@ struct DiffRowView: View {
     }
     private var background: Color {
         switch row.kind {
-        case .added: return Color.white.opacity(0.06)
+        case .added: return Grok.ink.opacity(0.06)
         case .removed: return Grok.danger.opacity(0.10)
         default: return .clear
         }
@@ -1845,7 +1935,7 @@ struct DiffRowView: View {
                 let lower = characters.index(characters.startIndex, offsetBy: low)
                 let upper = characters.index(characters.startIndex, offsetBy: high)
                 attributed[lower..<upper].backgroundColor = row.kind == .removed
-                    ? Grok.danger.opacity(0.28) : Color.white.opacity(0.18)
+                    ? Grok.danger.opacity(0.28) : Grok.ink.opacity(0.18)
             }
         }
         return attributed
@@ -1961,7 +2051,7 @@ struct PermissionCard: View {
             }
             // How long it has been blocked. A card that has been waiting four seconds
             // and one that has been waiting forty minutes look identical otherwise.
-            ElapsedLabel(since: item.startedAt)
+            ElapsedLabel(since: item.decided == nil ? item.startedAt : nil)
             Spacer(minLength: 8)
             if let risk {
                 HStack(spacing: 5) {
@@ -1972,7 +2062,7 @@ struct PermissionCard: View {
                 }
                 .foregroundStyle(risk.level == .destructive ? Grok.danger : Grok.textDim)
                 .padding(.horizontal, 8).padding(.vertical, 4)
-                .background((risk.level == .destructive ? Grok.danger : Color.white).opacity(0.12))
+                .background((risk.level == .destructive ? Grok.danger : Grok.ink).opacity(0.12))
                 .clipShape(Capsule())
                 .accessibilityElement(children: .combine)
             }
@@ -2145,7 +2235,7 @@ struct SessionDetailsSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .sheet(item: $shareURL) { file in
             ActivityShareSheet(url: file.url)
         }
@@ -2187,10 +2277,10 @@ struct SessionDetailsSheet: View {
                     .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
             }
 
-            if session.turnCount > 0, !vm.busy, !vm.isDemo {
+            if vm.turnCount > 0, !vm.busy, !vm.isDemo {
                 Button { confirmCompact = true } label: {
                     HStack(spacing: 10) {
-                        if compacting { ProgressView().controlSize(.small).tint(.white) }
+                        if compacting { ProgressView().controlSize(.small).tint(Grok.ink) }
                         Label(compacting ? "Compacting…" : "Compact into a fresh session",
                               systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -2207,7 +2297,7 @@ struct SessionDetailsSheet: View {
             if !vm.busy, !vm.isDemo {
                 Button { confirmBranch = true } label: {
                     HStack(spacing: 10) {
-                        if branching { ProgressView().controlSize(.small).tint(.white) }
+                        if branching { ProgressView().controlSize(.small).tint(Grok.ink) }
                         Label(branching ? "Branching…" : "Branch this session",
                               systemImage: "arrow.triangle.branch")
                     }
@@ -2254,7 +2344,7 @@ struct SessionDetailsSheet: View {
         } message: {
             // Worth saying plainly: an empty session costs nothing to branch, one with
             // history costs a summary turn.
-            Text(session.turnCount > 0
+            Text(vm.turnCount > 0
                  ? "Grok will summarize this conversation (uses some tokens) so the new session starts with the same context. This session keeps running as it is."
                  : "A second session opens with the same folder and settings.")
         }
@@ -2406,6 +2496,8 @@ enum TranscriptExporter {
                 md += "*Permission: \(item.text) → \(item.decided ?? "pending")*\n\n"
             case .plan:
                 md += "**Plan:**\n\n\(item.text)\n\n*(\(item.decided ?? "pending"))*\n\n"
+            case .recap:
+                md += "**Recap:**\n\n\(item.text)\n\n"
             case .tasks:
                 md += "**Checklist** (\(item.planEntries.completedCount)/\(item.planEntries.count)):\n\n"
                 for entry in item.planEntries {
@@ -2434,7 +2526,7 @@ struct UsageBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.10))
+                Capsule().fill(Grok.ink.opacity(0.10))
                 Capsule().fill(fraction > 0.85 ? Grok.danger : Grok.accent)
                     .frame(width: max(3, geo.size.width * min(1, max(0, fraction))))
             }

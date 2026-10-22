@@ -31,7 +31,7 @@ struct GitReviewSheet: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if loading {
                         HStack(spacing: 10) {
-                            ProgressView().controlSize(.small).tint(.white)
+                            ProgressView().controlSize(.small).tint(Grok.ink)
                             Text("reading git…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
                         }
                         .accessibilityElement(children: .combine)
@@ -86,7 +86,7 @@ struct GitReviewSheet: View {
                 GitDiffScreen(client: client, sessionId: session.id, file: file, dir: dir)
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .task { await load() }
         .alert("Discard all changes?", isPresented: $confirmDiscard) {
             Button("Discard", role: .destructive) { Task { await discard() } }
@@ -198,7 +198,7 @@ struct GitReviewSheet: View {
             }
             Button { Task { await commit() } } label: {
                 HStack(spacing: 10) {
-                    if working { ProgressView().controlSize(.small).tint(.white) }
+                    if working { ProgressView().controlSize(.small).tint(Grok.ink) }
                     (working ? Text("Committing…") : Text("Commit all"))
                 }
             }
@@ -278,7 +278,7 @@ struct GitDiffScreen: View {
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
             if loading {
-                ProgressView().controlSize(.small).tint(.white).padding(20)
+                ProgressView().controlSize(.small).tint(Grok.ink).padding(20)
                     .accessibilityLabel(Text("Loading diff"))
             } else if failed {
                 Text("Couldn't load the diff. Check the connection and try again.")
@@ -368,7 +368,7 @@ struct GitDiffScreen: View {
 
     private func background(for line: String) -> Color {
         if line.hasPrefix("+++") || line.hasPrefix("---") { return .clear }
-        if line.hasPrefix("+") { return Color.white.opacity(0.06) }
+        if line.hasPrefix("+") { return Grok.ink.opacity(0.06) }
         if line.hasPrefix("-") { return Grok.danger.opacity(0.10) }
         return .clear
     }

@@ -204,8 +204,16 @@ final class Dictation: ObservableObject {
 
     /// Start (or restart) one recognition request. The tap keeps feeding whichever
     /// request is currently in the box.
+    /// Which segment is current. Cancelling a recognition task makes it call back
+    /// once more with a "canceled" error, and that late callback from the segment
+    /// being replaced used to read as a real failure and end dictation: typing into
+    /// the draft (or changing language) mid-dictation switched the mic off.
+    private var segment = 0
+
     private func openSegment() {
         guard let recognizer else { return }
+        segment += 1
+        let mine = segment
         task?.cancel()
         task = nil
 
@@ -221,7 +229,7 @@ final class Dictation: ObservableObject {
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             Task { @MainActor in
-                guard let self, self.isRecording else { return }
+                guard let self, self.isRecording, self.segment == mine else { return }
                 if let result {
                     self.spoken = result.bestTranscription.formattedString
                     self.transcript = self.combined

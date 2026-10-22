@@ -29,8 +29,8 @@ struct TethrXApp: App {
             // newly chosen .lproj instead of waiting for the next relaunch.
             .environment(\.locale, language.locale)
             .id(language.code)
-            .tint(.white)                          // outline-pill language: white, not a color accent
-            .preferredColorScheme(.dark)
+            .tint(Grok.ink)                          // outline-pill language: white, not a color accent
+            .grokScheme()
             // Fonts scale with Dynamic Type (see Grok.mono/sans); cap the growth
             // so the densest layouts survive the largest accessibility sizes.
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
@@ -48,7 +48,7 @@ struct TethrXApp: App {
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .background: lock.lockIfEnabled()   // also hides content in the app switcher
-                case .active: lock.authenticate()
+                case .active: lock.authenticate(automatic: true)
                 default: break
                 }
             }
@@ -167,7 +167,7 @@ struct SplitRootView: View {
                 ZStack {
                     Grok.bg.ignoresSafeArea()
                     VStack(spacing: 14) {
-                        TethrXMark(size: 34, color: .white.opacity(0.25))
+                        TethrXMark(size: 34, color: Grok.ink.opacity(0.25))
                         Text("Pick a session").font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
                     }
                 }
@@ -180,6 +180,9 @@ struct SplitRootView: View {
         }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
         .onChange(of: app.sessions) { _, _ in openPending() }
+        // The detail column belongs to the computer it was opened on. Left in place
+        // across a switch it kept streaming from the old one through the old client.
+        .onChange(of: app.activeBridgeId) { _, _ in selected = nil }
         .task { openPending() }
     }
 
@@ -205,7 +208,7 @@ struct ReconnectSplash: View {
         VStack(spacing: 18) {
             TethrXMark(size: 44)
             HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(.white)
+                ProgressView().controlSize(.small).tint(Grok.ink)
                 Text("Reconnecting…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
             }
             .accessibilityElement(children: .combine)

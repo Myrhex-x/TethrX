@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, symlinkSync,
-  lstatSync, copyFileSync, renameSync,
+  lstatSync, statSync, copyFileSync, renameSync,
 } from "node:fs";
 
 const REAL_GROK = join(homedir(), ".grok");
@@ -58,6 +58,13 @@ function promoteRefreshedState(dotgrok) {
     if (!isRealFile(mirrored)) continue;               // still a symlink => nothing refreshed
     const real = join(REAL_GROK, name);
     try {
+      // Newest wins. If the user has since signed in again from their own terminal,
+      // the real file is the fresh credential and the mirrored one is the spent
+      // leftover: drop ours and re-link, rather than overwrite a good login with it.
+      if (isRealFile(real) && statSync(real).mtimeMs > statSync(mirrored).mtimeMs) {
+        rmSync(mirrored, { force: true });
+        continue;
+      }
       // Only promote a file that is actually a usable credential. If grok was killed
       // (or the disk filled) mid-rewrite, the mirrored copy can be truncated or empty —
       // copying that over the real one destroys the only working credential, because
@@ -76,14 +83,21 @@ function promoteRefreshedState(dotgrok) {
   }
 }
 
-export function ensureAskGrokHome(stateDir) {
+/**
+ * Called before every grok spawn, not only at boot. Grok removes `auth.json` when its
+ * refresh is refused, and rewrites it as a real file when a refresh succeeds; a
+ * mirror only repaired at startup stayed signed out (or out of step with the terminal)
+ * until the bridge happened to restart. `promote: false` only re-links what is missing,
+ * for when another grok process may be mid-refresh in the same directory.
+ */
+export function ensureAskGrokHome(stateDir, { promote = true } = {}) {
   if (!existsSync(REAL_GROK)) return null;
   const home = join(stateDir, "grok-home");
   const dotgrok = join(home, ".grok");
   mkdirSync(dotgrok, { recursive: true });
 
   // NEVER rm -rf this directory: grok may have refreshed credentials into it.
-  promoteRefreshedState(dotgrok);
+  if (promote) promoteRefreshedState(dotgrok);
 
   for (const entry of readdirSync(REAL_GROK)) {
     if (entry === "config.toml") continue;             // we provide our own
@@ -134,6 +148,8 @@ export class AcpSession {
     this.capabilities = null;        // initialize.agentCapabilities — the gate for anything version-specific
     this.agentVersion = null;        // initialize._meta.agentVersion, e.g. "1.0.0"
     this.availableCommands = [];     // grok's slash commands (/compact, /context, skills…)
+    this.availableModels = null;     // [{ id, contextTokens, efforts, defaultEffort }] from initialize
+    this.configOptions = null;       // session/new|load configOptions (model, reasoning_effort)
     this.lastActivity = Date.now();
     this._nextId = 1;
     this._pending = new Map();       // our request id -> {resolve, reject}
@@ -152,7 +168,12 @@ export class AcpSession {
   /** Stable, process-unique id for a grok JSON-RPC request awaiting our answer. */
   _tag(id) { return `${this._nonce}.${id}`; }
 
-  async start() {
+  /** Spawn and handshake, with no conversation: enough to read the model catalog. */
+  async startInitializeOnly() {
+    await this._spawnAndInitialize();
+  }
+
+  async _spawnAndInitialize() {
     // `-m` and `--reasoning-effort` are options of `grok agent`, not of the `stdio`
     // subcommand — they must precede `stdio` or grok exits with "unexpected argument".
     const args = ["agent"];
@@ -168,6 +189,10 @@ export class AcpSession {
 
     this.proc = spawn(this.grokBin, args, { cwd: this.cwd, stdio: ["pipe", "pipe", "pipe"], env });
     this.proc.stderr.on("data", (d) => console.error("[grok stderr] " + d.toString().trimEnd())); // drain + surface
+    // A grok that closes its stdin while still alive turns the next write into an EPIPE
+    // 'error' event, and an unhandled one takes the whole bridge down with it. `running`
+    // already goes false once stdin is not writable; this only keeps the daemon alive.
+    this.proc.stdin.on("error", (e) => console.error(`[acp] grok stdin: ${e.code || e.message}`));
     this.rl = createInterface({ input: this.proc.stdout });
     this.rl.on("line", (line) => this._onLine(line));
     this.proc.on("close", () => {
@@ -194,6 +219,7 @@ export class AcpSession {
       const cur = ms?.availableModels?.find((m) => m.modelId === ms?.currentModelId) || ms?.availableModels?.[0];
       this.contextWindow = cur?._meta?.totalContextTokens || this.contextWindow;
       this.currentModelId = ms?.currentModelId || this.currentModelId;
+      this._adoptModels(ms);
     } catch { /* usage meter is best-effort */ }
     // Everything version-specific gates on these rather than on a version string.
     this.capabilities = init?.agentCapabilities || null;
@@ -202,6 +228,10 @@ export class AcpSession {
     // send it later via available_commands_update.
     const atInit = init?._meta?.availableCommands;
     if (Array.isArray(atInit) && atInit.length) this._adoptCommands(atInit);
+  }
+
+  async start() {
+    await this._spawnAndInitialize();
 
     // Resume prior context if we have a grok sessionId; otherwise start fresh.
     if (this.resumeSessionId) {
@@ -213,14 +243,16 @@ export class AcpSession {
         // time the process was recreated — after idle reaping, a crash, or a restart.
         // Grok still gets its context; only the echo to our clients is suppressed.
         this._replaying = true;
-        await this._request("session/load", { sessionId: this.resumeSessionId, cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
+        const loaded = await this._request("session/load", { sessionId: this.resumeSessionId, cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
         this.grokSessionId = this.resumeSessionId;
+        this._adoptConfigOptions(loaded?.configOptions);
       } catch (e) {
         // Falling back to a fresh session silently DISCARDS the user's context, so say
         // so rather than letting the transcript quietly restart with no explanation.
         console.error(`[acp] could not resume grok session ${this.resumeSessionId}: ${e.message}`);
         const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
         this.grokSessionId = res?.sessionId;
+        this._adoptConfigOptions(res?.configOptions);
         this.onEvent({ kind: "log", level: "warn", message: "Could not restore this session's context in Grok; continuing with a fresh one." });
       } finally {
         this._replaying = false;
@@ -228,12 +260,66 @@ export class AcpSession {
     } else {
       const res = await this._request("session/new", { cwd: this.cwd, mcpServers: [] }, HANDSHAKE_TIMEOUT);
       this.grokSessionId = res?.sessionId;
+      this._adoptConfigOptions(res?.configOptions);
     }
 
     if (this.planMode) {
       try { await this._request("session/set_mode", { sessionId: this.grokSessionId, modeId: "plan" }, 30000); } catch { /* mode optional */ }
     }
     return this.grokSessionId;
+  }
+
+  /**
+   * The models grok offers, from initialize's `_meta.modelState`. Each carries its
+   * context size and the reasoning efforts it accepts, which is everything a picker
+   * on the phone needs. Signed out, grok reports its built-in fallback list instead.
+   */
+  _adoptModels(modelState) {
+    const list = modelState?.availableModels;
+    if (!Array.isArray(list) || !list.length) return;
+    this.availableModels = list.map((m) => {
+      const efforts = Array.isArray(m?._meta?.reasoningEfforts) ? m._meta.reasoningEfforts : [];
+      return {
+        id: String(m.modelId || ""),
+        name: m.name || m._meta?.displayName || null,
+        contextTokens: m._meta?.totalContextTokens || null,
+        efforts: efforts.map((e) => e?.id ?? e?.value).filter((e) => typeof e === "string"),
+        defaultEffort: efforts.find((e) => e?.default)?.id || m._meta?.reasoningEffort || null,
+      };
+    }).filter((m) => m.id);
+    this.onEvent({ kind: "models", models: this.availableModels, current: modelState.currentModelId || null });
+  }
+
+  /** `configOptions` is a list (standard ACP); some responses wrap it. */
+  _adoptConfigOptions(raw) {
+    const list = Array.isArray(raw) ? raw : Array.isArray(raw?.configOptions) ? raw.configOptions : null;
+    if (!list) return;
+    this.configOptions = list;
+    const model = list.find((o) => o?.id === "model" || o?.configId === "model");
+    const current = model?.currentValue ?? model?.value;
+    if (typeof current === "string" && current) {
+      this.currentModelId = current;
+      this.onEvent({ kind: "model", modelId: current });
+    }
+  }
+
+  /** Whether grok takes live changes to this option (`session/set_config_option`). */
+  supportsConfig(configId) {
+    return Boolean(this.configOptions?.some((o) => o?.id === configId || o?.configId === configId));
+  }
+
+  /**
+   * Change the model or the reasoning effort on the live session. Before this, either
+   * change killed the process and replayed the entire history into a new one.
+   */
+  async setConfigOption(configId, value) {
+    const res = await this._request("session/set_config_option", {
+      sessionId: this.grokSessionId, configId, value: { value: String(value) },
+    }, 30000);
+    this._adoptConfigOptions(res);
+    if (configId === "model") this.model = String(value);
+    if (configId === "reasoning_effort") this.effort = String(value);
+    return true;
   }
 
   setMode(modeId) {
@@ -358,7 +444,12 @@ export class AcpSession {
     if (gid === undefined) return false;
     this._plans.delete(String(requestId));
     this._send({ jsonrpc: "2.0", id: gid, result: { approved: Boolean(approved) } });
-    if (approved) this.setMode("default");
+    if (approved) {
+      this.setMode("default");
+      // Or the next respawn (a reap, an effort change, a crash) would come back up in
+      // plan mode and re-plan instead of building what was just approved.
+      this.planMode = false;
+    }
     this.onEvent({ kind: "plan_resolved", requestId: String(requestId), approved: Boolean(approved) });
     return true;
   }
@@ -379,6 +470,12 @@ export class AcpSession {
     // Any traffic at all counts as progress for the stall watchdog.
     this.lastActivity = Date.now();
     const u = msg.params?.update;
+    if (!u && msg.method === "_x.ai/models/update") {
+      // The catalog grok fetched after start (signed in, it replaces the fallback list).
+      const p = msg.params || {};
+      this._adoptModels(p.modelState || (Array.isArray(p.availableModels) ? p : null));
+      return;
+    }
     if (!u) {
       // grok 1.0.0 emits a family of _x.ai/* notifications that carry no `update`
       // (models/update, queue/changed, mcp/servers_updated, sessions/changed…). None
@@ -445,6 +542,38 @@ export class AcpSession {
         break;
       case "user_message_chunk":
         break;   // our own prompt echoed back
+      case "retry_state":
+        // grok is re-trying a model call that failed (rate limit, overload). Without
+        // this a long backoff looked exactly like a hang.
+        this.onEvent({
+          kind: "retry",
+          state: u.type || "retrying",
+          attempt: Number.isFinite(u.attempt) ? u.attempt : null,
+          maxRetries: Number.isFinite(u.max_retries) ? u.max_retries : null,
+          reason: typeof u.reason === "string" ? u.reason.slice(0, 300) : "",
+        });
+        break;
+      case "session_recap":
+        if (typeof u.summary === "string" && u.summary.trim()) {
+          this.onEvent({ kind: "recap", summary: u.summary.trim(), auto: Boolean(u.auto) });
+        }
+        break;
+      case "session_info_update":
+        // Standard ACP: grok names the conversation once it knows what it is about.
+        if (typeof u.title === "string" && u.title.trim()) {
+          this.onEvent({ kind: "session_info", title: u.title.trim().slice(0, 120) });
+        }
+        break;
+      case "last_turn_summary": {
+        const summary = [u.summary, u.text, u.content?.text].find((v) => typeof v === "string" && v.trim());
+        if (summary) this.onEvent({ kind: "turn_summary", summary: summary.trim().slice(0, 200) });
+        break;
+      }
+      case "config_option_update":
+        this._adoptConfigOptions(u.configOptions ?? u);
+        break;
+      case "turn_completed":
+        break;   // the bridge times and closes its own turns
       default:
         this._noteUnhandled(`${msg.method}:${u.sessionUpdate}`);
     }
@@ -573,7 +702,18 @@ export class AcpSession {
     return usage?.inputTokens ?? null;
   }
 
+  /**
+   * ACP requires a client that cancels to answer every pending permission request
+   * as cancelled. Not doing so left the session idle but still "waiting", pushing
+   * approval reminders for a request nobody could answer any more.
+   */
   cancel() {
+    for (const requestId of [...this._permissions.keys()]) {
+      try { this.resolvePermission(requestId, null); } catch { /* process gone */ }
+    }
+    for (const requestId of [...this._plans.keys()]) {
+      try { this.resolvePlan(requestId, false); } catch { /* process gone */ }
+    }
     try { this._send({ jsonrpc: "2.0", method: "session/cancel", params: { sessionId: this.grokSessionId } }); }
     catch { /* ignore */ }
   }

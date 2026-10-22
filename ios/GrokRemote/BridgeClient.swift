@@ -10,6 +10,8 @@ struct BridgeConfig: Equatable {
 enum BridgeError: LocalizedError {
     case badURL
     case badStatus(Int)
+    /// Already worded for a person (and localized) by whoever threw it.
+    case message(String)
 
     /// These reach a visible banner through AppState.friendly(), so they are localized
     /// like any other copy. They used to be raw Swift strings: enter a wrong token in
@@ -20,6 +22,7 @@ enum BridgeError: LocalizedError {
         case .badStatus(401): return String(loc: "Not authorized. Check your pairing token.")
         case .badStatus(404): return String(loc: "That session no longer exists on your computer.")
         case .badStatus(let code): return String(loc: "Your computer returned an error (status \(code)).")
+        case .message(let text): return text
         }
     }
 }
@@ -102,9 +105,10 @@ struct BridgeClient {
         return try JSONDecoder().decode(UsageReport.self, from: data)
     }
 
-    func createSession(cwd: String?, effort: String? = nil, planMode: Bool = false, autoApprove: Bool = false) async throws -> SessionInfo {
+    func createSession(cwd: String?, model: String? = nil, effort: String? = nil, planMode: Bool = false, autoApprove: Bool = false) async throws -> SessionInfo {
         var body: [String: Any] = [:]
         if let cwd, !cwd.isEmpty { body["cwd"] = cwd }
+        if let model, !model.isEmpty { body["model"] = model }
         if let effort, !effort.isEmpty { body["effort"] = effort }
         if planMode { body["planMode"] = true }
         if autoApprove { body["autoApprove"] = true }
@@ -348,8 +352,9 @@ struct BridgeClient {
     /// Live per-session settings (plan mode, reasoning effort, auto-approve).
     @discardableResult
     func setConfig(sessionId: String, planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil,
-                   approvalPolicy: String? = nil) async throws -> SessionInfo {
+                   approvalPolicy: String? = nil, model: String? = nil) async throws -> SessionInfo {
         var body: [String: Any] = [:]
+        if let model { body["model"] = model }
         if let planMode { body["planMode"] = planMode }
         if let effort { body["effort"] = effort }
         if let autoApprove { body["autoApprove"] = autoApprove }
@@ -412,6 +417,9 @@ struct BridgeClient {
         try Self.check(resp)
         struct Result: Codable { let ok: Bool; let output: String?; let error: String? }
         let r = try JSONDecoder().decode(Result.self, from: data)
+        // The bridge answers a partial failure with 200 and ok:false, and the sheet
+        // used to say "Changes discarded." over files that were still there.
+        if !r.ok { throw BridgeError.message(String(loc: "Some changes could not be discarded. Check the list and try again.")) }
         return r.output ?? ""
     }
 
@@ -473,6 +481,15 @@ struct BridgeClient {
         return r.plugins
     }
 
+    /// The models grok offers on the computer (bridge 0.1.24+; 404 before that).
+    func models() async throws -> GrokModelCatalog {
+        var req = try request("/api/grok/models")
+        req.timeoutInterval = 20       // may spin grok up once to ask
+        let (data, resp) = try await session.data(for: req)
+        try Self.check(resp)
+        return try JSONDecoder().decode(GrokModelCatalog.self, from: data)
+    }
+
     /// Grok binary version state on the computer (current vs latest).
     func grokUpdateStatus() async throws -> GrokUpdateStatus {
         var req = try request("/api/grok/update")
@@ -500,6 +517,25 @@ struct BridgeClient {
     func events(sessionId: String, lastEventId: Int = 0) -> AsyncThrowingStream<[String: Any], Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                // The bridge writes a `: ping` comment every 15s. A socket that goes
+                // quiet for three of those is dead even though nothing has errored:
+                // the Mac slept, or the route changed under Tailscale. With only the
+                // hour-long request timeout to catch that, the transcript froze behind
+                // a green dot, and the bridge, still counting a subscriber, held back
+                // the push alerts that would have said something was waiting.
+                let clock = StreamClock()
+                let watchdog = Task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: 10_000_000_000)
+                        if Task.isCancelled { return }
+                        if clock.silence > 45 {
+                            // Finishing fires onTermination, which cancels the read.
+                            continuation.finish(throwing: URLError(.timedOut))
+                            return
+                        }
+                    }
+                }
+                defer { watchdog.cancel() }
                 do {
                     var req = try request("/api/sessions/\(sessionId)/stream")
                     req.timeoutInterval = 3600
@@ -517,6 +553,7 @@ struct BridgeClient {
                     // bridge where it left off and the whole history replays again.
                     var currentId = 0
                     for try await line in bytes.lines {
+                        clock.beat()
                         if line.hasPrefix("id:") {
                             currentId = Int(line.dropFirst(3).trimmingCharacters(in: .whitespaces)) ?? currentId
                             continue
@@ -536,5 +573,20 @@ struct BridgeClient {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+}
+
+/// When a stream last heard anything at all, keep-alive comments included.
+private final class StreamClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last = Date()
+
+    func beat() {
+        lock.lock(); last = Date(); lock.unlock()
+    }
+
+    var silence: TimeInterval {
+        lock.lock(); defer { lock.unlock() }
+        return Date().timeIntervalSince(last)
     }
 }

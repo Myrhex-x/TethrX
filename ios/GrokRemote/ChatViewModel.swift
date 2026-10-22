@@ -27,6 +27,14 @@ final class ChatViewModel: ObservableObject {
     // Live per-session settings (mirror the bridge; changed from the chat controls).
     @Published var planMode: Bool
     @Published var effort: String         // "", "high", "medium", "low"
+    /// The model this session runs on; "" = grok's own choice.
+    @Published var model: String
+    /// grok is re-trying a model call that failed (rate limit, overload). Nil otherwise.
+    @Published var retry: RetryState?
+    struct RetryState: Equatable { var attempt: Int?; var max: Int?; var reason: String }
+    /// grok's own name for this conversation, once it has one. The list picks it up
+    /// on its next poll; the open chat should not have to wait for that.
+    @Published var liveTitle: String?
     /// "ask" | "reads" | "all".
     @Published var approvalPolicy: String
     /// Legacy view, still used by the older call sites and by setConfig's wire format.
@@ -41,7 +49,10 @@ final class ChatViewModel: ObservableObject {
     let isDemo: Bool
 
     private let liveActivity = LiveActivityManager()
-    var sessionName: String { session.displayName }
+    var sessionName: String { liveTitle ?? session.displayName }
+    /// `session` is the snapshot taken when the chat opened, so its turn count says 0
+    /// for a session started right here. Every turn begins with a user message.
+    var turnCount: Int { max(session.turnCount, items.lazy.filter { $0.role == .user }.count) }
 
     private var streamTask: Task<Void, Never>?
     /// Set by stop(), so a watchdog that was already sleeping cannot revive the stream.
@@ -77,6 +88,7 @@ final class ChatViewModel: ObservableObject {
         self.runningSince = Fmt.date(fromISO: session.runningSince)
         self.planMode = session.planMode ?? false
         self.effort = session.effort ?? ""
+        self.model = session.model ?? ""
         self.approvalPolicy = session.effectiveApprovalPolicy
         self.usage = session.usage
         self.queued = session.queue ?? []
@@ -96,22 +108,28 @@ final class ChatViewModel: ObservableObject {
         self.runningSince = Fmt.date(fromISO: demoSession.runningSince)
         self.planMode = demoSession.planMode ?? false
         self.effort = demoSession.effort ?? ""
+        self.model = demoSession.model ?? ""
         self.approvalPolicy = demoSession.effectiveApprovalPolicy
         self.usage = demoSession.usage
     }
 
     /// Change plan mode / reasoning effort / auto-approve for this session, live.
-    func setConfig(planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil) async {
+    func setConfig(planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil, model: String? = nil) async {
         if let planMode { self.planMode = planMode }
         if let effort { self.effort = effort }
         if let autoApprove { self.autoApprove = autoApprove }
+        let previousModel = self.model
+        if let model { self.model = model }
         if isDemo { return }   // locals updated — that's the whole demo behavior
         do {
-            let updated = try await client.setConfig(sessionId: session.id, planMode: planMode, effort: effort, autoApprove: autoApprove)
+            let updated = try await client.setConfig(sessionId: session.id, planMode: planMode, effort: effort,
+                                                     autoApprove: autoApprove, model: model)
             self.planMode = updated.planMode ?? self.planMode
             self.effort = updated.effort ?? self.effort
+            if model != nil { self.model = updated.model ?? self.model }
             self.approvalPolicy = updated.effectiveApprovalPolicy
         } catch {
+            self.model = previousModel
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -176,6 +194,10 @@ final class ChatViewModel: ObservableObject {
                 // "Connected" dot against a bridge that wasn't answering.
                 do {
                     for try await event in client.events(sessionId: session.id, lastEventId: lastEventId) {
+                        // Events still buffered in a stream that was just cancelled
+                        // belong to the old connection; folding them after a restart
+                        // has begun duplicated rows mid-replay.
+                        if Task.isCancelled { break }
                         if let id = event["_eventId"] as? Int { lastEventId = max(lastEventId, id) }
                         apply(event)
                     }
@@ -246,6 +268,13 @@ final class ChatViewModel: ObservableObject {
             AppState.shared.markSessionUsed(session.id)
             try await client.send(sessionId: session.id, text: trimmed, images: images)
             watchdogAfterSend(sentAt)
+        } catch BridgeError.badStatus(409) where images.isEmpty {
+            // The computer is mid-turn and this phone had not heard yet (a queued
+            // follow-up started while the stream was down). The message was meant
+            // to go next anyway, so queue it rather than showing a bare status code.
+            pendingEcho = []
+            busy = true
+            await enqueue(trimmed)
         } catch {
             busy = false
             pendingEcho = []
@@ -472,8 +501,33 @@ final class ChatViewModel: ObservableObject {
             return
         }
         flushStream()
+        // Anything grok produces means the retry worked; the status line can go.
+        if retry != nil, kind != "retry", kind != "usage", kind != "queue" { retry = nil }
 
         switch kind {
+        case "retry":
+            guard !isReplay else { break }
+            retry = RetryState(attempt: event["attempt"] as? Int, max: event["maxRetries"] as? Int,
+                               reason: event["reason"] as? String ?? "")
+
+        case "model":
+            if let id = event["modelId"] as? String, !id.isEmpty { model = id }
+
+        case "session_info":
+            // Only over a name nobody chose: the bridge keeps a rename, so must the chat.
+            if let title = event["title"] as? String, !title.isEmpty,
+               session.title.isEmpty || session.title == "New session" || liveTitle != nil {
+                liveTitle = title
+            }
+
+        case "recap":
+            if let summary = event["summary"] as? String, !summary.isEmpty {
+                assistantIndex = nil
+                closeThought()
+                thoughtIndex = nil
+                items.append(ChatItem(role: .recap, text: summary))
+            }
+
         case "turn_start":
             assistantIndex = nil
             closeThought()
@@ -563,6 +617,13 @@ final class ChatViewModel: ObservableObject {
                                       ?? (event["tool"] as? String) ?? "Grok wants to run a tool")
             item.requestId = event["requestId"] as? String
             item.toolCallId = event["toolCallId"] as? String
+            // When it started blocking, for the card's "· 4m" stopwatch. Live, that is
+            // now; replayed, the bridge's own record says when, if it is still waiting.
+            if !isReplay {
+                item.startedAt = Date()
+            } else if let rid = item.requestId, session.waiting?.requestId == rid {
+                item.startedAt = Fmt.date(fromISO: session.waiting?.since)
+            }
             if let opts = event["options"] as? [[String: Any]] {
                 item.options = opts.compactMap { o in
                     guard let oid = o["optionId"] as? String, let name = o["name"] as? String else { return nil }
@@ -621,6 +682,12 @@ final class ChatViewModel: ObservableObject {
             }
 
         case "turn_complete":
+            // How long it took: the bridge says (0.1.24+); otherwise a turn watched
+            // live can still be timed from here, and a replayed one just says done.
+            var seconds = (event["durationMs"] as? Double).map { $0 / 1000 }
+            if seconds == nil, !isReplay, let started = turnStartedAt {
+                seconds = Date().timeIntervalSince(started)
+            }
             busy = false
             turnStartedAt = nil
             assistantIndex = nil
@@ -628,14 +695,19 @@ final class ChatViewModel: ObservableObject {
             thoughtIndex = nil
             // The visible "turn ended" separator lives here — the bridge emits
             // turn_complete, not the "end" kind an older revision listened for.
-            let reason = event["stopReason"] as? String ?? "done"
-            append(.status, "· \(reason) ·")
+            // It used to print the raw ACP stop reason ("end_turn").
+            append(.status, Self.turnFooter(reason: event["stopReason"] as? String, seconds: seconds))
             if !isReplay { liveActivity.end(phase: "done", detail: "Finished") }
 
         case "error":
             busy = false
             turnStartedAt = nil
-            if !isReplay { liveActivity.end(phase: "error", detail: "Something went wrong") }
+            if !isReplay {
+                liveActivity.end(phase: "error", detail: "Something went wrong")
+                // A signed-out grok is a fact about the computer, not this chat: let the
+                // session list's banner catch up now rather than at its next poll.
+                Task { await AppState.shared.refreshHealth() }
+            }
             append(.error, event["message"] as? String ?? "Something went wrong.")
 
         case "waiting":
@@ -651,9 +723,9 @@ final class ChatViewModel: ObservableObject {
             let before = event["tokensBefore"] as? Int
             let after = event["tokensAfter"] as? Int
             if let before, let after, after < before {
-                append(.status, String(loc: "· compacted to \(Fmt.tokens(after)) tokens ·"))
+                append(.status, String(loc: "Compacted to \(Fmt.tokens(after)) tokens"))
             } else {
-                append(.status, String(loc: "· compacted ·"))
+                append(.status, String(loc: "Compacted"))
             }
 
         case "_open":
@@ -661,6 +733,26 @@ final class ChatViewModel: ObservableObject {
 
         default:
             break   // "log", "raw", heartbeats — ignored in the UI
+        }
+    }
+
+    /// The words in the rule between two turns.
+    static func turnFooter(reason: String?, seconds: Double?) -> String {
+        let took = seconds.flatMap { $0 >= 1 ? Fmt.span($0) : nil }
+        switch reason {
+        case "cancelled":
+            return String(loc: "Stopped")
+        case "max_tokens":
+            return String(loc: "Reply hit the length limit")
+        case "max_turn_requests":
+            return String(loc: "Stopped after too many steps")
+        case "refusal":
+            return String(loc: "Grok declined")
+        default:
+            if let took { return String(loc: "Done in \(took)") }
+            // Not "Done": that key is the toolbar button, which several languages
+            // translate as "OK".
+            return String(loc: "Finished")
         }
     }
 

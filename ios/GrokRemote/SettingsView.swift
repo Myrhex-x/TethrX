@@ -33,6 +33,8 @@ struct SettingsView: View {
     @ObservedObject private var watch = WatchLink.shared
     @EnvironmentObject private var language: AppLanguage
     @State private var path: [SettingsPage] = []
+    @AppStorage(Appearance.storageKey) private var appearanceRaw = Appearance.fallback.rawValue
+    @AppStorage(ReadingSize.storageKey) private var readingRaw = ReadingSize.fallback.rawValue
 
     /// Settings used to be eleven blocks in one scroll, every one of them expanded,
     /// every one of them carrying a paragraph of explanation: about fifteen hundred
@@ -40,7 +42,7 @@ struct SettingsView: View {
     /// tells you what is behind each one.
     enum SettingsPage: String, Hashable {
         case computers, usage, plugins, defaults, schedules, prompts
-        case notifications, watch, language, security, about
+        case notifications, watch, appearance, language, security, about
 
         var title: LocalizedStringKey {
             switch self {
@@ -52,6 +54,7 @@ struct SettingsView: View {
             case .prompts:       return "Prompts"
             case .notifications: return "Notifications"
             case .watch:         return "Apple Watch"
+            case .appearance:    return "Appearance"
             case .language:      return "Language"
             case .security:      return "Security"
             case .about:         return "About"
@@ -69,6 +72,7 @@ struct SettingsView: View {
         case .prompts:       snippetsSection
         case .notifications: notifications
         case .watch:         appleWatch
+        case .appearance:    appearanceSection
         case .language:      languageSection
         case .security:      security
         case .about:         about
@@ -131,7 +135,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 
     /// What is in Settings, and what each thing currently says. A row that reads
@@ -147,6 +151,7 @@ struct SettingsView: View {
                 indexGroup(nil) {
                     indexRow(.defaults, "slider.horizontal.3")
                     indexRow(.prompts, "text.badge.star", value: promptCountLabel)
+                    indexRow(.appearance, "circle.lefthalf.filled", value: appearanceLabel)
                     indexRow(.language, "globe", value: language.currentLabel)
                     indexRow(.security, "lock")
                     indexRow(.about, "info.circle")
@@ -166,6 +171,7 @@ struct SettingsView: View {
                 indexGroup("This phone") {
                     indexRow(.notifications, "bell", value: String(loc: push.enabled ? "On" : "Off"))
                     indexRow(.watch, "applewatch", value: watchShortLabel)
+                    indexRow(.appearance, "circle.lefthalf.filled", value: appearanceLabel)
                     indexRow(.language, "globe", value: language.currentLabel)
                     indexRow(.security, "lock", value: String(loc: lock.enabled ? "On" : "Off"))
                 }
@@ -258,6 +264,61 @@ struct SettingsView: View {
     }
     private var watchShortLabel: String? {
         watch.active ? String(loc: "Installed") : nil
+    }
+
+    private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .fallback }
+    private var readingSize: ReadingSize { ReadingSize(rawValue: readingRaw) ?? .fallback }
+    private var appearanceLabel: String { appearance.label }
+
+    /// Light, dark or pure black, and how big a conversation reads. Each choice is
+    /// drawn as what it looks like, because "Dark" and "Black" are words that only
+    /// mean something side by side.
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: Grok.groupGap) {
+            VStack(alignment: .leading, spacing: 10) {
+                ListSectionLabel("Theme")
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                          spacing: 10) {
+                    ForEach(Appearance.allCases) { option in
+                        AppearanceSwatch(option: option, selected: option == appearance) {
+                            Haptics.tap()
+                            withAnimation(.easeInOut(duration: 0.25)) { appearanceRaw = option.rawValue }
+                        }
+                    }
+                }
+                Text(appearance.detail)
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ListSectionLabel("Conversation text")
+                HStack(spacing: 4) {
+                    ForEach(ReadingSize.allCases) { size in
+                        Button {
+                            Haptics.tap()
+                            withAnimation(.easeInOut(duration: 0.2)) { readingRaw = size.rawValue }
+                        } label: {
+                            size.title.frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(SegPill(selected: size == readingSize))
+                        .accessibilityAddTraits(size == readingSize ? [.isButton, .isSelected] : .isButton)
+                    }
+                }
+                // What a reply will look like at this size, in the reply's own face,
+                // measure and line spacing.
+                Text("Done. The settings screen now has a dark mode toggle that persists across launches, and every screen follows it.")
+                    .font(Grok.sans(17 * readingSize.scale))
+                    .lineSpacing(ReadingSize.lineSpacing(for: 17 * readingSize.scale))
+                    .foregroundStyle(Grok.text)
+                    .padding(Grok.pad)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Grok.raised, in: RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+                Text("Applies to replies, your messages and Grok's thinking. Your iPhone's Text Size setting still applies on top.")
+                    .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     /// Choosing the app's language without leaving the app.
@@ -387,7 +448,7 @@ struct SettingsView: View {
                 row("Est. cost", Fmt.cost(r.costUSD))
             } else if loadingUsage {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.mini).tint(.white)
+                    ProgressView().controlSize(.mini).tint(Grok.ink)
                     Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 }
                 .accessibilityElement(children: .combine)
@@ -434,9 +495,56 @@ struct SettingsView: View {
                     Spacer(minLength: 0)
                 }
             }
+            if let catalog = app.modelCatalog {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Model").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                    Text("The models Grok Build offers on this computer. Change it per session with the model chip in the message box.")
+                        .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        modelRow(nil, catalog: catalog)
+                        ForEach(catalog.models) { m in modelRow(m, catalog: catalog) }
+                    }
+                }
+            }
             toggleRow("Plan mode", "Grok drafts a plan for you to approve before touching anything", $app.defaultPlanMode)
             toggleRow("Auto-approve tools", "Run commands and edits without asking each time: faster, less oversight", $app.defaultAutoApprove)
         }
+    }
+
+    /// One model, or grok's own choice (`nil`), as a row with a tick.
+    private func modelRow(_ model: GrokModel?, catalog: GrokModelCatalog) -> some View {
+        let selected = (model?.id ?? "") == app.defaultModel
+        return Button {
+            Haptics.tap()
+            app.defaultModel = model?.id ?? ""
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let model {
+                        Text(verbatim: model.id).font(Grok.sans(16)).foregroundStyle(Grok.text)
+                        if let ctx = model.contextTokens {
+                            Text("\(Fmt.tokens(ctx)) context").font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        }
+                    } else {
+                        Text("Grok's default").font(Grok.sans(16)).foregroundStyle(Grok.text)
+                        if let current = catalog.current {
+                            Text(verbatim: current).font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                        }
+                    }
+                }
+                Spacer(minLength: 8)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Grok.text)
+                }
+            }
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     /// Says plainly whether the watch app is there and what it can do, so "is this
@@ -672,7 +780,7 @@ struct SettingsView: View {
                         .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 } else {
                     HStack(spacing: 8) {
-                        ProgressView().controlSize(.mini).tint(.white)
+                        ProgressView().controlSize(.mini).tint(Grok.ink)
                         Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                     }
                     .accessibilityElement(children: .combine)
@@ -690,7 +798,7 @@ struct SettingsView: View {
                     }
                     Button { Task { await installPlugin() } } label: {
                         if pluginBusy == "install" {
-                            ProgressView().controlSize(.small).tint(.white)
+                            ProgressView().controlSize(.small).tint(Grok.ink)
                                 .frame(width: 44, height: 44)
                         } else {
                             Image(systemName: "plus").font(.system(size: 14, weight: .bold))
@@ -750,12 +858,12 @@ struct SettingsView: View {
             }
             Spacer(minLength: 8)
             if pluginBusy == plugin.name {
-                ProgressView().controlSize(.small).tint(.white).padding(.top, 6)
+                ProgressView().controlSize(.small).tint(Grok.ink).padding(.top, 6)
             } else {
                 Toggle(plugin.name, isOn: Binding(
                     get: { !plugin.isDisabled },
                     set: { on in Task { await pluginAction(on ? "enable" : "disable", plugin.name) } }
-                )).labelsHidden().tint(.white)
+                )).labelsHidden().tint(Grok.ink)
                 Button { removingPlugin = plugin } label: {
                     Image(systemName: "trash").font(.system(size: 12))
                         .frame(width: 44, height: 44).contentShape(Rectangle())
@@ -878,12 +986,12 @@ struct SettingsView: View {
                     Task { await installGrokUpdate() }
                 } label: {
                     HStack(spacing: 6) {
-                        if grokUpdating { ProgressView().controlSize(.mini).tint(.black) }
+                        if grokUpdating { ProgressView().controlSize(.mini).tint(Grok.onInk) }
                         (grokUpdating ? Text("Updating…") : Text("Update now")).font(Grok.sans(14, .semibold))
                     }
                     .padding(.horizontal, 10).padding(.vertical, 12)
-                    .background(Capsule().fill(Color.white))
-                    .foregroundStyle(.black)
+                    .background(Capsule().fill(Grok.ink))
+                    .foregroundStyle(Grok.onInk)
                     // The capsule itself is shorter than a finger; the plain style
                     // hands over exactly the shape it is given, so ask for 44.
                     .frame(minHeight: 44)
@@ -954,7 +1062,7 @@ struct SettingsView: View {
             Spacer()
             // The title inside the Toggle (visually hidden) is what names the switch
             // for VoiceOver — a bare `Toggle("")` announces just "switch".
-            Toggle(title, isOn: binding).labelsHidden().tint(.white)
+            Toggle(title, isOn: binding).labelsHidden().tint(Grok.ink)
         }
         .accessibilityElement(children: .combine)
     }

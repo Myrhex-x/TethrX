@@ -26,7 +26,7 @@ struct BridgeLogSheet: View {
                     } else if let errorText {
                         Text(errorText).font(Grok.mono(12)).foregroundStyle(Grok.danger)
                     } else {
-                        ProgressView().controlSize(.small).tint(.white)
+                        ProgressView().controlSize(.small).tint(Grok.ink)
                     }
                 }
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 16)
@@ -61,7 +61,7 @@ struct BridgeLogSheet: View {
             }
             .task { await load() }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 
     private func load() async {

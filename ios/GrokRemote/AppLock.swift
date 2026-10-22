@@ -34,18 +34,34 @@ final class AppLock: ObservableObject {
         }
     }
 
-    func lockIfEnabled() { if enabled { locked = true } }
+    func lockIfEnabled() { if enabled { locked = true; promptOwed = true } }
+
+    /// One evaluation at a time: a cold launch asked twice at once (the cover's
+    /// onAppear and the scene turning active).
+    private var authenticating = false
+    /// The automatic prompt is owed once per lock. The Face ID sheet itself makes the
+    /// scene inactive and active again, so cancelling it used to bring it straight
+    /// back, forever; after a cancel the Unlock button is the way in.
+    private var promptOwed = true
 
     /// Prompt for biometrics/passcode; unlock on success. If the device has no
     /// biometrics or passcode set, don't hard-lock the user out.
-    func authenticate() {
-        guard enabled, locked else { return }
+    func authenticate(automatic: Bool = false) {
+        guard enabled, locked, !authenticating else { return }
+        if automatic {
+            guard promptOwed else { return }
+            promptOwed = false
+        }
         let ctx = LAContext()
         var err: NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { locked = false; return }
+        authenticating = true
         ctx.evaluatePolicy(.deviceOwnerAuthentication,
                            localizedReason: String(loc: "Unlock TethrX. It can run commands on your computer.")) { ok, _ in
-            Task { @MainActor in if ok { self.locked = false } }
+            Task { @MainActor in
+                self.authenticating = false
+                if ok { self.locked = false }
+            }
         }
     }
 }
@@ -66,6 +82,6 @@ struct LockView: View {
                 .buttonStyle(PillButton(kind: .prominent))
             }
         }
-        .onAppear { lock.authenticate() }
+        .onAppear { lock.authenticate(automatic: true) }
     }
 }

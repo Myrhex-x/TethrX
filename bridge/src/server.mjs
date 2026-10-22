@@ -11,7 +11,9 @@
 //   POST /api/sessions/:id/queue         -> { text } follow-up; runs now if idle
 //   POST /api/sessions/:id/branch        -> fork this session, carrying a handoff
 //   GET  /api/sessions/:id/stream        -> SSE stream of normalized Grok events
+//   POST /api/sessions/:id/config        -> { model?, effort?, planMode?, approvalPolicy? } live settings
 //   GET  /api/usage/history?days=30      -> day-by-day token/cost rollups
+//   GET  /api/grok/models                -> the models grok offers here (for the phone's picker)
 //   GET  /                               -> bundled web test client
 //
 // Also `tethrx-bridge service install|status|logs|restart|uninstall` to run the
@@ -32,7 +34,7 @@ import { timingSafeEqual, randomBytes } from "node:crypto";
 import { networkInterfaces, hostname, homedir } from "node:os";
 
 import { config } from "./config.mjs";
-import { SessionStore } from "./sessions.mjs";
+import { SessionStore, writeAtomic } from "./sessions.mjs";
 import { runHeadlessTurn, grokVersion } from "./grok.mjs";
 import { ensureAskGrokHome, AcpSession } from "./acp.mjs";
 import { loadApns } from "./apns.mjs";
@@ -115,8 +117,8 @@ function latestNpmVersion() {
 }
 
 // Attached images land here; grok views them with its own (vision-capable) read
-// tool. ACP declares image content blocks unsupported (promptCapabilities.image:
-// false), so a file on disk + its path in the prompt is the working transport.
+// tool. grok 1.0.x now advertises promptCapabilities.image, but a file on disk plus
+// its path in the prompt is proven across every version, so it stays the transport.
 const UPLOAD_DIR = join(config.stateDir, "uploads");
 function sweepUploads() {
   try {
@@ -161,6 +163,69 @@ function displayTitle(session) {
 const grokHome = config.transport === "acp" && config.askPermission
   ? ensureAskGrokHome(config.stateDir)
   : null;
+
+/** Repair the mirrored grok home before a spawn (see ensureAskGrokHome). Credentials
+ *  are only promoted when no other grok is running out of the same directory. */
+function refreshGrokHome() {
+  if (!grokHome) return grokHome;
+  const busy = [...store._byId.values()].some((s) => s.acp?.running);
+  try { ensureAskGrokHome(config.stateDir, { promote: !busy }); } catch { /* keep the old mirror */ }
+  return grokHome;
+}
+
+// Whether grok on this computer is signed in, as of the last turn that asked. Null
+// until something has. A signed-out grok fails every turn, and the phone used to
+// learn that one failed message at a time.
+const grokAuth = { signedIn: null, at: 0, authMtime: 0 };
+const REAL_AUTH = join(homedir(), ".grok", "auth.json");
+const authMtime = () => { try { return statSync(REAL_AUTH).mtimeMs; } catch { return 0; } };
+function noteGrokAuth(signedIn) {
+  if (grokAuth.signedIn !== signedIn) console.log(`[bridge] grok is ${signedIn ? "signed in" : "SIGNED OUT"}`);
+  grokAuth.signedIn = signedIn;
+  grokAuth.at = Date.now();
+  grokAuth.authMtime = authMtime();
+}
+/** Signed out, until the credential file changes: `grok login` rewrites it, and the
+ *  phone's banner should go when the user has done what it asked, not one failed
+ *  turn later. "Unknown" until a turn proves it either way. */
+function grokSignedInNow() {
+  if (grokAuth.signedIn === false && authMtime() > grokAuth.authMtime) grokAuth.signedIn = null;
+  return grokAuth.signedIn;
+}
+function isAuthError(err) {
+  return /Authentication required|no auth method|unauthenticated|not authenticated/i.test(String(err?.message || err));
+}
+
+// The models grok offers on this computer, as its last initialize reported them.
+// Persisted, so the phone's picker works before any session has spawned grok today.
+const MODELS_PATH = join(config.stateDir, "models-cache.json");
+let modelCatalog = (() => {
+  try {
+    const c = JSON.parse(readFileSync(MODELS_PATH, "utf8"));
+    return Array.isArray(c?.models) ? c : { models: [], current: null, at: 0 };
+  } catch { return { models: [], current: null, at: 0 }; }
+})();
+function adoptModelCatalog(models, current) {
+  if (!Array.isArray(models) || !models.length) return;
+  modelCatalog = { models, current: current || modelCatalog.current || null, at: Date.now() };
+  try { writeAtomic(MODELS_PATH, JSON.stringify(modelCatalog)); } catch { /* cache only */ }
+}
+
+/** Fill the catalog without a conversation: initialize alone reports the models, and
+ *  creates no grok session (session/new would leave an empty one in grok's history). */
+let modelProbe = null;
+function probeModels() {
+  if (modelProbe || config.transport !== "acp") return modelProbe;
+  modelProbe = (async () => {
+    const acp = new AcpSession({ grokBin: config.grokBin, cwd: homedir(), home: refreshGrokHome(), onEvent: () => {} });
+    try {
+      await acp.startInitializeOnly();
+      adoptModelCatalog(acp.availableModels, acp.currentModelId);
+    } catch { /* grok missing or broken; the picker just stays empty */ }
+    finally { try { acp.stop(); } catch { /* ignore */ } modelProbe = null; }
+  })();
+  return modelProbe;
+}
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -387,6 +452,9 @@ function remindAboutApproval(session, event, step = 0) {
   const timer = setTimeout(() => {
     // Answered, abandoned, or the process died: nothing to chase.
     if (session.dead || session.waitingOn?.kind !== "permission") return;
+    // Only the request this reminder was for. With two approvals in a row, the first
+    // one's reminders kept pushing approve buttons that could no longer work.
+    if (event.requestId && session.waitingOn?.requestId && session.waitingOn.requestId !== event.requestId) return;
     notifyPermission(session, event, step + 1);
   }, APPROVAL_REMINDERS[step]);
   timer.unref?.();
@@ -647,7 +715,7 @@ async function listWorkflows(cwd) {
 function friendlyTurnError(err) {
   const raw = String(err?.message || err);
   if (/Authentication required|no auth method|unauthenticated|not authenticated/i.test(raw)) {
-    return "Grok Build isn't signed in on your computer. Open a terminal there, run `grok`, and sign in, then send this again.";
+    return "Grok Build is signed out on your computer. On that computer, run `grok login` in a terminal, then send this again.";
   }
   // grok 1.0.0 changed `-s <uuid>` to mean "start a NEW conversation with this id", so
   // the headless transport's second turn hits this instead of resuming. The turn is
@@ -700,7 +768,30 @@ function warnContextIfNearlyFull(session) {
 // Kick off a Grok turn WITHOUT blocking the HTTP response. Events flow to the
 // session's SSE subscribers (and history) as they arrive.
 function startTurn(session, body) {
+  if (session.dead) return;
   return session.transport === "acp" ? startAcpTurn(session, body) : startHeadlessTurn(session, body);
+}
+
+/** A turn was asked for while one is already running (two sends that crossed, a
+ *  deferred continuation landing on a new turn). Running both at once killed both;
+ *  the second one goes to the front of the queue instead and runs next. */
+function queueInstead(session, body) {
+  const item = session.enqueue(body.displayText ?? body.text, "phone");
+  if (!item) return;
+  if (Array.isArray(body.imagePaths) && body.imagePaths.length) item.imagePaths = body.imagePaths;
+  session.queue.unshift(session.queue.pop());
+  store.save();
+  emitQueue(session);
+}
+
+/** "Grok finished the turn." says nothing on a lock screen with three sessions. grok
+ *  writes a one-line summary of each turn just after it ends; give it a moment. */
+function notifyFinished(session) {
+  if (session.subscriberCount > 0) return;
+  setTimeout(() => {
+    const summary = session.lastTurnSummary;
+    pushNotify(session, { title: displayTitle(session), message: summary || "Grok finished the turn.", tags: "white_check_mark", category: "REPLY" });
+  }, 1500).unref?.();
 }
 
 // --- follow-up queue --------------------------------------------------------
@@ -743,6 +834,7 @@ function imageNote(paths) {
 /** Start the next queued follow-up. Called when a turn ends, and when something is
  *  queued into an idle session (a notification reply, a share, a scheduled gap). */
 function drainQueue(session) {
+  if (session.dead) return false;
   // Never spawn grok while its binary is being swapped; the queue holds the work.
   if (grokUpdate.updating) {
     if (session.queue.length) setTimeout(() => drainQueue(session), 15_000).unref?.();
@@ -756,7 +848,7 @@ function drainQueue(session) {
   // prompt now, so grok reads them as part of the turn they belong to.
   const paths = Array.isArray(next.imagePaths) ? next.imagePaths : [];
   startTurn(session, paths.length
-    ? { text: (next.text || "See the attached image.") + imageNote(paths), displayText: next.text, imageCount: paths.length }
+    ? { text: (next.text || "See the attached image.") + imageNote(paths), displayText: next.text, imageCount: paths.length, imagePaths: paths }
     : { text: next.text });
   return true;
 }
@@ -764,6 +856,7 @@ function drainQueue(session) {
 /** Everything a turn's `finally` has to decide: continue an approved plan first,
  *  otherwise pull the next follow-up off the queue. */
 function continueAfterTurn(session) {
+  if (session.dead) return;                        // deleted mid-turn: nothing may follow it
   if (grokUpdate.updating) {                       // resume intact once the swap is done
     setTimeout(() => continueAfterTurn(session), 15_000).unref?.();
     return;
@@ -787,17 +880,20 @@ const SUMMARY_PROMPT =
  *  Resolves to `{ summary }` or `{ error }` — never throws. */
 async function summarizeForHandoff(session, label) {
   const startId = session._nextEventId;
-  session.beginTurn();
+  if (!session.beginTurn()) return { error: "a turn is already running" };
+  const startedMs = Date.now();
   session.emit({ kind: "turn_start", text: label, at: new Date().toISOString() });
   awake.acquire();
   try {
     const acp = await ensureAcp(session);
     const result = await acp.prompt(SUMMARY_PROMPT);
+    noteGrokAuth(true);
     session.addUsage(result);
     usageHistory.record(result.usage);
     session.emit({ kind: "usage", usage: session.usage });
-    session.emit({ kind: "turn_complete", stopReason: result.stopReason });
+    session.emit({ kind: "turn_complete", stopReason: result.stopReason, durationMs: Date.now() - startedMs });
   } catch (err) {
+    if (isAuthError(err)) noteGrokAuth(false);
     session.emit({ kind: "error", message: friendlyTurnError(err) });
     try { session.acp?.stop(); } catch { /* ignore */ }
     session.acp = null;
@@ -843,6 +939,8 @@ function branchTitle(title) {
 
 function startHeadlessTurn(session, body) {
   const signal = session.beginTurn();
+  if (!signal) return queueInstead(session, body);
+  const startedMs = Date.now();
   session.emit({ kind: "turn_start", text: body.text, at: new Date().toISOString() });
 
   awake.acquire();   // don't let the machine sleep out from under a running turn
@@ -863,7 +961,7 @@ function startHeadlessTurn(session, body) {
   })
     .then((result) => {
       // Grok emits its own `end`; add a bridge-level marker for the client's state machine.
-      session.emit({ kind: "turn_complete", stopReason: result.stopReason });
+      session.emit({ kind: "turn_complete", stopReason: result.stopReason, durationMs: Date.now() - startedMs });
       pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark", category: "REPLY" });
     })
     .catch((err) => {
@@ -883,13 +981,23 @@ function startHeadlessTurn(session, body) {
 // Lazily create + start the long-lived ACP process for a session, wiring its events
 // into the session's SSE stream. Dropped (and recreated) if the process exits.
 async function ensureAcp(session) {
+  if (session.dead) throw new Error("this session was deleted");
+  // `running` turns true the moment the child spawns, long before its handshake is
+  // done. A second caller in that window got a half-started process and sent a
+  // prompt with no session id; it now waits for the same start instead.
+  if (session._acpStarting) return session._acpStarting;
   if (session.acp && session.acp.running) return session.acp;
+  session._acpStarting = spawnAcp(session);
+  try { return await session._acpStarting; } finally { session._acpStarting = null; }
+}
+
+async function spawnAcp(session) {
   const acp = new AcpSession({
     grokBin: config.grokBin,
     cwd: session.cwd,
     model: session.model || undefined,
     effort: session.effort || undefined,
-    home: grokHome,
+    home: refreshGrokHome(),
     planMode: session.planMode,
     resumeSessionId: session.grokSessionId || undefined,
     onEvent: (event) => {
@@ -930,6 +1038,16 @@ async function ensureAcp(session) {
         pushNotify(session, { title: `${displayTitle(session)}: plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
         laWaiting(session, "Plan ready to review");
       }
+      if (event.kind === "models") { adoptModelCatalog(event.models, event.current); return; }
+      if (event.kind === "turn_summary") { session.lastTurnSummary = event.summary; return; }
+      if (event.kind === "session_info") {
+        // grok's own name for the conversation, unless the user has named it.
+        if (session.autoTitle || !session.title || session.title === "New session") {
+          session.title = event.title;
+          session.autoTitle = true;
+          store.save();
+        }
+      }
       if (event.kind === "commands" && event.commands?.length) {
         // Keep the snapshot so the "/" palette works before the next ACP spawn too —
         // and a global copy, so a BRAND-NEW session (no process yet) can offer
@@ -954,7 +1072,14 @@ async function ensureAcp(session) {
     // child per attempt — and a signed-out grok makes the phone retry repeatedly.
     try { acp.stop(); } catch { /* ignore */ }
     session.acp = null;
+    if (isAuthError(err)) noteGrokAuth(false);
     throw err;
+  }
+  if (session.dead) {
+    // Deleted while grok was starting up. Nothing may run in its name.
+    try { acp.stop(); } catch { /* ignore */ }
+    session.acp = null;
+    throw new Error("this session was deleted");
   }
   // Capture grok's ACP sessionId so we can session/load-resume it after a restart.
   if (acp.grokSessionId && acp.grokSessionId !== session.grokSessionId) {
@@ -965,6 +1090,12 @@ async function ensureAcp(session) {
 }
 
 function startAcpTurn(session, body) {
+  // Reserve the turn before anything else: two starts that crossed both reached
+  // ensureAcp, raced one half-started process, and the loser's error path then
+  // stopped it under the winner, losing both messages.
+  if (!session.beginTurn()) return queueInstead(session, body);
+  const startedMs = Date.now();
+  session.lastTurnSummary = null;
   // A compacted session carries its predecessor's summary; prepend it to the
   // first prompt so grok has the context without a wasted ingest turn.
   if (session.seedContext) {
@@ -973,7 +1104,6 @@ function startAcpTurn(session, body) {
     session.seedContext = null;
     store.save();
   }
-  session.beginTurn();
   session.emit({
     kind: "turn_start",
     text: body.displayText ?? body.text,          // the transcript shows what the user typed
@@ -987,14 +1117,16 @@ function startAcpTurn(session, body) {
     try {
       const acp = await ensureAcp(session);
       const result = await acp.prompt(body.text);
+      noteGrokAuth(true);
       session.addUsage(result);                                    // fold grok's token report in
       usageHistory.record(result.usage);                           // day-by-day rollup
       session.emit({ kind: "usage", usage: session.usage });       // live meter update
       warnContextIfNearlyFull(session);
-      session.emit({ kind: "turn_complete", stopReason: result.stopReason });
-      pushNotify(session, { title: displayTitle(session), message: "Grok finished the turn.", tags: "white_check_mark", category: "REPLY" });
+      session.emit({ kind: "turn_complete", stopReason: result.stopReason, durationMs: Date.now() - startedMs });
+      notifyFinished(session);
       laTurnEnd(session, "done", "Finished");
     } catch (err) {
+      if (isAuthError(err)) noteGrokAuth(false);
       session.emit({ kind: "error", message: friendlyTurnError(err) });
       // Failures push too — a scheduled task dying signed-out at 9am must not
       // look identical to one still running.
@@ -1101,6 +1233,8 @@ async function handle(req, res) {
       grokAvailable: Boolean(version),
       grokLatest: grokUpdate.latest || null,
       grokUpdateAvailable: grokUpdate.available,
+      // null = not known yet; false = the last turn found grok signed out.
+      grokSignedIn: grokSignedInNow(),
       version: OWN_VERSION,
       latestVersion: latestNpmVersion(),
       // Advertising this lets an app paired over plain HTTP upgrade itself to
@@ -1311,6 +1445,18 @@ async function handle(req, res) {
 
   // Grok plugins: list + manage from the phone. Their skills reach the "/"
   // palette by themselves once installed.
+  // The models grok offers here, for the phone's picker.
+  if (pathname === "/api/grok/models" && req.method === "GET") {
+    if (!modelCatalog.models.length && !anySessionRunning()) {
+      await Promise.race([probeModels(), new Promise((r) => setTimeout(r, 15_000))]);
+    }
+    return send(res, 200, {
+      models: modelCatalog.models,
+      current: modelCatalog.current,
+      defaultModel: config.defaultModel || null,
+    });
+  }
+
   if (pathname === "/api/grok/plugins" && req.method === "GET") {
     const plugins = await listGrokPlugins();
     if (!plugins) return send(res, 502, { error: "couldn't list plugins. Is grok installed and signed in?" });
@@ -1459,7 +1605,11 @@ async function handle(req, res) {
     // Only arm the auto-continue when the approval actually landed. Setting it first
     // meant a failed approve left the flag behind, and some LATER unrelated turn
     // would suddenly follow up with "proceed with the approved plan".
-    if (approved) session._executeOnComplete = true; // auto-run once the plan turn ends
+    if (approved) {
+      session._executeOnComplete = true;   // auto-run once the plan turn ends
+      session.planMode = false;            // a respawn must come back up building, not planning
+      store.save();
+    }
     return send(res, 200, { ok: true });
   }
 
@@ -1509,6 +1659,7 @@ async function handle(req, res) {
           text: (text.trim() || "See the attached image.") + imageNote(saved.paths),
           displayText: text,
           imageCount: saved.paths.length,
+          imagePaths: saved.paths,
         });
         return send(res, 202, { ok: true, sessionId: session.id, turn: session.turnCount });
       }
@@ -1542,6 +1693,7 @@ async function handle(req, res) {
       if (!acp) {
         // Nothing to stop, but a status left stuck on "running" still needs clearing.
         if (session.status === "running") { session.endTurn(); session.clearWaiting(); store.save(); }
+        drainQueue(session);   // anything queued behind the stuck turn can run now
         return send(res, 200, { ok: true, restarted: false, status: session.status });
       }
       // stop() runs _failPending, which rejects the pending prompt; the turn's own
@@ -1562,13 +1714,22 @@ async function handle(req, res) {
       if (!session.turnCount) return send(res, 400, { error: "nothing to compact yet" });
 
       const handoff = await summarizeForHandoff(session, "Compacting this conversation…");
-      if (handoff.error) return send(res, 500, { error: handoff.error });
+      if (handoff.error) { drainQueue(session); return send(res, 500, { error: handoff.error }); }
 
       const fresh = store.create({
         ...forkSettings(session),
         title: session.title === "New session" ? undefined : session.title,
         seedContext: handoff.summary,
       });
+      // Follow-ups typed while compacting belong to the conversation, which now lives
+      // in the fresh session. They used to sit in the retired one, never run.
+      if (session.queue.length) {
+        fresh.queue = session.queue;
+        session.queue = [];
+        store.save();
+        emitQueue(session);
+        drainQueue(fresh);
+      }
       return send(res, 201, fresh.toJSON());
     }
 
@@ -1586,7 +1747,7 @@ async function handle(req, res) {
       let seedContext = null;
       if (session.turnCount > 0) {
         const handoff = await summarizeForHandoff(session, "Summarizing, to branch this session…");
-        if (handoff.error) return send(res, 500, { error: handoff.error });
+        if (handoff.error) { drainQueue(session); return send(res, 500, { error: handoff.error }); }
         seedContext = handoff.summary;
       }
 
@@ -1595,6 +1756,8 @@ async function handle(req, res) {
         title: String(body.title || "").trim() || branchTitle(session.title),
         seedContext,
       });
+      // Branching keeps both, so anything queued here was meant for this one.
+      drainQueue(session);
       return send(res, 201, fresh.toJSON());
     }
 
@@ -1631,18 +1794,19 @@ async function handle(req, res) {
       if (images.length && session.transport !== "acp") {
         return send(res, 400, { error: "images need the acp transport" });
       }
+      // Images are written BEFORE the item exists. Queued first, a turn ending during
+      // the save ran it as "See the attached image." with no image.
+      let imagePaths = null;
+      if (images.length) {
+        const saved = await saveImages(session, images);
+        if (saved.error) return send(res, 400, { error: saved.error });
+        imagePaths = saved.paths;
+      }
       // Text can be empty when images carry the meaning (a shared screenshot).
       const item = session.enqueue(body.text || (images.length ? "See the attached image." : ""),
                                    typeof body.source === "string" ? body.source : "phone");
       if (!item) return send(res, 400, { error: "missing 'text'" });
-      if (images.length) {
-        const saved = await saveImages(session, images);
-        if (saved.error) {
-          session.removeQueued(item.id);
-          return send(res, 400, { error: saved.error });
-        }
-        item.imagePaths = saved.paths;
-      }
+      if (imagePaths) item.imagePaths = imagePaths;
       store.save();
       emitQueue(session);
       // An idle session has nothing to wait for, so run it now. That's what lets one
@@ -1665,14 +1829,30 @@ async function handle(req, res) {
         session.planMode = body.planMode;
         if (session.acp && session.acp.running) session.acp.setMode(body.planMode ? "plan" : "default");
       }
-      if (typeof body.effort === "string") {
-        session.effort = body.effort || undefined;
-        // Apply next turn: drop an idle ACP process so it respawns with the new effort
-        // (context resumes via session/load). Mid-turn, mark it for recycling when the
-        // turn ends — otherwise the change silently never applied while the long-lived
-        // process survived (which, with 20-minute idle reaping, could be the whole day).
+      // Apply next turn the old way: drop an idle ACP process so it respawns with the
+      // new spawn arguments (context resumes via session/load). Mid-turn, mark it for
+      // recycling when the turn ends — otherwise the change silently never applied while
+      // the long-lived process survived (which, with 20-minute idle reaping, could be
+      // the whole day).
+      const recycle = () => {
         if (session.acp && session.status === "idle") { try { session.acp.stop(); } catch { /* ignore */ } session.acp = null; }
         else if (session.acp) session._recycleAcp = true;
+      };
+      // grok 1.0 changes both on the live session (session/set_config_option), which
+      // keeps the process and its context warm. Older grok, or a refusal: recycle.
+      const live = async (configId, value) => {
+        if (!value || !session.acp?.running || !session.acp.supportsConfig(configId)) return false;
+        try { return await session.acp.setConfigOption(configId, value); } catch { return false; }
+      };
+      if (typeof body.model === "string") {
+        const model = body.model.trim();
+        session.model = model || undefined;
+        if (!(await live("model", model))) recycle();
+        if (model) session.emit({ kind: "model", modelId: model });
+      }
+      if (typeof body.effort === "string") {
+        session.effort = body.effort || undefined;
+        if (!(await live("reasoning_effort", body.effort))) recycle();
       }
       // approvalPolicy wins when both are sent: a client that knows the three states is
       // more specific than one that only knows the boolean.
@@ -1839,8 +2019,12 @@ function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   for (const summary of store.list()) {
-    try { store.get(summary.id)?.acp?.stop(); } catch { /* ignore */ }
+    const s = store.get(summary.id);
+    try { s?.acp?.stop(); } catch { /* ignore */ }
+    // A turn cut off here would otherwise lose everything since the last save.
+    try { s?.saveHistory(); } catch { /* ignore */ }
   }
+  try { store.save(); } catch { /* ignore */ }
   try { bonjour?.kill(); } catch { /* ignore */ }
   try { awake.release(); } catch { /* ignore */ }
   try { usageHistory.flush(); } catch { /* ignore */ }   // counters are batched; don't lose the tail
@@ -1883,6 +2067,7 @@ server.listen(config.port, listenHost, async () => {
   advertiseBonjour();
   pinnedServer?.listen(tlsPort, listenHost, () => { pinnedListening = true; });
   setTimeout(resumeQueuedWork, 2500).unref?.();
+  if (!modelCatalog.models.length) setTimeout(() => probeModels(), 4000).unref?.();
   startGrokUpdateLoop();
   // Transcripts left behind by a session that was deleted mid-turn, before delete()
   // marked sessions dead. They are unreachable but still hold the conversation.

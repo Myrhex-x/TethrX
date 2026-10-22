@@ -138,6 +138,12 @@ function spawnTurn(opts, resume) {
     });
 
     child.on("error", (err) => {
+      // Spawned with a signal, cancelling emits an AbortError here first, which read
+      // as "failed to launch grok … The operation was aborted" and a Turn failed push.
+      if (err?.name === "AbortError" || signal?.aborted) {
+        resolve({ sessionId, stopReason: "Cancelled" });
+        return;
+      }
       // e.g. ENOENT when grok isn't installed / wrong path.
       reject(new Error(`failed to launch grok (${grokBin}): ${err.message}`));
     });
@@ -184,7 +190,8 @@ function normalize(obj) {
 export function grokVersion(grokBin) {
   return new Promise((resolve) => {
     let out = "";
-    const child = spawn(grokBin, ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
+    // Bounded: /api/health waits on this, and a hung grok made the bridge look dead.
+    const child = spawn(grokBin, ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 });
     child.stdout.on("data", (b) => (out += b.toString()));
     child.on("error", () => resolve(null));
     child.on("close", () => resolve(out.trim() || null));

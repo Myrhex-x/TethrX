@@ -6,7 +6,8 @@
 
 import http2 from "node:http2";
 import { createSign } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { writeAtomic } from "./sessions.mjs";
 import { join } from "node:path";
 
 const b64url = (x) => Buffer.from(x).toString("base64url");
@@ -72,7 +73,7 @@ export class Apns {
     } catch { return []; }
   }
   _save() {
-    try { writeFileSync(this.devicesPath, JSON.stringify({ tokens: this.tokens }, null, 2), { mode: 0o600 }); }
+    try { writeAtomic(this.devicesPath, JSON.stringify({ tokens: this.tokens }, null, 2)); }
     catch { /* best-effort */ }
   }
 
@@ -91,7 +92,7 @@ export class Apns {
     } catch { return { startTokens: [], sessions: {} }; }
   }
   _saveLa() {
-    try { writeFileSync(this.laPath, JSON.stringify(this.la, null, 2), { mode: 0o600 }); }
+    try { writeAtomic(this.laPath, JSON.stringify(this.la, null, 2)); }
     catch { /* best-effort */ }
   }
 

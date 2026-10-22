@@ -46,6 +46,9 @@ struct ScanSheet: View {
             }
             .padding(20)
         }
+        // A camera viewfinder is dark whatever the app's appearance is, so the ink
+        // drawn over it is resolved as dark too.
+        .environment(\.colorScheme, .dark)
         .task {
             if status == .notDetermined {
                 _ = await AVCaptureDevice.requestAccess(for: .video)

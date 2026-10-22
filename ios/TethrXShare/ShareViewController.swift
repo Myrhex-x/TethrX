@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -81,14 +82,31 @@ private struct SharePayloadLoader: View {
 
     /// Images arrive as a URL, a UIImage, or raw Data depending on the source app.
     /// Downscaled and re-encoded so a 12MP screenshot doesn't ship as 8MB of base64.
+    ///
+    /// Files and bytes are thumbnailed by ImageIO straight from the encoded data.
+    /// Decoding a 48MP photo into a UIImage first needs about 190MB of bitmap, and a
+    /// share extension is killed at around 120MB, so sharing a big photo just closed
+    /// the sheet.
     private static func loadImageData(_ provider: NSItemProvider) async -> Data? {
         let raw = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier)
         var image: UIImage?
-        if let url = raw as? URL, let data = try? Data(contentsOf: url) { image = UIImage(data: data) }
-        else if let ui = raw as? UIImage { image = ui }
-        else if let data = raw as? Data { image = UIImage(data: data) }
+        if let url = raw as? URL { image = thumbnail(CGImageSourceCreateWithURL(url as CFURL, nil)) }
+        else if let data = raw as? Data { image = thumbnail(CGImageSourceCreateWithData(data as CFData, nil)) }
+        else if let ui = raw as? UIImage { image = downscale(ui, maxDimension: 1600) }
         guard let image else { return nil }
-        return downscale(image, maxDimension: 1600).jpegData(compressionQuality: 0.72)
+        return image.jpegData(compressionQuality: 0.72)
+    }
+
+    private static func thumbnail(_ source: CGImageSource?) -> UIImage? {
+        guard let source else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,   // honour EXIF rotation
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1600,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
     }
 
     private static func downscale(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

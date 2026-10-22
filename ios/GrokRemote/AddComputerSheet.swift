@@ -79,7 +79,7 @@ struct AddComputerSheet: View {
 
                     Button { Task { await add() } } label: {
                         HStack(spacing: 10) {
-                            if working { ProgressView().controlSize(.small).tint(.white) }
+                            if working { ProgressView().controlSize(.small).tint(Grok.ink) }
                             (working ? Text("Connecting…") : Text("Add computer"))
                         }
                     }
@@ -104,7 +104,7 @@ struct AddComputerSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .sheet(isPresented: $showScanner) {
             ScanSheet { code in showScanner = false; handleScanned(code) }
         }

@@ -122,8 +122,10 @@ struct TaskListCard: View {
                 // A plan step is a sentence someone wrote, not a command. Setting it
                 // in the code face made the card read as terminal output.
                 .font(Grok.sans(14, entry.isActive ? .semibold : .regular))
+                // Done steps step back in colour only. Struck through in the faintest
+                // grey they were the hardest text in the app to read, and the tick in
+                // front of them already says they are finished.
                 .foregroundStyle(entry.isDone ? Grok.textFaint : (entry.isActive ? Grok.text : Grok.textDim))
-                .strikethrough(entry.isDone, color: Grok.textFaint)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

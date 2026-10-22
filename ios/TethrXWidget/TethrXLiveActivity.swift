@@ -14,7 +14,7 @@ struct TethrXLiveActivity: Widget {
                     Text(context.attributes.sessionName)
                         .font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
                         .lineLimit(1)
-                    Text(context.state.detail)
+                    Text(LocalizedStringKey(context.state.detail))
                         .font(.system(size: 12, design: .monospaced)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 }
                 Spacer(minLength: 6)
@@ -45,7 +45,7 @@ struct TethrXLiveActivity: Widget {
                             Text(context.attributes.sessionName)
                                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .lineLimit(1)
-                            Text(context.state.detail)
+                            Text(LocalizedStringKey(context.state.detail))
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundStyle(.secondary).lineLimit(1)
                         }

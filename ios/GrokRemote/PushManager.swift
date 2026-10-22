@@ -111,6 +111,18 @@ final class PushManager: NSObject, ObservableObject {
         }
     }
 
+    /// A reply typed into a notification that no computer accepted. The notification
+    /// it was typed into is already gone, so this one carries the words back.
+    nonisolated static func notifyUndelivered(_ text: String) {
+        let content = UNMutableNotificationContent()
+        content.title = String(loc: "Reply not delivered")
+        content.body = text
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "undelivered-\(UUID().uuidString)",
+                                            content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     func didRegister(_ deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         lastToken = hex

@@ -56,7 +56,7 @@ struct PromptLibraryView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .sheet(isPresented: $creating) { PromptEditor(prompt: nil) }
         .sheet(item: $editing) { PromptEditor(prompt: $0) }
     }
@@ -186,7 +186,7 @@ struct PromptEditor: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
         .onAppear { if prompt == nil { focused = true } }
         .onDisappear { stopDictation() }
         .onChange(of: dictation.transcript) { _, v in if dictation.isRecording { text = v } }

@@ -25,11 +25,11 @@ struct SchedulesSheet: View {
             .grokBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.font(Grok.sans(16, .semibold)).tint(.white)
+                    Button("Done") { dismiss() }.font(Grok.sans(16, .semibold)).tint(Grok.ink)
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 }
 
@@ -58,7 +58,7 @@ struct SchedulesSection: View {
                     .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
             } else if app.client != nil {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.mini).tint(.white)
+                    ProgressView().controlSize(.mini).tint(Grok.ink)
                     Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
                 }
                 .accessibilityElement(children: .combine)
@@ -68,7 +68,7 @@ struct SchedulesSection: View {
             }
 
             Button { Haptics.tap(); adding = true } label: {
-                Label("Add a scheduled task", systemImage: "clock.badge.plus")
+                Label("Add a scheduled task", systemImage: "plus.circle")
             }
             .buttonStyle(PillButton(kind: .subtle))
             .disabled(app.sessions.isEmpty)
@@ -98,7 +98,7 @@ struct SchedulesSection: View {
             Toggle(s.prompt, isOn: Binding(
                 get: { s.enabled },
                 set: { on in Task { await setEnabled(s, on) } }
-            )).labelsHidden().tint(.white)
+            )).labelsHidden().tint(Grok.ink)
             Button {
                 Task { await remove(s) }
             } label: {
@@ -220,8 +220,8 @@ struct ScheduleEditorSheet: View {
                                     Text(daySymbols.indices.contains(d) ? daySymbols[d] : "?")
                                         .font(Grok.sans(14, .semibold))
                                         .frame(width: 34, height: 34)
-                                        .background(weekdays.contains(d) ? Color.white : Color.clear)
-                                        .foregroundStyle(weekdays.contains(d) ? .black : Grok.textDim)
+                                        .background(weekdays.contains(d) ? Grok.ink : Color.clear)
+                                        .foregroundStyle(weekdays.contains(d) ? Grok.onInk : Grok.textDim)
                                         .overlay(Circle().stroke(weekdays.contains(d) ? Color.clear : Grok.hairline, lineWidth: 1))
                                         .clipShape(Circle())
                                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -244,7 +244,7 @@ struct ScheduleEditorSheet: View {
 
                     Button { Task { await save() } } label: {
                         HStack(spacing: 10) {
-                            if saving { ProgressView().controlSize(.small).tint(.white) }
+                            if saving { ProgressView().controlSize(.small).tint(Grok.ink) }
                             (saving ? Text("Saving…") : Text("Save schedule"))
                         }
                     }
@@ -265,7 +265,7 @@ struct ScheduleEditorSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .grokScheme()
     }
 
     private func save() async {

@@ -13,7 +13,8 @@ const HISTORY_LIMIT = 5000;
 // Events that are state, not conversation. They are streamed to whoever is listening
 // but never stored: the command roster alone was 6.8KB a copy and had taken 70KB of a
 // 97KB transcript, burning history slots and re-sending on every replay.
-const EPHEMERAL_KINDS = new Set(["commands", "log", "waiting"]);
+// `retry` (grok re-trying a failed model call) is a passing state, not a record.
+const EPHEMERAL_KINDS = new Set(["commands", "log", "waiting", "retry", "model", "session_info"]);
 
 // A subscriber that has stopped reading (a phone in a tunnel keeps its socket open with
 // no close event) must not buffer without limit. Measured at 160MB before this cap.
@@ -26,7 +27,7 @@ const APPROVAL_POLICIES = new Set(["ask", "reads", "all"]);
  * Every loader here swallows a parse error and starts empty, which turned a bad moment
  * into silently losing every session.
  */
-function writeAtomic(path, data, mode = 0o600) {
+export function writeAtomic(path, data, mode = 0o600) {
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, data, { mode });
   renameSync(tmp, path);
@@ -50,12 +51,15 @@ function normalizeUsage(u) {
 const EDITED_PATHS_LIMIT = 200;
 
 class Session {
-  constructor({ id, cwd, model, title, transport, effort, createdAt, updatedAt, turnCount, grokSessionId, planMode, autoApprove, approvalPolicy, usage, folder, seedContext, queue, editedPaths, commands }) {
+  constructor({ id, cwd, model, title, transport, effort, createdAt, updatedAt, turnCount, grokSessionId, planMode, autoApprove, approvalPolicy, usage, folder, seedContext, queue, editedPaths, commands, lastEventId, autoTitle }) {
     this.id = id || randomUUID();        // valid v4 UUID — required by `grok -s`
     this.cwd = cwd;
     this.model = model;
     this.effort = effort;
     this.title = title || "New session";
+    // True while the title is grok's own (session_info_update), so a newer one from
+    // grok may replace it. A rename from the phone always wins and clears it.
+    this.autoTitle = Boolean(autoTitle);
     this.folder = folder || "";          // optional grouping label for the phone's session list
     this.transport = transport || "acp"; // "acp" | "headless"
     this.planMode = planMode || false;
@@ -98,7 +102,12 @@ class Session {
     // open each session and scroll to the bottom.
     this.waitingOn = null;               // null | { kind: "permission" | "plan", label, since }
     this._events = [];                   // [{ id, event }]
-    this._nextEventId = 0;
+    // Persisted with the metadata as well as derived from the transcript: a bridge
+    // that died mid-turn lost the turn's unsaved events, and numbering then restarted
+    // below ids a phone had already seen, so its Last-Event-ID skipped the next turn.
+    this._nextEventId = Number.isInteger(lastEventId) && lastEventId > 0 ? lastEventId : 0;
+    this._historyTimer = null;
+    this.lastTurnSummary = null;         // grok's one-line summary of the last turn, for push text
     this._subscribers = new Set();       // Set<http.ServerResponse>
     this._abort = null;                  // AbortController for a running headless turn
   }
@@ -251,6 +260,7 @@ class Session {
       createdAt: this.createdAt, updatedAt: this.updatedAt, turnCount: this.turnCount, usage: this.usage,
       seedContext: this.seedContext, queue: this.queue,
       editedPaths: this.editedPaths, commands: this.commands,
+      lastEventId: this._nextEventId, autoTitle: this.autoTitle,
     };
   }
 
@@ -259,7 +269,16 @@ class Session {
     if (!this.historyPath || this.dead) return;   // a deleted session must not rewrite its own transcript
     // 0600: a transcript holds every prompt, every shell command and its output, every
     // diff, and absolute project paths. It was being written world-readable.
+    if (this._historyTimer) { clearTimeout(this._historyTimer); this._historyTimer = null; }
     try { writeAtomic(this.historyPath, JSON.stringify(this._events)); } catch { /* best-effort */ }
+  }
+
+  /** Write the transcript soon, coalescing a burst of streamed events into one save.
+   *  Saving only at turn end lost a whole turn to a crash or a restart mid-way. */
+  _scheduleHistorySave() {
+    if (this._historyTimer || !this.historyPath || this.dead) return;
+    this._historyTimer = setTimeout(() => { this._historyTimer = null; this.saveHistory(); }, 3000);
+    this._historyTimer.unref?.();
   }
 
   loadHistory() {
@@ -268,7 +287,7 @@ class Session {
       const events = JSON.parse(readFileSync(this.historyPath, "utf8"));
       if (Array.isArray(events) && events.length) {
         this._events = events;
-        this._nextEventId = events[events.length - 1].id || 0;
+        this._nextEventId = Math.max(this._nextEventId, events[events.length - 1].id || 0);
       }
     } catch (e) {
       // Starting empty silently is how a corrupt file quietly became "no conversation".
@@ -299,6 +318,7 @@ class Session {
     if (this._events.length > HISTORY_LIMIT) this._events.shift();
 
     this._broadcast(`id: ${id}\ndata: ${JSON.stringify(event)}\n\n`);
+    this._scheduleHistorySave();
     return id;
   }
 
@@ -339,6 +359,7 @@ class Session {
     // RUNNING badge alone is the same shape at four seconds and at forty minutes.
     this.runningSince = new Date().toISOString();
     this.turnCount += 1;
+    this._turnStartedMs = Date.now();
     this._abort = new AbortController();
     return this._abort.signal;
   }
@@ -405,6 +426,10 @@ export class SessionStore {
     // a session that no longer existed, unobservable and never reaped.
     s.dead = true;
     s.queue = [];
+    // An approved plan arms a follow-up turn for when the plan turn ends. Left set,
+    // deleting the session mid-plan spawned a hidden grok that went on to build it.
+    s._executeOnComplete = false;
+    if (s._historyTimer) { clearTimeout(s._historyTimer); s._historyTimer = null; }
     s.waitingOn = null;
     if (s.acp) { try { s.acp.stop(); } catch { /* ignore */ } }
     s.acp = null;
@@ -418,6 +443,7 @@ export class SessionStore {
     const s = this._byId.get(id);
     if (!s) return false;
     s.title = title;
+    s.autoTitle = false;
     this.save();
     return true;
   }

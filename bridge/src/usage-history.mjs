@@ -5,7 +5,8 @@
 // bound and carry prompts around with it. A day holds counters only — no text, no
 // paths, nothing about what the work was.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync } from "node:fs";
+import { writeAtomic } from "./sessions.mjs";
 
 const KEEP_DAYS = 120;
 
@@ -76,7 +77,7 @@ export class UsageHistory {
     if (!this._dirty || !this._path) return;
     this._prune();
     try {
-      writeFileSync(this._path, JSON.stringify({ days: Object.fromEntries(this._days) }));
+      writeAtomic(this._path, JSON.stringify({ days: Object.fromEntries(this._days) }), 0o644);
       this._dirty = false;
     } catch { /* best-effort */ }
   }
@@ -94,6 +95,9 @@ export class UsageHistory {
       for (const [k, v] of Object.entries(parsed?.days || {})) {
         this._days.set(k, { ...emptyDay(), ...v });
       }
-    } catch { /* ignore a corrupt file */ }
+    } catch (e) {
+      console.error(`[usage] unreadable usage history: ${e.message}`);
+      try { renameSync(this._path, `${this._path}.corrupt`); } catch { /* best-effort */ }
+    }
   }
 }
