@@ -491,6 +491,15 @@ final class AppState: ObservableObject {
 
     // MARK: Demo mode
 
+    /// The tour's stand-in for the computer finishing something: the session's block
+    /// or turn ends here. Stamped as fresh, so the watch takes it over anything older.
+    func settleTourSession(_ id: String) {
+        guard demoMode, let i = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[i].waiting = nil
+        sessions[i].status = "idle"
+        sessionsAt = Date()
+    }
+
     func enterDemo() {
         demoMode = true
         health = DemoData.health
@@ -642,10 +651,7 @@ final class AppState: ObservableObject {
         if allow, waiting.kind != "plan", waiting.allow == nil { return false }
         if demoMode {
             // The tour has no computer; clearing the block is the whole visible effect.
-            if let i = sessions.firstIndex(where: { $0.id == session.id }) {
-                sessions[i].waiting = nil
-                sessions[i].status = "idle"
-            }
+            settleTourSession(session.id)
             Haptics.success()
             return true
         }

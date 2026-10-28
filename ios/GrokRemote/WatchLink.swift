@@ -407,6 +407,10 @@ extension WatchLink: WCSessionDelegate {
     private func handle(_ message: [String: Any]) async -> [String: Any] {
         let command = message["cmd"] as? String ?? ""
         let app = AppState.shared
+        // The tour has no computer behind it, yet the watch shows the tour's sessions,
+        // so it must answer for them too. Without this every detail and every Allow
+        // during the tour came back "Not connected to a computer".
+        if app.demoMode, command != "snapshot" { return await handleTour(message, command: command, app: app) }
         switch command {
         case "snapshot":
             await app.reloadSessions(quiet: true)
@@ -493,6 +497,43 @@ extension WatchLink: WCSessionDelegate {
                 return ["error": Self.readable(error)]
             }
 
+        default:
+            return ["error": "unknown request"]
+        }
+    }
+
+    /// The tour's answers to the watch, from the same sample data the phone shows.
+    private func handleTour(_ message: [String: Any], command: String, app: AppState) async -> [String: Any] {
+        guard let id = message["sessionId"] as? String,
+              let session = app.sessions.first(where: { $0.id == id }) else { return ["error": "no session"] }
+        switch command {
+        case "detail":
+            var detail = WatchDetail(sessionId: id)
+            detail.name = Self.clip(session.displayName, Budget.text)
+            detail.busy = session.isRunning
+            detail.fetchedAt = Date()
+            if session.isRunning || session.isWaitingOnYou { detail.approval = Self.approval(for: session) }
+            let items = DemoData.transcript(for: id) ?? []
+            if let asked = items.last(where: { $0.role == .user })?.text, !asked.isEmpty {
+                detail.lastUser = Self.clip(asked, Budget.line)
+            }
+            if let reply = items.last(where: { $0.role == .assistant })?.text, !reply.isEmpty {
+                detail.lastReply = Self.clipProse(reply, Budget.reply)
+            }
+            return encoded(detail, as: "detail")
+        case "decide", "plan":
+            let allow = command == "plan"
+                ? (message["approved"] as? Bool ?? false)
+                : (message["optionId"] as? String) == session.waiting?.allow
+            _ = await app.answerWaiting(session, allow: allow)
+            publish(Self.snapshot(from: app))
+            return ["ok": true]
+        case "reply":
+            return ["ok": true]   // nowhere to send it in the tour; accepted, as a computer would
+        case "stop":
+            app.settleTourSession(id)
+            publish(Self.snapshot(from: app))
+            return ["ok": true]
         default:
             return ["error": "unknown request"]
         }
