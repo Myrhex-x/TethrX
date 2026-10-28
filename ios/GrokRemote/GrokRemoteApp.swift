@@ -29,7 +29,6 @@ struct TethrXApp: App {
             // newly chosen .lproj instead of waiting for the next relaunch.
             .environment(\.locale, language.locale)
             .id(language.code)
-            .tint(Grok.ink)                          // outline-pill language: white, not a color accent
             .grokScheme()
             // Fonts scale with Dynamic Type (see Grok.mono/sans); cap the growth
             // so the densest layouts survive the largest accessibility sizes.
@@ -111,7 +110,6 @@ struct TethrXApp: App {
 
 struct RootView: View {
     @EnvironmentObject var app: AppState
-    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         ZStack {
@@ -119,9 +117,11 @@ struct RootView: View {
             // `switching` keeps the normal UI mounted while changing computers —
             // tearing it down mid-probe flashed the first-run wizard for seconds.
             if app.connected || app.demoMode || app.switching {
-                // iPad (and big landscape phones) get a real sidebar + chat split;
-                // iPhone keeps the stack.
-                if hSize == .regular {
+                // iPad gets a real sidebar + chat split; iPhone keeps the stack. Decided
+                // by the device, not the size class: a Max-size iPhone turns .regular
+                // in landscape, and swapping the whole layout on rotation threw away
+                // the open conversation and whatever was typed into it.
+                if UIDevice.current.userInterfaceIdiom == .pad {
                     SplitRootView()
                 } else {
                     SessionListView()

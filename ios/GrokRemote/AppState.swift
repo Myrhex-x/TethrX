@@ -43,6 +43,9 @@ final class AppState: ObservableObject {
     /// The connected computer's models, for the pickers. Nil until fetched, and on
     /// bridges that predate the endpoint.
     @Published var modelCatalog: GrokModelCatalog?
+    /// A Settings page to put back on screen after the whole interface rebuilds (a
+    /// language change does that). Read once by the session list.
+    @Published var reopenSettingsPage: String?
     @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
     @Published var defaultAutoApprove: Bool { didSet { UserDefaults.standard.set(defaultAutoApprove, forKey: "bridge.autoApprove") } }
     /// True after the user taps Disconnect — suppresses launch auto-reconnect until they
@@ -58,7 +61,11 @@ final class AppState: ObservableObject {
     @Published var demoMode = false
 
     @Published var health: HealthInfo?
-    @Published var sessions: [SessionInfo] = []
+    @Published var sessions: [SessionInfo] = [] { didSet { sessionsAt = Date() } }
+    /// When `sessions` was last set from its source. The watch is told how old the
+    /// list is by this, not by when it happened to be pushed: re-sending a cached
+    /// list made an hour-old list read "Updated 0 sec ago" on the wrist.
+    private(set) var sessionsAt = Date()
     @Published var lastUsage: UsageReport?      // for the home-screen widget
     @Published var connected = false
     @Published var connecting = false

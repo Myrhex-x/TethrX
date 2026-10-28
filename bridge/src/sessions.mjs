@@ -145,6 +145,7 @@ class Session {
       waiting: this.waitingOn ? {
         kind: this.waitingOn.kind,
         label: this.waitingOn.label || "",
+        command: this.waitingOn.command,
         since: this.waitingOn.since,
         requestId: this.waitingOn.requestId,
         allow: this.waitingOn.allow,
@@ -183,9 +184,14 @@ class Session {
    * an approval from a pushed snapshot, with no live connection to anything.
    */
   setWaiting(kind, label, answer = null) {
+    const text = String(label || "");
     this.waitingOn = {
       kind,
-      label: String(label || "").slice(0, 120),
+      label: text.slice(0, 120),
+      // The whole command beside the short label. A client answering from a list or
+      // a watch has to judge what will actually run, and a label cut at 120
+      // characters can end just before the `&& git push --force` that matters.
+      command: kind === "permission" ? text.slice(0, 4000) : undefined,
       since: new Date().toISOString(),
       requestId: answer?.requestId ? String(answer.requestId) : undefined,
       allow: answer?.allow ? String(answer.allow) : undefined,

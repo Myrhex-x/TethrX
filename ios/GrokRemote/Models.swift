@@ -128,12 +128,21 @@ struct UsageDay: Codable, Identifiable, Hashable {
 struct WaitingState: Codable, Hashable {
     var kind: String        // "permission" | "plan"
     var label: String?      // the command or title, for the chip
+    /// The whole command, beside the short label. Bridge 0.1.25+.
+    var command: String?
     var since: String?
     /// What it takes to answer this without fetching anything else: the request and
     /// the option ids for yes and no. Absent on bridges that predate it.
     var requestId: String?
     var allow: String?
     var deny: String?
+
+    /// What will run: the whole command when the bridge sends it, else the label.
+    var commandText: String { command ?? label ?? "" }
+    /// Whether what is held may be only the start of the command. Bridges before
+    /// 0.1.25 cut the label at 120 UTF-16 units and sent nothing longer, so a
+    /// label that long cannot be judged, or approved in one tap, as if it were whole.
+    var commandMayBeCut: Bool { command == nil && (label?.utf16.count ?? 0) >= 120 }
 }
 
 struct SessionInfo: Codable, Identifiable, Hashable {
@@ -449,7 +458,14 @@ struct BridgeSchedule: Codable, Identifiable, Hashable {
     var weekdays: [Int]      // 0=Sunday … 6=Saturday; empty = every day
     var enabled: Bool
 
-    var timeLabel: String { String(format: "%02d:%02d", hour, minute) }
+    /// The time in the phone's own format ("9:00 AM", "09:00"), as the editor's
+    /// time picker shows it. It fires on the computer's clock.
+    var timeLabel: String {
+        guard let date = Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) else {
+            return String(format: "%02d:%02d", hour, minute)
+        }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
     /// "Every day", "Weekdays", or short day names.
     var daysLabel: String {
         if weekdays.isEmpty { return String(loc: "Every day") }

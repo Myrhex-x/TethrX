@@ -1,41 +1,39 @@
 import SwiftUI
 import UIKit
 
-/// The Grok app's language, as closely as a third-party client should take it: a
-/// pure black canvas, sans-serif for everything a person reads, monospace reserved
-/// for what is literally code, circular outline icon buttons, and generous corner
-/// radii on soft translucent surfaces.
+/// The app's visual language: the system's own colors and materials, the way an
+/// Apple app is built, with the brand kept to one mark and one monochrome accent.
 ///
-/// The console look this replaced (mono everywhere, `// EYEBROW` comment headers, a
-/// `>` prompt in the composer) said "terminal". It is a phone.
-///
-/// Every token resolves per appearance (see `Appearance`). The default dark is a
-/// near-black, not #000, with off-white ink: full white on full black blooms at the
-/// edges of every glyph (halation, worst for anyone with astigmatism) and smears on
-/// OLED while scrolling, which is most of what makes a black app tiring to read.
-/// Pure black is still there for people who want it, and light is a warm paper
-/// rather than a white light box.
+/// Every color here is a system semantic color. That is what makes light and dark
+/// look right without a second thought (Apple tuned them for both), keeps the app in
+/// step with Increase Contrast and Smart Invert, and is most of why a screen reads as
+/// native: the greys are the greys the rest of the phone uses.
 enum Grok {
     // MARK: Ink
-    /// The one foreground color everything else is a strength of: off-white on the
-    /// dark canvases, near-black on paper. `ink.opacity(x)` is how a surface, a rule
-    /// or a pressed state is drawn, so all of them follow the appearance for free.
-    static let ink = dynamic(dark: UIColor(white: 0.93, alpha: 1),
-                             light: UIColor(red: 0.086, green: 0.086, blue: 0.10, alpha: 1))
-    /// Ink on a filled `ink` surface: the label of a primary button, a selected chip.
-    static let onInk = dynamic(dark: UIColor(red: 0.04, green: 0.04, blue: 0.05, alpha: 1),
-                               light: UIColor(red: 0.98, green: 0.98, blue: 0.97, alpha: 1))
+    /// The label color: white on dark, near-black on light. Filled primary buttons
+    /// are drawn in it, with `onInk` for their own label.
+    static let ink = Color(uiColor: .label)
+    static let onInk = Color(uiColor: .systemBackground)
 
     // MARK: Canvas
-    /// The page itself. A style rather than a `Color`, because it is the one token
-    /// that differs between Dark and Black, and only a style is handed the
-    /// environment when it resolves (a dynamic `UIColor` sees UIKit's traits alone).
-    /// Where a plain view is needed, `Grok.bg.ignoresSafeArea()` still reads the same.
-    static let bg = CanvasStyle()
-    static let raised = ink.opacity(0.055)                          // panels, bubbles, fields
-    static let raisedPressed = ink.opacity(0.14)
-    static let hairline = ink.opacity(0.10)
-    static let hairlineStrong = ink.opacity(0.20)
+    /// Screens made of lists and cards (home, Settings): the grouped background the
+    /// system's Settings and Notes sit on. Black in dark, soft grey in light.
+    static let bg = Color(uiColor: .systemGroupedBackground)
+    /// A conversation's page: the plain background, black or white, like Messages.
+    static let page = Color(uiColor: .systemBackground)
+    /// A card on `bg`: elevated grey in dark, white in light.
+    static let raised = Color(uiColor: .secondarySystemGroupedBackground)
+    /// A panel on `page`: the same elevated grey in dark, a soft grey in light so it
+    /// still reads as a surface on white.
+    static let panel = Color(uiColor: .secondarySystemBackground)
+    /// What you said, in a conversation: the grey a received bubble has in Messages.
+    static let bubble = Color(uiColor: .systemGray5)
+    static let raisedPressed = Color(uiColor: .tertiarySystemFill)
+    static let hairline = Color(uiColor: .separator)
+    static let hairlineStrong = Color(uiColor: .opaqueSeparator)
+    /// A single hairline. Structure here is drawn with rules and space rather than
+    /// with filled boxes stacked on filled boxes.
+    static let rule = Color(uiColor: .separator)
 
     // MARK: Shape
     /// One radius scale, so nothing is rounded by accident.
@@ -45,8 +43,8 @@ enum Grok {
     /// into and out of.
     enum R {
         static let card: CGFloat = 16
-        static let bubble: CGFloat = 22
-        static let field: CGFloat = 26
+        static let bubble: CGFloat = 20
+        static let field: CGFloat = 24
         static let small: CGFloat = 12
     }
 
@@ -64,38 +62,30 @@ enum Grok {
     /// Between two groups of blocks.
     static let groupGap: CGFloat = 22
     /// One height for everything sitting in the composer's control row: the add
-    /// button, the chips, the mic. Measured on device that row ran 32.0, 34.3, 31.7
-    /// and 32.3 points side by side, because each control was sized by whatever glyph
-    /// happened to be inside it. A 2.6pt spread across four adjacent things reads as
-    /// carelessness long before anyone can say why.
+    /// button, the chips, the mic.
     static let control: CGFloat = 34
 
-    /// A single hairline. Structure here is drawn with rules and space rather than
-    /// with filled boxes stacked on filled boxes.
-    static let rule = ink.opacity(0.09)
-
     // MARK: Text
-    static let text = ink
-    static let textDim = dynamic(dark: UIColor(white: 0.93, alpha: 0.66),
-                                 light: UIColor(red: 0.086, green: 0.086, blue: 0.10, alpha: 0.70))
-    /// The quietest text that is still text. It used to be 38% white, about 3.4:1
-    /// on black, under the 4.5:1 floor for small type, and it carried every subtitle,
-    /// timestamp and hint in the app. Each value here clears 4.5:1 on its own canvas.
-    static let textFaint = dynamic(dark: UIColor(white: 0.93, alpha: 0.52),
-                                   light: UIColor(red: 0.086, green: 0.086, blue: 0.10, alpha: 0.60))
+    static let text = Color(uiColor: .label)
+    static let textDim = Color(uiColor: .secondaryLabel)
+    /// Apple's hierarchy has two tiers of reading text, not three: a row is a label
+    /// and a secondary label. The third tier used to carry timestamps and hints at a
+    /// contrast under what small type needs; those are secondary now too.
+    static let textFaint = Color(uiColor: .secondaryLabel)
+    /// Placeholder text only: the one place the system goes fainter than secondary.
+    static let placeholder = Color(uiColor: .tertiaryLabel)
 
-    // MARK: Accent — monochrome. (The warm gradient read as too loud; xAI is
-    // "confidently sparse", so the sole accent is simply the ink.)
-    static let accent = ink
-    static let danger = dynamic(dark: UIColor(red: 1.0, green: 0.47, blue: 0.47, alpha: 1),
-                                light: UIColor(red: 0.76, green: 0.12, blue: 0.13, alpha: 1))   // errors only
+    // MARK: Accent: monochrome. The sole accent is the ink; red is for errors and
+    // destructive actions, the way the system uses it.
+    static let accent = Color(uiColor: .label)
+    static let danger = Color(uiColor: .systemRed)
 
-    /// A color per appearance. Dark and Black share it: only the canvas changes
-    /// between the two, and everything drawn on it is the same ink.
-    static func dynamic(dark: UIColor, light: UIColor) -> Color {
-        Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .light ? light : dark
-        })
+    /// A fade from clear into `color`, top to bottom, for content scrolling under a
+    /// bar. `stops` are the color's opacity at evenly spaced points.
+    static func fade(_ color: Color, _ stops: [Double]) -> some View {
+        Rectangle().fill(color).mask(
+            LinearGradient(colors: stops.map { Color.black.opacity($0) },
+                           startPoint: .top, endPoint: .bottom))
     }
 
     // MARK: Type
@@ -114,86 +104,60 @@ enum Grok {
     static func body(_ weight: Font.Weight = .regular) -> Font { sans(17, weight) }
     /// Secondary line under a title.
     static func caption(_ weight: Font.Weight = .regular) -> Font { sans(14, weight) }
-    /// A screen's own name. Big, and tracked in rather than out — the tightening is
+    /// A screen's own name. Big, and tracked in rather than out: the tightening is
     /// what makes a large grotesque read as engineered instead of merely large.
     static func display(_ size: CGFloat = 28) -> Font { sans(size, .semibold) }
 }
 
-/// The page color: near-black, pure black or paper.
-struct CanvasStyle: ShapeStyle, View {
-    static let dark = Color(red: 0.063, green: 0.063, blue: 0.071)
-    static let light = Color(red: 0.965, green: 0.965, blue: 0.953)
-
-    func resolve(in environment: EnvironmentValues) -> Color.Resolved {
-        let color = environment.colorScheme == .light ? Self.light
-            : (environment.pureBlack ? Color.black : Self.dark)
-        return color.resolve(in: environment)
-    }
-
-    /// Drawn as a view: `Grok.bg.ignoresSafeArea()` behind a screen.
-    var body: some View { Rectangle().fill(self) }
-
-    /// A fade from clear into the canvas, top to bottom, for content scrolling
-    /// under a bar. `stops` are the canvas's opacity at evenly spaced points.
-    func fade(_ stops: [Double]) -> some View {
-        Rectangle().fill(self).mask(
-            LinearGradient(colors: stops.map { Color.black.opacity($0) },
-                           startPoint: .top, endPoint: .bottom))
-    }
-}
-
 // MARK: - Appearance
 
-/// How the app is lit, chosen in Settings → Appearance.
+/// How the app is lit, chosen in Settings → Appearance. Automatic is the default,
+/// as it is in every Apple app: the phone already knows whether it is night.
 enum Appearance: String, CaseIterable, Identifiable {
-    /// Follows the phone: paper by day, dark by night if the phone switches.
     case system
-    /// Near-black canvas, off-white ink. The default.
-    case dark
-    /// True #000 canvas, the same ink: OLED pixels fully off.
-    case black
-    /// Warm paper canvas, near-black ink.
     case light
+    case dark
 
     static let storageKey = "appearance"
-    static let fallback: Appearance = .dark
+    static let fallback: Appearance = .system
     var id: String { rawValue }
+
+    /// The stored value, or the default. An earlier build offered a separate pure
+    /// black; that is what dark is now, so the old choice lands there.
+    static func stored(_ raw: String) -> Appearance {
+        Appearance(rawValue: raw) ?? (raw == "black" ? .dark : fallback)
+    }
 
     var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
         case .light: return .light
-        case .dark, .black: return .dark
+        case .dark: return .dark
         }
     }
 
     var title: LocalizedStringKey {
         switch self {
         case .system: return "Automatic"
-        case .dark: return "Dark"
-        case .black: return "Black"
         case .light: return "Light"
+        case .dark: return "Dark"
         }
     }
 
     var detail: LocalizedStringKey {
         switch self {
         case .system: return "Follows your iPhone's light and dark setting."
-        case .dark: return "A soft near-black with off-white text. Easiest on the eyes at night."
-        case .black: return "Pure black for OLED screens. Highest contrast."
-        case .light: return "A warm paper background with dark text, for daylight."
+        case .light: return "Light backgrounds with dark text."
+        case .dark: return "Black backgrounds with light text, easiest on OLED screens at night."
         }
     }
-}
 
-extension Appearance {
     /// The title as a plain string, for the value column of the Settings index.
     var label: String {
         switch self {
         case .system: return String(loc: "Automatic")
-        case .dark: return String(loc: "Dark")
-        case .black: return String(loc: "Black")
         case .light: return String(loc: "Light")
+        case .dark: return String(loc: "Dark")
         }
     }
 }
@@ -255,15 +219,15 @@ struct AppearanceSwatch: View {
                     .frame(height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
-                        .strokeBorder(selected ? Grok.ink : Grok.hairline, lineWidth: selected ? 2 : 1))
+                        .strokeBorder(selected ? Color.accentColor : Grok.hairline, lineWidth: selected ? 2 : 1))
                 HStack(spacing: 6) {
-                    Text(option.title).font(Grok.sans(15, selected ? .semibold : .regular))
+                    Text(option.title).font(.subheadline.weight(selected ? .semibold : .regular))
                         .foregroundStyle(Grok.text)
                     Spacer(minLength: 0)
                     if selected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 15))
-                            .foregroundStyle(Grok.text)
+                            .foregroundStyle(Color.accentColor)
                             .accessibilityHidden(true)
                     }
                 }
@@ -286,41 +250,25 @@ struct AppearanceSwatch: View {
         case .light:
             page.environment(\.colorScheme, .light)
         case .dark:
-            page.environment(\.colorScheme, .dark).environment(\.pureBlack, false)
-        case .black:
-            page.environment(\.colorScheme, .dark).environment(\.pureBlack, true)
+            page.environment(\.colorScheme, .dark)
         }
     }
 
     /// A conversation in miniature: something you said, then a reply.
     private var page: some View {
         ZStack(alignment: .topLeading) {
-            Grok.bg
+            Grok.page
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Spacer(minLength: 0)
-                    Capsule().fill(Grok.ink.opacity(0.10)).frame(width: 38, height: 12)
+                    Capsule().fill(Grok.bubble).frame(width: 38, height: 12)
                 }
                 Capsule().fill(Grok.text).frame(height: 5).frame(maxWidth: 64)
                 Capsule().fill(Grok.textDim).frame(height: 5).frame(maxWidth: 52)
-                Capsule().fill(Grok.textFaint).frame(height: 5).frame(maxWidth: 40)
+                Capsule().fill(Grok.textDim.opacity(0.6)).frame(height: 5).frame(maxWidth: 40)
             }
             .padding(10)
         }
-    }
-}
-
-/// Whether the dark canvas is pure black. Read by `CanvasStyle` as it resolves, so
-/// switching between Dark and Black repaints at once, under an open Settings sheet,
-/// without rebuilding anything.
-private struct PureBlackKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var pureBlack: Bool {
-        get { self[PureBlackKey.self] }
-        set { self[PureBlackKey.self] = newValue }
     }
 }
 
@@ -329,10 +277,7 @@ extension EnvironmentValues {
 private struct GrokScheme: ViewModifier {
     @AppStorage(Appearance.storageKey) private var raw = Appearance.fallback.rawValue
     func body(content: Content) -> some View {
-        let appearance = Appearance(rawValue: raw) ?? Appearance.fallback
-        content
-            .environment(\.pureBlack, appearance == .black)
-            .preferredColorScheme(appearance.colorScheme)
+        content.preferredColorScheme(Appearance.stored(raw).colorScheme)
     }
 }
 
@@ -393,7 +338,49 @@ struct ListSectionLabel: View {
             // a heading came out dimmer and lighter than the paragraph it headed.
             .font(Grok.sans(size, .semibold))
             .foregroundStyle(Grok.textDim)
+            // Sentence case wherever it sits, including a list section header, which
+            // would otherwise set it in capitals on some versions of iOS.
+            .textCase(nil)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - List rows
+
+/// A row's symbol in a rounded square, as Settings draws them. Grey, so the brand
+/// stays monochrome while the shape says "a place you can go".
+struct RowIcon: View {
+    let system: String
+    var tint: Color = Color(uiColor: .systemGray)
+    var size: CGFloat = 29
+    var body: some View {
+        Image(systemName: system)
+            .font(.system(size: size * 0.48, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(tint, in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// The disclosure chevron a list row shows when it opens something.
+struct RowChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color(uiColor: .tertiaryLabel))
+            .accessibilityHidden(true)
+    }
+}
+
+/// A row that shares its list cell with another control (the ••• menu) and so
+/// cannot use the cell's own highlight: it draws the same grey while pressed.
+struct RowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(configuration.isPressed ? Color(uiColor: .systemGray4) : Color.clear)
     }
 }
 
@@ -419,6 +406,8 @@ struct Readout: View {
 struct PillButton: ButtonStyle {
     enum Kind { case prominent, subtle }
     var kind: Kind = .prominent
+    /// A disabled pill used to look exactly like an enabled one.
+    @Environment(\.isEnabled) private var isEnabled
     /// Tighter geometry for buttons that share a row rather than owning one. A
     /// stack of full-height pills is how a card gets tall enough to need scrolling
     /// before you have read what you are approving.
@@ -442,6 +431,7 @@ struct PillButton: ButtonStyle {
                         : Grok.ink.opacity(pressed ? 0.16 : 0.08))
             .clipShape(Capsule())
             .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.45)
     }
 }
 
@@ -492,29 +482,65 @@ struct SegPill: ButtonStyle {
 /// taller chip than a squat one (a gauge), and the row came out ragged. Here the
 /// glyph is drawn inside a box it cannot exceed.
 struct ChipLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 5) {
-            configuration.icon
+    /// Just the glyph, for a row that is short of room. The title stays the
+    /// control's spoken name.
+    var iconOnly = false
+
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            Label(configuration)
+                .labelStyle(.iconOnly)
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: 14, height: 14)
-            configuration.title.lineLimit(1)
+        } else {
+            HStack(spacing: 5) {
+                configuration.icon
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 14, height: 14)
+                configuration.title.lineLimit(1)
+            }
         }
+    }
+}
+
+private struct ChipsCompactKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Set on a row of chips that is short of room. A chip still at its default
+    /// setting then drops its name and becomes a round icon button; a chip you
+    /// have changed keeps its name, because that is the one worth reading.
+    var chipsCompact: Bool {
+        get { self[ChipsCompactKey.self] }
+        set { self[ChipsCompactKey.self] = newValue }
+    }
+}
+
+private struct ChipModifier: ViewModifier {
+    let on: Bool
+    @Environment(\.chipsCompact) private var compact
+
+    func body(content: Content) -> some View {
+        let iconOnly = compact && !on
+        content
+            .font(Grok.sans(13, .medium))
+            .foregroundStyle(on ? Grok.onInk : Grok.textDim)
+            .labelStyle(ChipLabelStyle(iconOnly: iconOnly))
+            .padding(.horizontal, iconOnly ? 0 : 11)
+            .frame(width: iconOnly ? Grok.control : nil, height: Grok.control)
+            .background(on ? Grok.ink : Grok.ink.opacity(0.08))
+            .clipShape(Capsule())
+            .contentShape(Capsule())
     }
 }
 
 extension View {
     /// Small capsule for chat controls. Soft translucent fill when off, solid white
-    /// when on — no hairline outlines, which read as terminal chrome.
+    /// when on — no hairline outlines, which read as terminal chrome. Round and
+    /// icon-only when off inside a row marked `chipsCompact`.
     func chip(on: Bool) -> some View {
-        self
-            .font(Grok.sans(13, .medium))
-            .foregroundStyle(on ? Grok.onInk : Grok.textDim)
-            .labelStyle(ChipLabelStyle())
-            .padding(.horizontal, 11)
-            .frame(height: Grok.control)
-            .background(on ? Grok.ink : Grok.ink.opacity(0.08))
-            .clipShape(Capsule())
-            .contentShape(Capsule())
+        modifier(ChipModifier(on: on))
     }
 
     /// The round twin of `chip`, for the icon-only controls that bracket the row.
@@ -587,13 +613,10 @@ struct CircleIconButton: View {
 // MARK: - Reusable dark toolbar styling
 
 extension View {
-    /// Make a NavigationStack's bar match the canvas. The bar's own scheme follows
-    /// the app's appearance (`grokScheme`), so its title and buttons stay legible.
-    func grokBar() -> some View {
-        self
-            .toolbarBackground(Grok.bg, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-    }
+    /// The navigation bar is the system's: translucent, with the scroll-edge effect
+    /// the rest of the phone has, and glass on iOS 26. It used to be painted opaque
+    /// in the canvas color, which is exactly what makes a bar look stuck on.
+    func grokBar() -> some View { self }
 }
 
 // MARK: - Brand mark (the "T" logo)
@@ -707,6 +730,11 @@ enum Haptics {
     }
     static func success() {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+    /// A choice changed (a theme, a language, a model): the click a picker wheel makes.
+    /// Opening a screen or a sheet gets nothing, as in the system's own apps.
+    static func select() {
+        UISelectionFeedbackGenerator().selectionChanged()
     }
     /// Grok has stopped and is waiting on you. Deliberately not the light tap every
     /// button uses: this one is meant to be felt without looking.

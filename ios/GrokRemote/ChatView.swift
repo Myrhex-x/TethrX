@@ -4,23 +4,35 @@ import PhotosUI
 
 /// Live conversation for one session, styled as a Grok Build console.
 struct ChatView: View {
-    @StateObject var vm: ChatViewModel
+    /// The model, built once for the life of the conversation (`StateObject` takes
+    /// its value as an autoclosure). The holder never publishes anything itself:
+    /// SwiftUI's observation tracks exactly the model properties each view reads, so
+    /// a streamed word re-renders the transcript and nothing else. It used to
+    /// re-render this whole screen, the text field included, twenty times a second,
+    /// which is how typing during a reply lost letters.
+    @StateObject private var holder: ChatModelHolder
+    private var vm: ChatViewModel { holder.vm }
+
+    init(vm: @autoclosure @escaping () -> ChatViewModel) {
+        _holder = StateObject(wrappedValue: ChatModelHolder(vm()))
+    }
+
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var showDetails = false
     @State private var showGit = false
     @State private var showFiles = false
-    @State private var atBottom = true
     @FocusState private var composerFocused: Bool
     /// Whether the composer's chip row is wider than the space it has. Only then is
     /// a fade at its trailing edge telling the truth.
     @State private var chipsContentWidth: CGFloat = 0
     @State private var chipsViewportWidth: CGFloat = 0
     private var chipsScroll: Bool { chipsContentWidth > chipsViewportWidth + 1 }
-    /// A fixed 18pt of fade, expressed as the fraction of the row it happens to be.
+    /// A fixed 28pt of fade, expressed as the fraction of the row it happens to be.
+    /// Wide enough that a chip cut by the edge fades out rather than being sliced.
     private var chipsFadeStart: CGFloat {
         guard chipsViewportWidth > 40 else { return 0.9 }
-        return 1 - min(0.4, 18 / chipsViewportWidth)
+        return 1 - min(0.4, 28 / chipsViewportWidth)
     }
 
     // Image attachments waiting in the composer (JPEG data + display thumbnails).
@@ -48,23 +60,51 @@ struct ChatView: View {
     @State private var findCursor = 0
     /// Set to jump the transcript to an item; the scroll reader owns the proxy.
     @State private var scrollTarget: UUID?
+    /// Bumped to pull the transcript to its end whatever the reader was doing: on
+    /// send, the thing to look at is the message just sent.
+    @State private var followRequest = 0
+    /// Extra horizontal inset that caps the line length on wide screens (iPad,
+    /// landscape). The transcript and the composer share it, so they line up.
+    @State private var measureInset: CGFloat = 0
     @FocusState private var findFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(ReadingSize.storageKey) private var readingRaw = ReadingSize.fallback.rawValue
 
     private var name: String { vm.sessionName }
 
+    /// Caps a line of conversation at about 760pt, however wide the screen.
+    static func inset(for width: CGFloat) -> CGFloat { max(0, (width - 760) / 2) }
+
     var body: some View {
         ZStack {
-            Grok.bg.ignoresSafeArea()
+            Grok.page.ignoresSafeArea()
             VStack(spacing: 0) {
                 actionStrip
-                if finding { findBar }
-                transcript
+                    .padding(.horizontal, measureInset)
+                if finding { findBar.padding(.horizontal, measureInset) }
+                ChatTranscript(vm: vm, finding: finding, findQuery: findQuery,
+                               scrollTarget: scrollTarget, followRequest: followRequest,
+                               readingScale: (ReadingSize(rawValue: readingRaw) ?? .fallback).scale,
+                               measureInset: measureInset,
+                               onDraft: { text in
+                                   draft = text
+                                   dictated = text
+                                   composerFocused = true
+                               })
+                    // Compared by its inputs, so a keystroke in the composer (which
+                    // re-renders this screen) does not re-render the conversation.
+                    .equatable()
                 errorBanner
                 composer
             }
         }
+        // A reading measure on wide screens: the transcript, the strip and the
+        // composer share one inset, so they line up on an iPad.
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { measureInset = Self.inset(for: g.size.width) }
+                .onChange(of: g.size.width) { _, width in measureInset = Self.inset(for: width) }
+        })
         .navigationBarTitleDisplayMode(.inline)
         .grokBar()
         // No trailing toolbar items AT ALL: on iOS 26 the system wraps them in a
@@ -91,7 +131,9 @@ struct ChatView: View {
                                 .foregroundStyle(u.contextFraction > 0.85 ? Grok.danger : Grok.textFaint)
                         }
                         if vm.busy, let started = vm.turnStartedAt {
-                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                            // Anchored on the start, not on `.now`: a schedule that
+                            // began "now" restarted with every re-render of the bar.
+                            TimelineView(.periodic(from: started, by: 1)) { context in
                                 Text(verbatim: "· \(Fmt.elapsed(since: started, now: context.date))")
                                     .font(Grok.sans(11)).monospacedDigit()
                                     .foregroundStyle(Grok.textFaint)
@@ -103,6 +145,7 @@ struct ChatView: View {
             }
         }
         .onAppear { vm.start() }
+        .task { await runTypingCheckIfAsked() }
         .onDisappear {
             // Swiping back mid-dictation used to leave the mic hot (privacy dot on,
             // other apps' audio ducked) until the object happened to deallocate.
@@ -282,7 +325,7 @@ struct ChatView: View {
         }
         .padding(.horizontal, Grok.pad)
         .padding(.vertical, 2)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous)
             .stroke(Grok.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
@@ -298,218 +341,18 @@ struct ChatView: View {
         guard !matches.isEmpty else { return }
         findCursor = (findCursor + delta + matches.count) % matches.count
         scrollTarget = matches[findCursor].id
-        Haptics.tap()
+        Haptics.select()
     }
 
     private func stripButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         // Transparent padding inside the button grows the tap area toward 44pt
         // without changing how the chip looks.
-        Button { Haptics.tap(); action() } label: {
+        Button { action() } label: {
             Text(title).lineLimit(1).chip(on: false)
                 .padding(.vertical, 7)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var transcript: some View {
-        GeometryReader { outer in
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        // A compacted/branched session opens empty but ISN'T amnesiac —
-                        // its first message silently carries this summary. Without the
-                        // card, people copied the summary over by hand.
-                        if vm.items.isEmpty, let seed = vm.session.seedContext, !seed.isEmpty {
-                            HandoffCard(summary: seed)
-                        }
-                        if vm.items.isEmpty, vm.session.seedContext?.isEmpty != false {
-                            // Filling the viewport is what stops the transcript's
-                            // bottom anchor from parking a short blank page against
-                            // the composer with a screen of void above it.
-                            blankSession.frame(minHeight: max(0, outer.size.height - 56))
-                        }
-                        ForEach(vm.items) { item in
-                            switch item.role {
-                            case .permission:
-                                PermissionCard(item: item, folder: vm.session.cwd,
-                                               highlight: finding ? findQuery : "") { optionId, always, reason in
-                                    Task { await vm.decide(item, optionId: optionId, always: always, reason: reason) }
-                                }.id(item.id)
-                            case .plan:
-                                PlanCard(item: item, highlight: finding ? findQuery : "") { approved in
-                                    Task { await vm.decidePlan(item, approved: approved) }
-                                }.id(item.id)
-                            case .tasks:
-                                TaskListCard(entries: item.planEntries, highlight: finding ? findQuery : "").id(item.id)
-                            default:
-                                ChatBubble(item: item, highlight: finding ? findQuery : "").id(item.id)
-                                    .contextMenu {
-                                        copyButton(item.text)
-                                        if item.role == .user, !item.text.isEmpty {
-                                            Button {
-                                                draft = item.text
-                                                composerFocused = true
-                                            } label: {
-                                                Label("Edit & resend", systemImage: "arrow.uturn.left")
-                                            }
-                                        }
-                                    }
-                            }
-                        }
-                        if showTyping { TypingIndicator().id("typing") }
-                        if let retry = vm.retry { RetryLine(retry: retry).id("retry") }
-                        Color.clear.frame(height: 1).id(bottomID)
-                            .background(GeometryReader { g in
-                                Color.clear.preference(key: BottomOffsetKey.self,
-                                                       value: g.frame(in: .named("transcript")).minY)
-                            })
-                    }
-                    .padding(.horizontal, Grok.gutter).padding(.vertical, 18)
-                    // A reading measure on iPad and in landscape: a reply set the full
-                    // width of a 13" screen is a line the eye cannot track back from.
-                    .frame(maxWidth: 760)
-                    .frame(maxWidth: .infinity)
-                }
-                .environment(\.readingScale, (ReadingSize(rawValue: readingRaw) ?? .fallback).scale)
-                .coordinateSpace(name: "transcript")
-                .defaultScrollAnchor(.bottom)
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
-                .onPreferenceChange(BottomOffsetKey.self) { minY in
-                    // The sentinel is not rendered at all, which means we are scrolled
-                    // well away from the bottom, not at it.
-                    let bottom = minY != .greatestFiniteMagnitude && minY <= outer.size.height + 80
-                    if bottom != atBottom { atBottom = bottom }
-                }
-                // While the find bar is open the reader is looking at a match, not at
-                // the tail — a streaming turn must not drag them back down.
-                .onChange(of: vm.items.count) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
-                .onChange(of: lastText) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
-                .onChange(of: vm.busy) { _, _ in if atBottom, !finding { scrollToBottom(proxy) } }
-                .onChange(of: scrollTarget) { _, target in
-                    guard let target else { return }
-                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .center) }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    if !atBottom {
-                        if let pending = pendingApproval {
-                            waitingPill(pending, proxy)
-                        } else {
-                            jumpButton(proxy)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// The approval grok is blocked on, if it has not been answered.
-    ///
-    /// A permission request ends the turn until you answer it, so it is always the
-    /// last thing in the transcript — which is exactly where you are not looking
-    /// when you have scrolled up to read what it did.
-    /// An empty conversation, with the three things worth asking first.
-    ///
-    /// The openers used to be the person's own saved prompts, offered as pills above
-    /// the composer. A saved prompt is a library entry, not a suggestion: three
-    /// arbitrary snippets stacked over the box answered a question nobody had asked,
-    /// and pushed the box itself down the screen. These are openers for a coding
-    /// agent that has just been pointed at a folder, and they sit on the blank page
-    /// where the blank page already was.
-    private var blankSession: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer(minLength: 24)
-            TethrXMark(size: 44, color: Grok.ink.opacity(0.12))
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 30)
-            ListSectionLabel("Start with").padding(.bottom, 2)
-            ForEach(starters.indices, id: \.self) { i in
-                let text = String(loc: starters[i])
-                Button {
-                    Haptics.tap()
-                    draft = text
-                    dictated = draft
-                    composerFocused = true
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(verbatim: text)
-                            .font(Grok.sans(16))
-                            .foregroundStyle(Grok.text)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.up.left")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Grok.textFaint)
-                            .accessibilityHidden(true)
-                    }
-                    .padding(.vertical, 13)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint(Text("Puts this in the message box"))
-            }
-            Spacer(minLength: 24)
-        }
-    }
-
-    /// Deliberately about the work rather than about the app: orient, review, verify.
-    private var starters: [String.LocalizationValue] {
-        ["What does this project do?",
-         "What changed recently?",
-         "Run the tests and tell me what fails"]
-    }
-
-    private var pendingApproval: ChatItem? {
-        vm.items.last { ($0.role == .permission || $0.role == .plan) && $0.decided == nil }
-    }
-
-    private func waitingPill(_ item: ChatItem, _ proxy: ScrollViewProxy) -> some View {
-        Button {
-            Haptics.tap()
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(item.id, anchor: .center) }
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: "hand.raised.fill").font(.system(size: 11, weight: .bold))
-                    .accessibilityHidden(true)
-                Text("Waiting for you").font(Grok.sans(15, .semibold))
-                Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold))
-                    .accessibilityHidden(true)
-            }
-            .foregroundStyle(Grok.onInk)
-            .padding(.horizontal, 14).padding(.vertical, 11)
-            .background(Grok.accent, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(Text("Scrolls to the approval"))
-        .padding(.trailing, 16).padding(.bottom, 12)
-    }
-
-    private func jumpButton(_ proxy: ScrollViewProxy) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomID, anchor: .bottom) }
-        } label: {
-            // The one control in the app that genuinely hovers over moving text, so
-            // it is the one that most wants a lens: you can see the conversation
-            // through it, which is how you know it is over the conversation.
-            Image(systemName: "arrow.down")
-                .font(.system(size: 15, weight: .bold)).foregroundStyle(Grok.text)
-                .frame(width: 44, height: 44)
-                .floatingGlass(in: Circle())
-        }
-        .accessibilityLabel(Text("Scroll to latest"))
-        .padding(.trailing, 16).padding(.bottom, 12)
-    }
-
-    @ViewBuilder private func copyButton(_ text: String) -> some View {
-        if !text.isEmpty {
-            Button { UIPasteboard.general.string = text; Haptics.tap() } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-        }
     }
 
     /// One card: the message on top, everything you can do to it underneath, the way
@@ -525,7 +368,8 @@ struct ChatView: View {
             composerCard
                 .padding(.horizontal, Grok.gutter).padding(.top, 10).padding(.bottom, 10)
         }
-        .background(Grok.bg.fade([0, 1, 1]))
+        .padding(.horizontal, measureInset)
+        .background(Grok.fade(Grok.page, [0, 1, 1]))
         // The recogniser reports the whole utterance each time it revises, so
         // mirroring it into the draft unconditionally undid every edit made while the
         // mic was live. The draft is the source of truth: dictation writes into it,
@@ -546,7 +390,7 @@ struct ChatView: View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("", text: $draft,
                       prompt: (vm.busy ? Text("Queue a follow-up") : Text("Ask Grok anything"))
-                          .foregroundColor(Grok.textFaint),
+                          .foregroundColor(Grok.placeholder),
                       axis: .vertical)
                 .font(Grok.body())
                 .foregroundStyle(Grok.text)
@@ -554,48 +398,75 @@ struct ChatView: View {
                 .focused($composerFocused)
 
             HStack(spacing: 8) {
-                // No `scrollClipDisabled` here. It let the chips paint outside the
-                // card and straight over the send button: fine in English, where
-                // "Reads only" is short, and a mess in French, where the same chip
-                // reads "Lectures seules" and the row is wider than the card.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) { attachMenu; controlChips }
-                        .background(GeometryReader { c in
-                            Color.clear.preference(key: ChipsWidthKey.self, value: c.size.width)
-                        })
+                attachMenu
+                // The first layout that fits wins. Every chip with its name; then
+                // only the chips you have changed keep a name and the rest become
+                // round icon buttons like the + beside them; and only when even that
+                // is too wide (the largest text sizes) a row that scrolls. A row that
+                // always scrolled cut the last chip in half the moment send and stop
+                // appeared beside it, which is exactly while you type during a reply.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { controlChips }
+                    HStack(spacing: 8) { controlChips }
+                        .environment(\.chipsCompact, true)
+                    scrollingChips
                 }
-                .background(GeometryReader { v in
-                    Color.clear.preference(key: ChipsViewportKey.self, value: v.size.width)
-                })
-                .onPreferenceChange(ChipsWidthKey.self) { chipsContentWidth = $0 }
-                .onPreferenceChange(ChipsViewportKey.self) { chipsViewportWidth = $0 }
-                // The fade says "there is more, scroll". Applied unconditionally it
-                // said it even when there wasn't, dimming the last chip for no reason.
-                .mask(chipsScroll
-                      ? AnyView(LinearGradient(stops: [.init(color: .black, location: 0),
-                                                       .init(color: .black, location: chipsFadeStart),
-                                                       .init(color: .clear, location: 1)],
-                                               startPoint: .leading, endPoint: .trailing))
-                      : AnyView(Color.black))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 trailingButtons
                     .layoutPriority(1)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
-        // The composer floats over the conversation rather than sitting in it, which
-        // is the one thing that earns real glass. On iOS 26 the messages pass behind
-        // a lens; below it, the hand-built version of the same idea. The recording
-        // ring goes on last either way — it has to be legible against whatever the
-        // material happens to be showing at that moment.
-        .floatingGlass(in: RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous),
-                       interactive: false)
+        // The whole card is the field. Only the text line used to take a tap, so a
+        // finger landing a little below the placeholder did nothing.
+        .contentShape(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous))
+        .onTapGesture { composerFocused = true }
+        // The composer floats over the conversation, which is what earns real glass.
+        // The glass is a layer BEHIND the field, never a wrapper around it: iOS 26
+        // renders everything inside a glass-effected view through the glass
+        // compositor, and a text view updating its own layer in there is how typed
+        // text lags, renders stale or goes invisible for a beat.
+        .background {
+            Color.clear
+                .floatingGlass(in: RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous),
+                               interactive: false)
+        }
         .overlay(RoundedRectangle(cornerRadius: Grok.R.field, style: .continuous)
-            .stroke(dictation.isRecording ? Grok.ink.opacity(0.4) : .clear, lineWidth: 1))
+            .stroke(dictation.isRecording ? Grok.ink.opacity(0.4) : Grok.hairline, lineWidth: 1))
+        .animation(.snappy(duration: 0.25), value: vm.busy)
+    }
+
+    /// The last resort for the chip row: compact chips that scroll.
+    private var scrollingChips: some View {
+        // No `scrollClipDisabled` here. It let the chips paint outside the card and
+        // straight over the send button: fine in English, where "Reads only" is
+        // short, and a mess in French, where the same chip reads "Lectures seules"
+        // and the row is wider than the card.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) { controlChips }
+                .environment(\.chipsCompact, true)
+                .background(GeometryReader { c in
+                    Color.clear.preference(key: ChipsWidthKey.self, value: c.size.width)
+                })
+        }
+        .background(GeometryReader { v in
+            Color.clear.preference(key: ChipsViewportKey.self, value: v.size.width)
+        })
+        .onPreferenceChange(ChipsWidthKey.self) { chipsContentWidth = $0 }
+        .onPreferenceChange(ChipsViewportKey.self) { chipsViewportWidth = $0 }
+        // The fade says "there is more, scroll". Applied unconditionally it said it
+        // even when there wasn't, dimming the last chip for no reason.
+        .mask(chipsScroll
+              ? AnyView(LinearGradient(stops: [.init(color: .black, location: 0),
+                                               .init(color: .black, location: chipsFadeStart),
+                                               .init(color: .clear, location: 1)],
+                                       startPoint: .leading, endPoint: .trailing))
+              : AnyView(Color.black))
     }
 
     /// The `+`: one affordance for everything that can ride along with a message.
-    @ViewBuilder private var attachMenu: some View {
-        if !vm.busy {
+    private var attachMenu: some View {
+        Group {
             // Attachments and nothing else. Saved prompts used to hang off the
             // bottom of this menu, which made a paperclip mean two unrelated things.
             // They live on the home screen and in Settings, where they are a library.
@@ -620,6 +491,10 @@ struct ChatView: View {
             .photosPicker(isPresented: $showPhotoPicker, selection: $pickedItems,
                           maxSelectionCount: 3, matching: .images)
         }
+        // Dimmed while a turn runs rather than removed: a control that comes and goes
+        // shifts everything beside it every time Grok starts or stops.
+        .disabled(vm.busy)
+        .opacity(vm.busy ? 0.4 : 1)
     }
 
     /// Dictation lives at the end of the row, where Grok puts its mic — and gives way
@@ -708,12 +583,15 @@ struct ChatView: View {
                         if dictation.isRecording { dictation.stop() }
                         let text = draft
                         draft = ""; Haptics.tap()
+                        followRequest += 1
                         Task { await vm.enqueue(text) }
                     }
+                    .transition(.scale.combined(with: .opacity))
                 }
                 CircleIconButton(system: "stop.fill", danger: true, busy: vm.cancelling, a11y: "Stop the turn") { Task { await vm.cancel() } }
                     .keyboardShortcut(".", modifiers: .command)
             }
+            .animation(.snappy(duration: 0.25), value: isEmptyDraft)
         } else {
             let sendable = !isEmptyDraft || !attachments.isEmpty || !files.isEmpty
             if sendable {
@@ -925,12 +803,14 @@ struct ChatView: View {
                 // when none is set, and that stays the first option.
                 if let catalog = AppState.shared.modelCatalog, catalog.models.count > 1 || !vm.model.isEmpty {
                     Menu {
-                        Button { Task { await vm.setConfig(model: "") } } label: {
-                            if vm.model.isEmpty { Label("Grok's default", systemImage: "checkmark") } else { Text("Grok's default") }
-                        }
-                        ForEach(catalog.models) { m in
-                            Button { Task { await vm.setConfig(model: m.id) } } label: {
-                                if vm.model == m.id { Label(m.id, systemImage: "checkmark") } else { Text(verbatim: m.id) }
+                        Section("Model") {
+                            Button { Task { await vm.setConfig(model: "") } } label: {
+                                if vm.model.isEmpty { Label("Grok's default", systemImage: "checkmark") } else { Text("Grok's default") }
+                            }
+                            ForEach(catalog.models) { m in
+                                Button { Task { await vm.setConfig(model: m.id) } } label: {
+                                    if vm.model == m.id { Label(m.id, systemImage: "checkmark") } else { Text(verbatim: m.id) }
+                                }
                             }
                         }
                     } label: {
@@ -940,10 +820,21 @@ struct ChatView: View {
                     .accessibilityLabel(Text("Model"))
                 }
 
+                // Pickers rather than bare buttons: the menu names what it sets and
+                // ticks the current choice, which matters most when the chip is
+                // only an icon.
                 Menu {
-                    ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
-                        Button(pair.0) { Task { await vm.setConfig(effort: pair.1) } }
+                    Picker(selection: Binding(
+                        get: { effectiveEffort },
+                        set: { effort in Task { await vm.setConfig(effort: effort) } }
+                    )) {
+                        ForEach(Array(efforts.enumerated()), id: \.offset) { _, pair in
+                            Text(pair.0).tag(pair.1)
+                        }
+                    } label: {
+                        Text("Reasoning effort")
                     }
+                    .pickerStyle(.inline)
                 } label: {
                     Label(effortLabel, systemImage: "gauge.with.needle").chip(on: effectiveEffort != "high")
                 }
@@ -952,9 +843,17 @@ struct ChatView: View {
                 // turning it on so a long build would stop stalling on every read also
                 // signed off on rm -rf, unattended.
                 Menu {
-                    Button("Ask each time") { Task { await vm.setApprovalPolicy("ask") } }
-                    Button("Auto-approve reads only") { Task { await vm.setApprovalPolicy("reads") } }
-                    Button("Auto-approve everything") { Task { await vm.setApprovalPolicy("all") } }
+                    Picker(selection: Binding(
+                        get: { ["ask", "reads", "all"].contains(vm.approvalPolicy) ? vm.approvalPolicy : "ask" },
+                        set: { policy in Task { await vm.setApprovalPolicy(policy) } }
+                    )) {
+                        Text("Ask each time").tag("ask")
+                        Text("Auto-approve reads only").tag("reads")
+                        Text("Auto-approve everything").tag("all")
+                    } label: {
+                        Text("Approvals")
+                    }
+                    .pickerStyle(.inline)
                 } label: {
                     Label(approvalLabel, systemImage: approvalIcon).chip(on: vm.approvalPolicy != "ask")
                 }
@@ -981,7 +880,9 @@ struct ChatView: View {
                 }
             }
             .frame(maxHeight: 190)
-            .background(Grok.raised)
+            // Sized to its rows: a greedy frame gave one match 190pt of empty panel.
+            .fixedSize(horizontal: false, vertical: true)
+            .background(Grok.panel)
             .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             .padding(.horizontal, Grok.gutter)
@@ -1034,6 +935,7 @@ struct ChatView: View {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachments.isEmpty || !files.isEmpty else { return }
         if dictation.isRecording { dictation.stop() }
+        followRequest += 1
 
         // Attached text rides along as fenced blocks, named, so grok can see what it
         // is looking at. This is a normal prompt from here on.
@@ -1091,19 +993,43 @@ struct ChatView: View {
         Task { await vm.send(text) }
     }
 
+    /// Debug only: `-typeTest [prompt]` sends a prompt and then types a follow-up
+    /// into the composer one character at a time while the reply streams in. The
+    /// simulator cannot be typed into headlessly, and typing over a live stream is
+    /// exactly where the composer used to drop characters and the sent message used
+    /// to vanish. Inert in Release builds.
+    private func runTypingCheckIfAsked() async {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        // `-chatSheet details|changes|files` opens that sheet, for screenshots.
+        if let s = args.firstIndex(of: "-chatSheet"), s + 1 < args.count {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            switch args[s + 1] {
+            case "details": showDetails = true
+            case "changes": showGit = true
+            case "files":   showFiles = true
+            default:        break
+            }
+        }
+        guard let i = args.firstIndex(of: "-typeTest") else { return }
+        let prompt = i + 1 < args.count && !args[i + 1].hasPrefix("-") ? args[i + 1] : "STREAM NOASK"
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        composerFocused = true
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        submit(prompt)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        for ch in "And while it answers, I keep typing this follow-up without losing a single letter." {
+            guard !Task.isCancelled else { return }
+            draft.append(ch)
+            try? await Task.sleep(nanoseconds: 60_000_000)
+        }
+        #endif
+    }
+
     private func insertCommand(_ cmd: SlashCommand) {
         Haptics.tap()
         draft = cmd.takesArgs ? cmd.display + " " : cmd.display
         composerFocused = true
-    }
-
-    /// Show the animated "grok is thinking" dots while busy and no text is streaming yet.
-    private var showTyping: Bool {
-        guard vm.busy else { return false }
-        switch vm.items.last?.role {
-        case .assistant, .thought: return false
-        default: return true
-        }
     }
 
     /// grok advertises exactly three efforts, with high as its default. There used to be
@@ -1165,18 +1091,12 @@ struct ChatView: View {
         }
     }
 
-    private let bottomID = "bottom"
-    private var lastText: String { vm.items.last?.text ?? "" }
     private var isEmptyDraft: Bool { draft.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(bottomID, anchor: .bottom) }
-    }
 }
 
 /// Tracks the bottom marker's position in the scroll viewport, so the chat view
 /// can show a "jump to latest" button once the user scrolls up from the bottom.
-private struct BottomOffsetKey: PreferenceKey {
+struct BottomOffsetKey: PreferenceKey {
     /// "Not rendered", deliberately NOT zero.
     ///
     /// The only contributor is a sentinel inside the LazyVStack, so scrolling up far
@@ -1232,14 +1152,14 @@ struct HandoffCard: View {
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Grok.bg)
+                    .background(Grok.page)
                     .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
             }
         }
         .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
             .stroke(Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
@@ -1292,7 +1212,7 @@ struct ThoughtTrace: View {
     private var live: Bool { item.endedAt == nil }
     /// Tall enough for four or five lines. Beyond that a live trace is scrollback,
     /// and scrollback belongs to the conversation, not to the thing still running.
-    private let liveWindow: CGFloat = 132
+    private let liveWindow: CGFloat = 168
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1363,7 +1283,7 @@ struct ThoughtTrace: View {
     /// than being cut off by a hard edge.
     private var topFade: some View {
         LinearGradient(stops: [.init(color: .clear, location: 0),
-                               .init(color: .black, location: 0.28),
+                               .init(color: .black, location: 0.16),
                                .init(color: .black, location: 1)],
                        startPoint: .top, endPoint: .bottom)
     }
@@ -1376,7 +1296,7 @@ struct ThoughtTrace: View {
         } else if let since = item.startedAt {
             // Ticking, because "Thinking" on its own looks the same after four
             // seconds and after four minutes.
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TimelineView(.periodic(from: since, by: 1)) { context in
                 ShimmerLabel(
                     Text("Thinking \(Int(context.date.timeIntervalSince(since).rounded()))s"))
             }
@@ -1530,7 +1450,7 @@ struct ChatBubble: View {
                             .foregroundStyle(Grok.text)
                             .lineSpacing(ReadingSize.lineSpacing(for: 17 * readingScale) - 2)
                             .padding(.horizontal, 16).padding(.vertical, 11)
-                            .background(Grok.ink.opacity(0.10))
+                            .background(Grok.bubble)
                             .clipShape(RoundedRectangle(cornerRadius: Grok.R.bubble, style: .continuous))
                     }
                 }
@@ -1569,7 +1489,7 @@ struct ChatBubble: View {
             }
             .padding(Grok.pad)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Grok.raised, in: RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+            .background(Grok.panel, in: RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
 
         case .status:
             // A quiet rule between turns, with what happened written into it.
@@ -1676,7 +1596,7 @@ struct CodeBlock: View {
                     .padding(.horizontal, 10).padding(.vertical, 8)
             }
         }
-        .background(Grok.bg)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1765,7 +1685,7 @@ struct ToolLine: View {
             if output.localizedCaseInsensitiveContains(query) { showOutput = true }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
     }
@@ -2027,7 +1947,7 @@ struct PermissionCard: View {
         }
         .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
             .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.40) : Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
@@ -2198,7 +2118,7 @@ struct PermissionCard: View {
 /// Per-session usage + technical detail: live context-window meter, token
 /// breakdown (incl. thinking), cost, and the session's configuration.
 struct SessionDetailsSheet: View {
-    @ObservedObject var vm: ChatViewModel
+    let vm: ChatViewModel
     @EnvironmentObject var app: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var shareURL: ShareFile?
@@ -2222,6 +2142,7 @@ struct SessionDetailsSheet: View {
                     technical
                     exportSection
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
@@ -2572,7 +2493,7 @@ struct PlanCard: View {
         }
         .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
             .stroke(Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))

@@ -90,6 +90,7 @@ struct AddComputerSheet: View {
                     Text("Adding a computer switches to it. Your other computers stay paired. Swap between them any time.")
                         .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(3)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)

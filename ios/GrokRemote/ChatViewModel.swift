@@ -4,39 +4,44 @@ import UIKit
 
 /// Drives a single session: keeps a live SSE connection, folds streaming events
 /// into `items`, and sends / cancels turns.
+///
+/// `@Observable`, not `ObservableObject`: a view re-renders only when a property it
+/// actually read changes. With `ObservableObject` every streamed chunk invalidated
+/// every view holding the model, the composer's text field included.
 @MainActor
-final class ChatViewModel: ObservableObject {
-    @Published var items: [ChatItem] = []
-    @Published var busy = false
-    @Published var live = false
+@Observable
+final class ChatViewModel {
+    var items: [ChatItem] = []
+    var busy = false
+    var live = false
     /// Grok is blocked on an approval or a plan review, rather than working.
-    @Published var waitingOnYou = false
-    @Published var mode: String?          // "plan" while Grok is planning
-    @Published var errorMessage: String?
-    @Published var usage: SessionUsage?   // live token/context/cost meter
-    @Published var commands: [SlashCommand] = []   // grok's slash commands (/compact, skills…)
+    var waitingOnYou = false
+    var mode: String?          // "plan" while Grok is planning
+    var errorMessage: String?
+    var usage: SessionUsage?   // live token/context/cost meter
+    var commands: [SlashCommand] = []   // grok's slash commands (/compact, skills…)
     /// Follow-ups the BRIDGE is holding. Mirrored from it (not owned here), so they
     /// survive the app closing and stay in step across devices.
-    @Published var queued: [QueuedMessage] = []
+    var queued: [QueuedMessage] = []
     /// Grok's checklist for the turn in flight, so the header can show its position
     /// without scrolling back to the card.
-    @Published var plan: [PlanEntry] = []
+    var plan: [PlanEntry] = []
     /// When the running turn began, for the stopwatch under the title. Nil when idle.
-    @Published var turnStartedAt: Date?
+    var turnStartedAt: Date?
 
     // Live per-session settings (mirror the bridge; changed from the chat controls).
-    @Published var planMode: Bool
-    @Published var effort: String         // "", "high", "medium", "low"
+    var planMode: Bool
+    var effort: String         // "", "high", "medium", "low"
     /// The model this session runs on; "" = grok's own choice.
-    @Published var model: String
+    var model: String
     /// grok is re-trying a model call that failed (rate limit, overload). Nil otherwise.
-    @Published var retry: RetryState?
+    var retry: RetryState?
     struct RetryState: Equatable { var attempt: Int?; var max: Int?; var reason: String }
     /// grok's own name for this conversation, once it has one. The list picks it up
     /// on its next poll; the open chat should not have to wait for that.
-    @Published var liveTitle: String?
+    var liveTitle: String?
     /// "ask" | "reads" | "all".
-    @Published var approvalPolicy: String
+    var approvalPolicy: String
     /// Legacy view, still used by the older call sites and by setConfig's wire format.
     var autoApprove: Bool {
         get { approvalPolicy == "all" }
@@ -54,31 +59,34 @@ final class ChatViewModel: ObservableObject {
     /// for a session started right here. Every turn begins with a user message.
     var turnCount: Int { max(session.turnCount, items.lazy.filter { $0.role == .user }.count) }
 
-    private var streamTask: Task<Void, Never>?
+    @ObservationIgnored private var streamTask: Task<Void, Never>?
     /// Set by stop(), so a watchdog that was already sleeping cannot revive the stream.
-    private var stopped = false
-    private var watchdog: Task<Void, Never>?
+    @ObservationIgnored private var stopped = false
+    @ObservationIgnored private var watchdog: Task<Void, Never>?
     /// Streamed prose waiting to be folded in, in arrival order, with consecutive
     /// same-kind chunks already merged.
-    private var pendingChunks: [(thought: Bool, text: String)] = []
-    private var flushTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingChunks: [(thought: Bool, text: String)] = []
+    @ObservationIgnored private var flushTask: Task<Void, Never>?
     /// When the turn already in flight began, per the bridge. Replay ends on that
     /// turn's `turn_start` with no `turn_complete`, so this is what the stopwatch reads.
     private let runningSince: Date?
     /// Highest SSE event id folded in. Sent on reconnect so the bridge resumes from
     /// there instead of replaying the whole session and duplicating the transcript.
-    private var lastEventId = 0
+    @ObservationIgnored private var lastEventId = 0
     /// Events at or below this id are HISTORY replay. The transcript folds them
     /// normally, but side effects must not re-fire — opening an old session used to
     /// flash one lock-screen Live Activity per past turn.
     private let replayWatermark: Int
-    private var assistantIndex: Int?   // current assistant bubble being appended to
-    private var thoughtIndex: Int?     // current thought bubble being appended to
+    @ObservationIgnored private var assistantIndex: Int?   // current assistant bubble being appended to
+    @ObservationIgnored private var thoughtIndex: Int?     // current thought bubble being appended to
     /// The turn's plan card, revised in place as grok re-sends the whole checklist.
-    private var planIndex: Int?
+    @ObservationIgnored private var planIndex: Int?
     /// Thumbnails of images just sent from THIS device; attached to the next
     /// turn_start's user bubble (history replay only knows the count).
-    private var pendingEcho: [UIImage] = []
+    @ObservationIgnored private var pendingEcho: [UIImage] = []
+    /// The bubble shown for a message the moment it was sent, before the bridge has
+    /// echoed the turn back. Adopted by that turn_start, or removed if the send fails.
+    @ObservationIgnored private var optimisticEcho: UUID?
 
     init(client: BridgeClient, session: SessionInfo) {
         self.client = client
@@ -238,9 +246,9 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// The demo's canned-reply task, so Stop can actually stop it.
-    private var demoReply: Task<Void, Never>?
+    @ObservationIgnored private var demoReply: Task<Void, Never>?
     /// Set when the last turn_start folded in — the send watchdog keys off it.
-    private var lastTurnStartAt = Date.distantPast
+    @ObservationIgnored private var lastTurnStartAt = Date.distantPast
 
     func send(_ text: String, images: [Data] = [], thumbnails: [UIImage] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -263,6 +271,14 @@ final class ChatViewModel: ObservableObject {
         errorMessage = nil
         watchdog?.cancel()
         if !thumbnails.isEmpty { pendingEcho = thumbnails }
+        // Your message appears the moment you send it. It used to wait for the bridge
+        // to echo the turn back, a network round trip during which the composer was
+        // already empty and the words were nowhere.
+        var echo = ChatItem(role: .user, text: trimmed)
+        echo.images = thumbnails
+        echo.imageCount = thumbnails.count
+        items.append(echo)
+        optimisticEcho = echo.id
         let sentAt = Date()
         do {
             AppState.shared.markSessionUsed(session.id)
@@ -273,11 +289,13 @@ final class ChatViewModel: ObservableObject {
             // follow-up started while the stream was down). The message was meant
             // to go next anyway, so queue it rather than showing a bare status code.
             pendingEcho = []
+            dropOptimisticEcho()
             busy = true
             await enqueue(trimmed)
         } catch {
             busy = false
             pendingEcho = []
+            dropOptimisticEcho()
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
             // The composer clears optimistically, and the user bubble only arrives with
             // the turn_start event, so a send that fails leaves nothing behind at all:
@@ -286,9 +304,15 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    private func dropOptimisticEcho() {
+        guard let id = optimisticEcho else { return }
+        items.removeAll { $0.id == id }
+        optimisticEcho = nil
+    }
+
     /// The last send that did not land, so the composer can put it back for one tap of retry.
     struct FailedSend { var text: String; var images: [Data]; var thumbnails: [UIImage] }
-    @Published var failedSend: FailedSend?
+    var failedSend: FailedSend?
 
     /// A Wi-Fi→cellular hop can leave the SSE stream half-dead: the POST lands (the
     /// turn runs on the computer) while the old stream never delivers another byte —
@@ -316,7 +340,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// True while the Stop request is in flight, so the button can show it.
-    @Published var cancelling = false
+    var cancelling = false
 
     func cancel() async {
         if isDemo {
@@ -551,7 +575,15 @@ final class ChatViewModel: ObservableObject {
                 item.images = pendingEcho
                 pendingEcho = []
             }
-            items.append(item)
+            if !isReplay, let id = optimisticEcho, let i = items.lastIndex(where: { $0.id == id }) {
+                // Already on screen since the tap on Send; adopt the bridge's record.
+                if !item.text.isEmpty { items[i].text = item.text }
+                items[i].imageCount = max(items[i].imageCount, item.imageCount)
+                if items[i].images.isEmpty { items[i].images = item.images }
+                optimisticEcho = nil
+            } else {
+                items.append(item)
+            }
 
         case "tool_call":
             assistantIndex = nil

@@ -16,8 +16,11 @@ struct TethrXWatchWidgetBundle: WidgetBundle {
 
 // MARK: - What the watch app leaves for us
 
-/// Mirror of the watch app's snapshot. Separate module, separate copy; only the
-/// coding keys have to agree.
+/// Mirror of the watch app's ComplicationState. Separate module, separate copy; only
+/// the coding keys have to agree. Synthesized Codable throws on a missing key even
+/// when the property has a default, so a field added to both copies later must be
+/// optional here, or state written by an older watch build stops decoding and the
+/// face falls back to "Open TethrX on your iPhone".
 struct ComplicationState: Codable {
     var waitingCount = 0
     var runningCount = 0
@@ -36,7 +39,7 @@ struct ComplicationState: Codable {
         return try? JSONDecoder().decode(ComplicationState.self, from: data)
     }
 
-    enum Phase { case needsYou, working, idle, unpaired }
+    enum Phase { case needsYou, working, idle, unknown }
 
     var phase: Phase {
         if waitingCount > 0 { return .needsYou }
@@ -47,9 +50,22 @@ struct ComplicationState: Codable {
 
 struct ComplicationEntry: TimelineEntry {
     let date: Date
+    /// Nil until the watch app has heard from the phone at least once. That says
+    /// nothing about pairing, only that the phone app has not been opened yet.
     let state: ComplicationState?
 
-    var phase: ComplicationState.Phase { state?.phase ?? .unpaired }
+    var phase: ComplicationState.Phase { state?.phase ?? .unknown }
+
+    /// How strongly the Smart Stack should surface this: to the top while Grok is
+    /// waiting on you, a little while it works, not at all otherwise. Holds until the
+    /// next entry, which the watch app asks for the moment anything changes.
+    var relevance: TimelineEntryRelevance? {
+        switch phase {
+        case .needsYou: return TimelineEntryRelevance(score: 100)
+        case .working:  return TimelineEntryRelevance(score: 10)
+        case .idle, .unknown: return TimelineEntryRelevance(score: 0)
+        }
+    }
 }
 
 struct ComplicationProvider: TimelineProvider {
@@ -61,9 +77,10 @@ struct ComplicationProvider: TimelineProvider {
         completion(ComplicationEntry(date: Date(), state: ComplicationState.load()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ComplicationEntry>) -> Void) {
-        // The watch app reloads timelines the moment its state changes, which is the
-        // only thing that can move this. The refresh is a safety net for a watch that
-        // has not heard from its phone in a while.
+        // The watch app reloads timelines the moment its state changes, including
+        // when a snapshot lands while it is closed, which is the only thing that can
+        // move this. The refresh is a safety net for a watch that has not heard from
+        // its phone in a while.
         let entry = ComplicationEntry(date: Date(), state: ComplicationState.load())
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(1800))))
     }
@@ -94,17 +111,21 @@ extension ComplicationEntry {
         case .needsYou: return "hand.raised.fill"
         case .working:  return "circle.hexagongrid.fill"
         case .idle:     return "moon.zzz"
-        case .unpaired: return "bolt.horizontal.circle"
+        case .unknown:  return "iphone"
         }
     }
+
+    /// The status in a word, or for a watch that has heard nothing yet, the one thing
+    /// to do about it. Short enough for the inline slot and the corner's curve.
     var word: LocalizedStringKey {
         switch phase {
         case .needsYou: return "needs you"
         case .working:  return "working"
         case .idle:     return "idle"
-        case .unpaired: return "not paired"
+        case .unknown:  return "Open on iPhone"
         }
     }
+
     /// The number worth showing on a face: what is blocked, else what is running.
     var count: Int? {
         guard let state else { return nil }
@@ -125,23 +146,36 @@ struct ComplicationView: View {
 
         case .accessoryCorner:
             Image(systemName: entry.glyph)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.title3.weight(.semibold))
                 .widgetLabel { Text(entry.word) }
 
         case .accessoryRectangular:
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Image(systemName: entry.glyph).font(.system(size: 11, weight: .semibold))
-                    Text(verbatim: "TETHRX").font(.system(size: 11, weight: .semibold, design: .monospaced)).tracking(0.6)
+            VStack(alignment: .leading, spacing: 0) {
+                Label {
+                    Text(verbatim: "TethrX")
+                } icon: {
+                    Image(systemName: entry.glyph)
                 }
+                .font(.headline)
                 .widgetAccentable()
-                Text(entry.word).font(.system(size: 15, weight: .semibold))
-                // Shrunk rather than cut. This second line is the one that tells a
-                // brand-new user how to fix an unpaired watch, and at full size it
-                // overruns a 41mm face in English and every translation of it. Sans,
-                // because it is a sentence: the mono face was also costing width.
-                Text(detail).font(.system(size: 11)).opacity(0.7)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                .lineLimit(1)
+                if entry.state == nil {
+                    // The one case with an instruction rather than a status, and the
+                    // first thing a new user sees: it gets both remaining lines.
+                    Text("Open TethrX on your iPhone")
+                        .font(.body)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                } else {
+                    Text(entry.word)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
@@ -149,14 +183,14 @@ struct ComplicationView: View {
             ZStack {
                 AccessoryWidgetBackground()
                 VStack(spacing: 0) {
-                    Image(systemName: entry.glyph).font(.system(size: 13, weight: .semibold))
+                    Image(systemName: entry.glyph).font(.body.weight(.semibold))
                     if let count = entry.count {
-                        Text(verbatim: "\(count)").font(.system(size: 13, weight: .bold)).monospacedDigit()
+                        Text(verbatim: "\(count)").font(.body.weight(.bold)).monospacedDigit()
                     }
                 }
             }
             .accessibilityLabel(Text(verbatim: "TethrX"))
-            .accessibilityValue(Text(entry.word))
+            .accessibilityValue(entry.state == nil ? Text("Open TethrX on your iPhone") : Text(entry.word))
         }
     }
 

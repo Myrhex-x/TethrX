@@ -402,48 +402,48 @@
         }
       }
     },
-    "not paired" : {
+    "Open on iPhone" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "nicht gekoppelt"
+            "value" : "Auf dem iPhone öffnen"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "sin enlazar"
+            "value" : "Abrir en el iPhone"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "non appairé"
+            "value" : "Ouvrir sur l'iPhone"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "non abbinato"
+            "value" : "Apri su iPhone"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未ペアリング"
+            "value" : "iPhone で開く"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "não pareado"
+            "value" : "Abrir no iPhone"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未配对"
+            "value" : "在 iPhone 上打开"
           }
         }
       }

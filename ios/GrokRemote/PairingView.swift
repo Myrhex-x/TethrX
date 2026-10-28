@@ -38,6 +38,7 @@ struct PairingView: View {
                 if let err = app.errorMessage { errorRow(err) }
                 footer
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Grok.gutter).padding(.vertical, 24)
             .padding(.top, 8)
             .animation(.easeInOut(duration: 0.22), value: idx)

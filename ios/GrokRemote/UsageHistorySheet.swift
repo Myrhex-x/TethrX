@@ -37,6 +37,7 @@ struct UsageHistorySheet: View {
                     }
                     footnote
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)

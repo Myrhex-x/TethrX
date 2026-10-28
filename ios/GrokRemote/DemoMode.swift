@@ -173,7 +173,7 @@ enum DemoData {
         run.toolOutput = "Test Suite 'AuthTests' passed.\n17 tests, 0 failures (3.02s)"
         items.append(run)
 
-        items.append(ChatItem(role: .assistant, text: "Passes in isolation — so it's interference from another test. Checking what else touches the token store…"))
+        items.append(ChatItem(role: .assistant, text: "Passes in isolation, so it's interference from another test. Checking what else touches the token store…"))
 
         var grep = ChatItem(role: .tool, text: "grep -r TokenStore Tests/")
         grep.toolCallId = "demo-f2"

@@ -33,33 +33,38 @@ struct SessionListView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Grok.groupGap) {
-                    accountHeader
-                    if app.demoMode { demoBanner }
-                    if let err = app.errorMessage, !app.demoMode { errorBanner(err) }
-                    if app.health?.grokSignedIn == false, !app.demoMode { signedOutBanner }
-                    if app.bridgeNeedsUpdate { updateBanner }
-                    // What the app can do, then what you have been doing. Searching,
-                    // starting and configuring all moved to the bar at the bottom,
-                    // where a thumb is, so the top of the screen is content.
-                    //
-                    // Except when Grok is blocked on an answer. Four menu rows are
-                    // exactly enough to push that card off the bottom of the screen,
-                    // and the card is the reason the app exists.
-                    if somethingNeedsYou {
-                        needsYou
-                        if !searching { destinations }
-                    } else {
-                        if !searching { destinations }
-                        needsYou
-                    }
-                    sessions
+            // A native grouped list, the way Mail, Notes and Settings are built: rows
+            // in cards, the system's own highlight on a tap, swipe actions, and the
+            // radius and spacing of whichever iOS it runs on.
+            List {
+                Section { accountHeader }
+                if app.demoMode { Section { demoBanner } }
+                if let err = app.errorMessage, !app.demoMode { Section { errorBanner(err) } }
+                if app.health?.grokSignedIn == false, !app.demoMode { Section { signedOutBanner } }
+                if app.bridgeNeedsUpdate { Section { updateBanner } }
+                // What the app can do, then what you have been doing. Searching,
+                // starting and configuring live in the bar at the bottom, where a
+                // thumb is, so the top of the screen is content.
+                //
+                // Except when Grok is blocked on an answer. Four menu rows are
+                // exactly enough to push that card off the bottom of the screen,
+                // and the card is the reason the app exists.
+                if somethingNeedsYou {
+                    needsYou
+                    if !searching { destinations }
+                } else {
+                    if !searching { destinations }
+                    needsYou
                 }
-                .padding(.horizontal, Grok.gutter).padding(.top, 4).padding(.bottom, 24)
+                sessions
             }
-            .background(Grok.bg)
-            .scrollIndicators(.hidden)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
+            // The first keystroke in Search takes four rows away; animated, the list
+            // settles instead of jumping under the finger.
+            .animation(.snappy(duration: 0.28), value: searching)
+            .navigationTitle(Text("Sessions"))
+            .navigationBarTitleDisplayMode(.large)
             .softScrollEdge(.bottom)
             .floatingBottomBar { bottomBar }
             .refreshable { await app.reloadSessions() }
@@ -115,7 +120,6 @@ struct SessionListView: View {
             .sheet(isPresented: $pickingCwd) {
                 DirectoryPickerSheet().environmentObject(app)
             }
-            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionInfo.self) { session in
                 if app.demoMode {
                     ChatView(vm: ChatViewModel(demoSession: session))
@@ -135,6 +139,15 @@ struct SessionListView: View {
             if args.contains("-openSettings") { showSettings = true }
             if let i = args.firstIndex(of: "-search"), i + 1 < args.count { query = args[i + 1] }
             #endif
+            // Back from a rebuild (a language change): Settings returns, on the page
+            // it was on, without sliding up again.
+            if let page = app.reopenSettingsPage {
+                app.reopenSettingsPage = nil
+                settingsAnchor = page
+                var instant = Transaction()
+                instant.disablesAnimations = true
+                withTransaction(instant) { showSettings = true }
+            }
             await app.reloadSessions(); openPending()
         }
         // The list used to be a snapshot from whenever it last appeared: a session
@@ -202,7 +215,6 @@ struct SessionListView: View {
     /// says now, and tapping it goes to the list of the others.
     private var accountHeader: some View {
         Button {
-            Haptics.tap()
             settingsAnchor = "computers"
             showSettings = true
         } label: {
@@ -229,13 +241,12 @@ struct SessionListView: View {
                     .foregroundStyle(Grok.textFaint)
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(Grok.text)
         .accessibilityLabel(Text("Computer: \(hostTitle). \(hostSubtitle)"))
         .accessibilityHint(Text("Opens settings"))
-        .padding(.bottom, 4)
     }
 
     /// The computer this phone is pointed at. A Mac reports its Bonjour name, so the
@@ -278,7 +289,7 @@ struct SessionListView: View {
     /// schedules and prompts inside Settings, usage two taps further in, and the
     /// project folder as a card marooned at the bottom of the conversation list.
     private var destinations: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        Section {
             // Two of these run on the computer, so with nothing paired they are not
             // dimmed rows that go nowhere: they are simply not the list yet.
             if app.client != nil {
@@ -307,16 +318,10 @@ struct SessionListView: View {
     private func destinationRow(_ title: LocalizedStringKey, _ icon: String,
                                 value: String? = nil,
                                 action: @escaping () -> Void) -> some View {
-        Button { Haptics.tap(); action() } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Grok.textDim)
-                    // One fixed column, so the four labels start at the same x however
-                    // wide their glyphs happen to be.
-                    .frame(width: 22)
-                    .accessibilityHidden(true)
-                Text(title).font(Grok.sans(16, .medium)).foregroundStyle(Grok.text)
+        Button { action() } label: {
+            HStack(spacing: 12) {
+                RowIcon(system: icon)
+                Text(title).font(.body).foregroundStyle(Grok.text)
                     .lineLimit(1)
                     // The row's identity, so it takes its width first. The folder name
                     // beside it is a hint and middle-truncates.
@@ -324,14 +329,13 @@ struct SessionListView: View {
                 Spacer(minLength: 10)
                 if let value {
                     Text(verbatim: value)
-                        .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
+                        .font(.body).foregroundStyle(Grok.textDim)
                         .lineLimit(1).truncationMode(.middle)
                 }
+                RowChevron()
             }
-            .padding(.vertical, 13)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
     private var folderValue: String? {
@@ -343,26 +347,31 @@ struct SessionListView: View {
     /// They used to sit in the top corners, which is the part of a phone you have to
     /// shift your grip to touch.
     private var bottomBar: some View {
-        // Three lenses over the same moving list, so they belong to one container:
-        // it samples the backdrop once for all of them instead of letting each work
-        // out its own answer for the same patch of screen.
-        GlassCluster {
-            HStack(spacing: 12) {
-                searchPill
-                barButton("gearshape", label: "Settings") {
-                    settingsAnchor = nil
-                    showSettings = true
-                }
-                .keyboardShortcut(",", modifiers: .command)
-                barButton("square.and.pencil", label: "New session", busy: creating) {
-                    Task { await startNew() }
-                }
-                .keyboardShortcut("n", modifiers: .command)
-                // A folder is made about as often as the app is reinstalled, so it
-                // lives behind a long press rather than taking a fourth slot.
-                .contextMenu {
-                    Button { newFolderName = ""; creatingFolder = true } label: {
-                        Label("New folder", systemImage: "folder.badge.plus")
+        HStack(spacing: 12) {
+            // Outside the container on purpose. A glass container draws all of its
+            // glass in one layer above everything inside it, so the field's own text
+            // came out blurred behind its lens. On its own, the pill's glass stays
+            // a background and the text sits crisply on top.
+            searchPill
+            // The two buttons are lenses over the same moving list, so they share
+            // one container: it samples the backdrop once for both.
+            GlassCluster {
+                HStack(spacing: 12) {
+                    barButton("gearshape", label: "Settings") {
+                        settingsAnchor = nil
+                        showSettings = true
+                    }
+                    .keyboardShortcut(",", modifiers: .command)
+                    barButton("square.and.pencil", label: "New session", busy: creating) {
+                        Task { await startNew() }
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
+                    // A folder is made about as often as the app is reinstalled, so it
+                    // lives behind a long press rather than taking a fourth slot.
+                    .contextMenu {
+                        Button { newFolderName = ""; creatingFolder = true } label: {
+                            Label("New folder", systemImage: "folder.badge.plus")
+                        }
                     }
                 }
             }
@@ -381,7 +390,7 @@ struct SessionListView: View {
         if #available(iOS 26.0, *) {
             EmptyView()
         } else {
-            Grok.bg.fade([0, 0.92, 1])
+            Grok.fade(Grok.bg, [0, 0.92, 1])
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
         }
@@ -412,7 +421,10 @@ struct SessionListView: View {
             }
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
-        .floatingGlass(in: Capsule(), interactive: false)
+        // The glass sits behind the field, never around it. A text field inside a
+        // glass effect is re-rendered into the lens, and on iOS 26 the caret and
+        // the newest characters blinked out while typing.
+        .background { Color.clear.floatingGlass(in: Capsule(), interactive: false) }
         .contentShape(Capsule())
         .onTapGesture { searchFocused = true }
     }
@@ -420,7 +432,7 @@ struct SessionListView: View {
     private func barButton(_ system: String, label: LocalizedStringKey,
                            busy: Bool = false,
                            action: @escaping () -> Void) -> some View {
-        Button { Haptics.tap(); action() } label: {
+        Button { action() } label: {
             Group {
                 if busy {
                     ProgressView().controlSize(.small).tint(Grok.ink)
@@ -448,13 +460,13 @@ struct SessionListView: View {
     private func banner<C: View>(alarming: Bool = false,
                                  @ViewBuilder _ content: () -> C) -> some View {
         content()
-            .padding(.horizontal, Grok.pad).padding(.vertical, 12)
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Grok.raised)
-            .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
-                .strokeBorder(alarming ? Grok.danger.opacity(0.35) : Grok.hairlineStrong,
-                              lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+            // The list row is the card. A warning tints it rather than drawing a
+            // second box inside it.
+            .listRowBackground(alarming
+                ? AnyView(ZStack { Grok.raised; Grok.danger.opacity(0.10) })
+                : AnyView(Grok.raised))
     }
 
     // MARK: Error banner
@@ -551,19 +563,20 @@ struct SessionListView: View {
     @ViewBuilder private var needsYou: some View {
         let waiting = app.sessions.filter { $0.isWaitingOnYou }
         let running = app.sessions.filter { $0.isRunning && !$0.isWaitingOnYou }
-        if !waiting.isEmpty || !running.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                ListSectionLabel(waiting.isEmpty ? "Working" : "Needs you")
+        if !waiting.isEmpty {
+            Section {
                 ForEach(waiting) { session in activeCard(session) }
-                if !running.isEmpty {
-                    // A session that is merely working needs nothing from you, so it
-                    // cannot sit under NEEDS YOU. With nothing waiting, the heading at
-                    // the top of the block already reads WORKING.
-                    if !waiting.isEmpty { ListSectionLabel("Working") }
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(running) { session in runningRow(session) }
-                    }
-                }
+            } header: {
+                ListSectionLabel("Needs you")
+            }
+        }
+        // A session that is merely working needs nothing from you, so it does not
+        // sit under the heading that says something does.
+        if !running.isEmpty {
+            Section {
+                ForEach(running) { session in runningRow(session) }
+            } header: {
+                ListSectionLabel("Working")
             }
         }
     }
@@ -586,7 +599,7 @@ struct SessionListView: View {
                         .foregroundStyle(Grok.textFaint)
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, Grok.pad).padding(.top, Grok.pad).padding(.bottom, 10)
+                .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 10)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -594,12 +607,13 @@ struct SessionListView: View {
                 // Sharing the card's own edge and background. It used to draw a second
                 // translucent panel 2pt inside the first, so the approval sat 12pt to
                 // the left of the session name directly above it.
-                Rectangle().fill(Grok.rule).frame(height: 1)
+                Rectangle().fill(Grok.rule).frame(height: 1).padding(.leading, 16)
                 InlineAnswer(session: session, nested: true)
             }
         }
-        .background(Grok.raised)
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
+        // The card is the list row; its parts set their own insets so the rule under
+        // the name can start where the text does, as the system's separators do.
+        .listRowInsets(EdgeInsets())
     }
 
     private func runningRow(_ session: SessionInfo) -> some View {
@@ -607,14 +621,13 @@ struct SessionListView: View {
             HStack(spacing: 10) {
                 WorkingDot()
                 Text(session.displayName)
-                    .font(Grok.sans(16, .medium)).foregroundStyle(Grok.text).lineLimit(1)
+                    .font(.body.weight(.medium)).foregroundStyle(Grok.text).lineLimit(1)
                 ElapsedLabel(since: Fmt.date(fromISO: session.runningSince))
                 Spacer(minLength: 0)
+                RowChevron()
             }
-            .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
     /// Open a session, whichever layout this list is driving.
@@ -669,45 +682,39 @@ struct SessionListView: View {
 
     // MARK: Sessions
 
-    private var sessions: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if app.switching || (app.connecting && app.sessions.isEmpty) {
+    @ViewBuilder private var sessions: some View {
+        if app.switching || (app.connecting && app.sessions.isEmpty) {
+            Section {
                 HStack(spacing: 10) {
-                    ProgressView().controlSize(.small).tint(Grok.ink)
-                    Text("Loading sessions…").font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+                    ProgressView().controlSize(.small)
+                    Text("Loading sessions…").font(.body).foregroundStyle(Grok.textDim)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 24)
                 .accessibilityElement(children: .combine)
-            } else if app.sessions.isEmpty {
-                emptyHistory
-            } else if filteredSessions.isEmpty {
+            }
+        } else if app.sessions.isEmpty {
+            Section { emptyHistory }
+        } else if filteredSessions.isEmpty {
+            Section {
                 Text("Nothing matches \u{201C}\(query)\u{201D}")
-                    .font(Grok.sans(15)).foregroundStyle(Grok.textFaint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 24)
-            } else {
-                ForEach(historySections, id: \.key) { section in
-                    sectionHeader(section)
+                    .font(.body).foregroundStyle(Grok.textDim)
+            }
+        } else {
+            ForEach(historySections, id: \.key) { section in
+                Section {
                     if !collapsed.contains(section.key) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // No rules between rows. Two lines of type with air around
-                            // them already read as separate things, and a line every
-                            // 60pt is most of what made this list look busy.
-                            ForEach(section.items) { session in sessionLink(session) }
-                            if section.items.isEmpty {
-                                Text("Empty. Use ••• on a session to move it here.")
-                                    .font(Grok.sans(14)).foregroundStyle(Grok.textFaint)
-                                    .padding(.vertical, 14)
-                            }
+                        ForEach(section.items) { session in sessionLink(session) }
+                        if section.items.isEmpty {
+                            Text("Empty. Use ••• on a session to move it here.")
+                                .font(.subheadline).foregroundStyle(Grok.textDim)
                         }
                     }
-                    Color.clear.frame(height: 16)
+                } header: {
+                    sectionHeader(section)
                 }
             }
-
-            contentSearchResults
         }
+
+        contentSearchResults
     }
 
     /// Sessions whose CONVERSATION matched the query (beyond title/folder/path).
@@ -715,9 +722,7 @@ struct SessionListView: View {
         let titleMatches = Set(filteredSessions.map { $0.id })
         let extras = contentHits.filter { !titleMatches.contains($0.sessionId) }
         if !query.trimmingCharacters(in: .whitespaces).isEmpty, !extras.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                ListSectionLabel("Found in conversations")
-                    .padding(.top, 18).padding(.bottom, 10)
+            Section {
                 ForEach(extras) { hit in
                     if let session = app.sessions.first(where: { $0.id == hit.sessionId }) {
                         Button {
@@ -732,13 +737,14 @@ struct SessionListView: View {
                                         .lineLimit(2).multilineTextAlignment(.leading)
                                 }
                             }
-                            .padding(.vertical, 13)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .foregroundStyle(Grok.text)
                     }
                 }
+            } header: {
+                ListSectionLabel("Found in conversations")
             }
         }
     }
@@ -827,9 +833,7 @@ struct SessionListView: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 14)
                 .contentShape(Rectangle())
-                .padding(.vertical, -14)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("\(section.title), \(section.items.count) sessions"))
@@ -856,46 +860,55 @@ struct SessionListView: View {
                 .accessibilityLabel(Text("Folder options for \(section.title)"))
             }
         }
-        .padding(.top, 10)
-        .padding(.bottom, 2)
+        .textCase(nil)
     }
 
     /// Nothing here yet: say what to do, once, instead of a comment glyph.
     private var emptyHistory: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("No sessions yet").font(Grok.sans(17, .semibold)).foregroundStyle(Grok.text)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("No sessions yet").font(.headline).foregroundStyle(Grok.text)
             Text("Start one with the button below.")
-                .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
+                .font(.subheadline).foregroundStyle(Grok.textDim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 28)
+        .padding(.vertical, 8)
     }
 
     private func sessionLink(_ session: SessionInfo) -> some View {
         // The answer lives ONLY in the block at the top of the screen. A session
         // still shows its state dot down here, but two identical approval cards on
         // one screen is a question asked twice.
-        HStack(spacing: 2) {
-            if let onSelect {
-                Button { onSelect(session) } label: { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
-                    .buttonStyle(.plain)
-            } else {
-                NavigationLink(value: session) { SessionRow(session: session, pinned: app.pinned.contains(session.id)) }
-                    .buttonStyle(.plain)
+        let pinned = app.pinned.contains(session.id)
+        return HStack(spacing: 0) {
+            Button { open(session) } label: {
+                SessionRow(session: session, pinned: pinned)
+                    .padding(.leading, 16)
             }
-            // Visible affordance — the same actions used to be long-press only.
+            .buttonStyle(RowPressStyle())
+            // Visible affordance: the same actions used to be long-press only.
             Menu {
                 menuItems(session)
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Grok.textDim)
-                    .frame(width: 44, height: 48)
+                    .frame(width: 48, height: 52)
                     .contentShape(Rectangle())
             }
+            .buttonStyle(.borderless)
             .accessibilityLabel(Text("Session options for \(session.displayName)"))
         }
+        .listRowInsets(EdgeInsets())
         .contextMenu { menuItems(session) }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) { deletingSession = session } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            Button { app.togglePin(session.id) } label: {
+                pinned ? Label("Unpin", systemImage: "pin.slash") : Label("Pin", systemImage: "pin")
+            }
+            .tint(Color(uiColor: .systemGray))
+        }
     }
 
     @ViewBuilder private func menuItems(_ session: SessionInfo) -> some View {
@@ -970,8 +983,12 @@ struct InlineAnswer: View {
     @State private var confirmDestructive = false
 
     private var isPlan: Bool { session.waiting?.kind == "plan" }
-    private var command: String { session.waiting?.label ?? "" }
+    private var command: String { session.waiting?.commandText ?? "" }
+    /// Only the start of the command is known (an older bridge cut it). It is judged
+    /// and shown as what it is, and approving it always asks first.
+    private var cut: Bool { !isPlan && session.waiting?.commandMayBeCut == true }
     private var risk: CommandRisk? { isPlan ? nil : CommandRisk.assess(command) }
+    private var shownCommand: String { cut ? command + "\u{2026}" : command }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -979,7 +996,7 @@ struct InlineAnswer: View {
                 // A shell command, so it wears the same face here as in the chat
                 // approval card and on the watch. You are authorizing it from a list
                 // row without having read the conversation.
-                Text(command)
+                Text(verbatim: shownCommand)
                     .font(Grok.mono(13)).foregroundStyle(Grok.text)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -996,11 +1013,26 @@ struct InlineAnswer: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            if cut {
+                // Said on the card, not only in the dialog Approve opens: the reason
+                // to open the session first is worth knowing before tapping anything.
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "eye.slash").font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Grok.textDim)
+                        .accessibilityHidden(true)
+                    Text("Only the start of this command is shown.")
+                        .font(Grok.sans(13))
+                        .foregroundStyle(Grok.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
             HStack(spacing: 8) {
                 Button {
                     // Approving a deletion from a list row, without having read the
                     // conversation, is the one tap worth interrupting.
-                    if risk?.level == .destructive { confirmDestructive = true } else { answer(true) }
+                    // So is approving a command whose end this card cannot show.
+                    if risk?.level == .destructive || cut { confirmDestructive = true } else { answer(true) }
                 } label: {
                     HStack(spacing: 6) {
                         if working { ProgressView().controlSize(.mini).tint(Grok.onInk) }
@@ -1029,7 +1061,7 @@ struct InlineAnswer: View {
                 .disabled(working)
             }
         }
-        .padding(.horizontal, Grok.pad)
+        .padding(.horizontal, nested ? 16 : Grok.pad)
         .padding(.vertical, 12)
         .background(risk?.level == .destructive ? Grok.danger.opacity(0.08)
                     : (nested ? Color.clear : Grok.raised))
@@ -1037,12 +1069,16 @@ struct InlineAnswer: View {
             .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.4) : Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: nested ? 0 : Grok.R.small, style: .continuous))
         .padding(.bottom, nested ? 0 : 12)
-        .confirmationDialog(Text("Run \u{201C}\(command)\u{201D}?"), isPresented: $confirmDestructive,
+        .confirmationDialog(Text("Run \u{201C}\(shownCommand)\u{201D}?"), isPresented: $confirmDestructive,
                             titleVisibility: .visible) {
             Button("Approve", role: .destructive) { answer(true) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            if let risk { Text(risk.reason) }
+            if cut {
+                Text("Only the start of this command is shown.")
+            } else if let risk {
+                Text(risk.reason)
+            }
         }
     }
 

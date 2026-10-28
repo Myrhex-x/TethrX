@@ -6,6 +6,9 @@ import SwiftUI
 /// library below is fully usable on its own, the tour walks the whole app with
 /// no hardware, and connecting a computer is one clearly-labelled step among
 /// them — not a wall you have to climb before the app does anything.
+///
+/// A native grouped list, like the home screen and Settings it leads to: the
+/// first screen someone sees should already look like the rest of the app.
 struct WelcomeView: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var snippets: SnippetStore
@@ -13,6 +16,7 @@ struct WelcomeView: View {
     @State private var pairing = false
     @State private var library = false
     @State private var creating = false
+    @State private var editing: Prompt?
     @State private var draft = ""
     @FocusState private var draftFocused: Bool
 
@@ -25,25 +29,41 @@ struct WelcomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    header
-                    if let savedName { reconnectCard(savedName) }
-                    actions
-                    promptsCard
-                    if let err = app.errorMessage { errorRow(err) }
-                    footer
+            List {
+                Section { header }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 4, trailing: 4))
+                if let savedName {
+                    Section { reconnectRow(savedName) }
                 }
-                .padding(.horizontal, Grok.gutter).padding(.vertical, 24)
-                .padding(.top, 12)
+                Section { actions }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
+                promptsSection
+                if let err = app.errorMessage {
+                    Section {
+                        Text(err).font(.subheadline).foregroundStyle(Grok.danger)
+                    }
+                }
+                Section {} footer: {
+                    Text("A client for Grok Build · independent, not affiliated with xAI")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .multilineTextAlignment(.center)
+                }
             }
-            .background(Grok.bg)
-            .scrollIndicators(.hidden)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
             .scrollDismissesKeyboard(.interactively)
             .navigationDestination(isPresented: $pairing) { PairingView() }
         }
+        #if DEBUG
+        // Headless screenshots: `-openLibrary` opens the prompt library sheet.
+        .task { if ProcessInfo.processInfo.arguments.contains("-openLibrary") { library = true } }
+        #endif
         .sheet(isPresented: $library) { PromptLibraryView().environmentObject(snippets) }
         .sheet(isPresented: $creating) { PromptEditor(prompt: nil).environmentObject(snippets) }
+        .sheet(item: $editing) { PromptEditor(prompt: $0).environmentObject(snippets) }
     }
 
     // MARK: Header
@@ -52,30 +72,66 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 13) {
                 TethrXMark(size: 34)
-                VStack(alignment: .leading, spacing: 4) {
-                    ListSectionLabel("TethrX")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TethrX").font(.subheadline.weight(.semibold)).foregroundStyle(Grok.textDim)
                     Text("Your coding tasks, in your pocket")
-                        .font(Grok.sans(20, .semibold)).latinTracking(-0.3).foregroundStyle(Grok.text)
+                        .font(.title3.weight(.semibold)).foregroundStyle(Grok.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Text("Write and keep the tasks you want run, right here. Connect your own computer whenever you want them carried out by Grok Build on it.")
-                .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
+                .font(.subheadline).foregroundStyle(Grok.textDim)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    // MARK: Reconnect
+
+    private func reconnectRow(_ name: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                RowIcon(system: "desktopcomputer")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Welcome back").font(.headline).foregroundStyle(Grok.text)
+                    Text("This phone is already paired with \(name).")
+                        .font(.subheadline).foregroundStyle(Grok.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Button {
+                draftFocused = false
+                Haptics.tap()
+                Task { await app.connect() }
+            } label: {
+                HStack(spacing: 9) {
+                    if app.connecting {
+                        ProgressView().controlSize(.small).tint(Grok.onInk)
+                    } else {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                    }
+                    app.connecting ? Text("Reconnecting…") : Text("Reconnect")
+                }
+            }
+            .buttonStyle(PillButton(kind: .prominent))
+            .disabled(app.connecting)
+        }
+        .padding(.vertical, 8)
     }
 
     // MARK: Primary actions
 
     private var actions: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Button { app.enterDemo() } label: {
                 HStack(spacing: 9) {
                     Image(systemName: "play.circle").font(.system(size: 15, weight: .medium))
                     Text("Take the tour")
                 }
             }
-            .buttonStyle(PillButton(kind: .prominent))
+            // One black button per screen. With a computer already paired, the black
+            // one is Reconnect above; two stacked primaries said nothing about which
+            // was the way in.
+            .buttonStyle(PillButton(kind: savedName == nil ? .prominent : .subtle))
             .accessibilityHint(Text("Walks through the whole app using sample data, with no computer needed"))
 
             Button { pairing = true } label: {
@@ -90,119 +146,62 @@ struct WelcomeView: View {
 
     // MARK: Prompts — the part that works with nothing connected
 
-    private var promptsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                ListSectionLabel("Your prompts")
-                Spacer(minLength: 8)
-                Button { library = true } label: {
-                    HStack(spacing: 4) {
-                        Text(snippets.items.isEmpty ? "Open" : "All \(snippets.items.count)")
-                        Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
-                    }
-                    .font(Grok.sans(14, .medium)).foregroundStyle(Grok.textDim)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Text("Kept on this phone. Tap one into any session once a computer is connected.")
-                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 8) {
-                FieldBox {
-                    TextField("", text: $draft,
-                              prompt: Text("write a task…").foregroundColor(Grok.textFaint),
-                              axis: .vertical)
-                        .font(Grok.sans(16)).foregroundStyle(Grok.text).lineLimit(1...4)
-                        .focused($draftFocused)
-                }
-                CircleIconButton(system: "plus", filled: !isBlankDraft, enabled: !isBlankDraft,
-                                 a11y: String(loc: "Save prompt")) {
-                    snippets.add(draft)
+    private var promptsSection: some View {
+        Section {
+            HStack(spacing: 10) {
+                TextField("", text: $draft,
+                          prompt: Text("write a task…").foregroundColor(Grok.placeholder),
+                          axis: .vertical)
+                    .lineLimit(1...4)
+                    .focused($draftFocused)
+                Button {
+                    _ = snippets.add(draft)
                     draft = ""
                     draftFocused = false
                     Haptics.success()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 26))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(isBlankDraft ? Grok.textFaint : Grok.ink)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.borderless)
+                .disabled(isBlankDraft)
+                .accessibilityLabel(Text("Save prompt"))
             }
+            .padding(.vertical, -4)
 
             ForEach(snippets.items.prefix(3)) { prompt in
-                Button { library = true } label: { PromptRow(prompt: prompt) }
-                    .buttonStyle(.plain)
+                Button { editing = prompt } label: { PromptRow(prompt: prompt) }
+                    .buttonStyle(RowPressStyle())
+                    .listRowInsets(EdgeInsets())
             }
 
             Button { creating = true } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "square.and.pencil").font(.system(size: 12, weight: .medium))
-                    Text("Write a longer prompt")
-                }
-                .font(Grok.sans(15, .medium)).foregroundStyle(Grok.textDim)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
-                .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+                Label("Write a longer prompt", systemImage: "square.and.pencil")
             }
-            .buttonStyle(.plain)
+        } header: {
+            HStack {
+                Text("Your prompts")
+                Spacer(minLength: 8)
+                Button { library = true } label: {
+                    HStack(spacing: 3) {
+                        Text(snippets.items.isEmpty ? "Open" : "All \(snippets.items.count)")
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                    }
+                }
+                .buttonStyle(.borderless)
+                .font(.subheadline)
+            }
+            .textCase(nil)
+        } footer: {
+            Text("Kept on this phone. Tap one into any session once a computer is connected.")
         }
-        .padding(Grok.pad)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
     }
 
     private var isBlankDraft: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    // MARK: Reconnect
-
-    private func reconnectCard(_ name: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.seal.fill").font(.system(size: 14)).foregroundStyle(Grok.textDim)
-                Text("Welcome back").font(Grok.sans(16, .semibold)).foregroundStyle(Grok.text)
-            }
-            Text("This phone is already paired with \(name).")
-                .font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-            Button {
-                draftFocused = false
-                Haptics.tap()
-                Task { await app.connect() }
-            } label: {
-                HStack(spacing: 9) {
-                    if app.connecting {
-                        ProgressView().controlSize(.small).tint(Grok.ink)
-                    } else {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
-                    }
-                    (app.connecting ? Text("Reconnecting…") : Text("Reconnect")).latinTracking(0.3)
-                }
-            }
-            .buttonStyle(PillButton(kind: .prominent))
-            .disabled(app.connecting)
-        }
-        .padding(Grok.pad)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous).stroke(Grok.hairlineStrong, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))
-    }
-
-    // MARK: Chrome
-
-    private func errorRow(_ err: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("!").font(Grok.sans(15, .bold)).foregroundStyle(Grok.danger)
-            Text(err).font(Grok.sans(15)).foregroundStyle(Grok.danger).lineSpacing(2)
-        }
-    }
-
-    private var footer: some View {
-        Text("A client for Grok Build · independent, not affiliated with xAI")
-            .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 4)
     }
 }

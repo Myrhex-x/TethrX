@@ -49,6 +49,7 @@ struct DirectoryPickerSheet: View {
                         if listing?.parent == nil, !recents.isEmpty { recentsSection }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
             .background(Grok.bg)
@@ -334,6 +335,7 @@ struct FileFolderScreen: View {
                     ProgressView().controlSize(.small).tint(Grok.ink).padding(20)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Grok.bg)
         .scrollIndicators(.hidden)

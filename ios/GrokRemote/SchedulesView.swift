@@ -12,20 +12,15 @@ struct SchedulesSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                SchedulesSection(showsHeading: false)
-                    .environmentObject(app)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
+            List {
+                SchedulesSection().environmentObject(app)
             }
-            .background(Grok.bg)
-            .scrollIndicators(.hidden)
+            .listStyle(.insetGrouped)
             .navigationTitle(Text("Schedules"))
             .navigationBarTitleDisplayMode(.inline)
-            .grokBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.font(Grok.sans(16, .semibold)).tint(Grok.ink)
+                    Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
             }
         }
@@ -33,10 +28,10 @@ struct SchedulesSheet: View {
     }
 }
 
+/// The schedules as rows of a grouped list, laid out like the Clock app's alarms:
+/// the time first, what runs under it, a switch, and swipe to delete. Put it
+/// straight inside a `List`; it is a section of its own.
 struct SchedulesSection: View {
-    /// False when the screen presenting this already carries the name, so the section
-    /// does not say it twice.
-    var showsHeading = true
     @EnvironmentObject var app: AppState
     @State private var schedules: [BridgeSchedule]?
     @State private var adding = false
@@ -44,74 +39,82 @@ struct SchedulesSection: View {
     @State private var loadFailed = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if showsHeading { ListSectionLabel("Scheduled tasks") }
-
-            if let schedules, !schedules.isEmpty {
+        Section {
+            if let schedules {
                 ForEach(schedules) { s in row(s) }
-            } else if schedules != nil {
-                Text("Run a prompt automatically: every morning, weekdays, whenever.")
-                    .font(Grok.sans(13)).foregroundStyle(Grok.textDim).lineSpacing(2)
             } else if loadFailed {
                 // "nil forever" looked like schedules had been deleted; say what happened.
                 Text("Couldn't load schedules. The bridge may need an update.")
-                    .font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                    .font(.subheadline).foregroundStyle(Grok.textDim)
             } else if app.client != nil {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.mini).tint(Grok.ink)
-                    Text("Loading…").font(Grok.sans(14)).foregroundStyle(Grok.textDim)
+                    ProgressView().controlSize(.small)
+                    Text("Loading…").foregroundStyle(Grok.textDim)
                 }
                 .accessibilityElement(children: .combine)
             }
-            if let errorText {
-                Text(errorText).font(Grok.sans(14)).foregroundStyle(Grok.danger)
-            }
 
-            Button { Haptics.tap(); adding = true } label: {
-                Label("Add a scheduled task", systemImage: "plus.circle")
+            // The one row that is always there, so it also carries the loading and
+            // the editor: a modifier on a list section lands on every row in it.
+            Button { adding = true } label: {
+                Label("Add a scheduled task", systemImage: "plus")
             }
-            .buttonStyle(PillButton(kind: .subtle))
             .disabled(app.sessions.isEmpty)
-            if app.sessions.isEmpty {
-                Text("Create a session first. A schedule runs inside one.")
-                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+            .task { await load() }
+            .sheet(isPresented: $adding, onDismiss: { Task { await load() } }) {
+                ScheduleEditorSheet().environmentObject(app)
             }
-            Text("Runs on your computer's clock, even with this phone off. You'll get a push when it finishes.")
-                .font(Grok.sans(13)).foregroundStyle(Grok.textFaint).lineSpacing(2)
-        }
-        .task { await load() }
-        .sheet(isPresented: $adding, onDismiss: { Task { await load() } }) {
-            ScheduleEditorSheet().environmentObject(app)
+        } footer: {
+            VStack(alignment: .leading, spacing: 8) {
+                if let errorText {
+                    Text(errorText).foregroundStyle(Grok.danger)
+                }
+                if app.sessions.isEmpty {
+                    Text("Create a session first. A schedule runs inside one.")
+                } else if schedules?.isEmpty == true {
+                    Text("Run a prompt automatically: every morning, weekdays, whenever.")
+                }
+                Text("Runs on your computer's clock, even with this phone off. You'll get a push when it finishes.")
+            }
         }
     }
 
     private func row(_ s: BridgeSchedule) -> some View {
         let sessionName = app.sessions.first(where: { $0.id == s.sessionId })?.displayName
             ?? String(loc: "session")
-        return HStack(alignment: .top, spacing: 10) {
+        return Toggle(isOn: Binding(
+            get: { s.enabled },
+            set: { on in Task { await setEnabled(s, on) } }
+        )) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(s.prompt).font(Grok.sans(15)).foregroundStyle(Grok.text).lineLimit(2)
-                Text("\(s.timeLabel) · \(s.daysLabel) · \(sessionName)")
-                    .font(Grok.sans(13)).foregroundStyle(Grok.textFaint)
+                Text(verbatim: s.timeLabel)
+                    .font(.system(.title2, design: .rounded, weight: .medium))
+                    .monospacedDigit()
+                Text(s.prompt)
+                    .font(.subheadline)
+                    .lineLimit(2)
+                Text(verbatim: "\(s.daysLabel) · \(sessionName)")
+                    .font(.footnote)
+                    .foregroundStyle(Grok.textDim)
             }
-            Spacer(minLength: 8)
-            Toggle(s.prompt, isOn: Binding(
-                get: { s.enabled },
-                set: { on in Task { await setEnabled(s, on) } }
-            )).labelsHidden().tint(Grok.ink)
-            Button {
+            // A paused schedule reads as paused, the way an alarm that is off does.
+            .foregroundStyle(s.enabled ? Grok.text : Grok.textDim)
+            .padding(.vertical, 2)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
                 Task { await remove(s) }
             } label: {
-                Image(systemName: "minus.circle").font(.caption)
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
+                Label("Delete", systemImage: "trash")
             }
-            .foregroundStyle(Grok.textDim)
-            .accessibilityLabel(Text("Remove schedule"))
         }
-        .padding(.horizontal, Grok.pad).padding(.vertical, 10)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+        .contextMenu {
+            Button(role: .destructive) {
+                Task { await remove(s) }
+            } label: {
+                Label("Remove schedule", systemImage: "trash")
+            }
+        }
     }
 
     private func load() async {
@@ -128,6 +131,7 @@ struct SchedulesSection: View {
         guard let client = app.client else { return }
         do {
             try await client.setScheduleEnabled(s.id, enabled: on)
+            errorText = nil
             if let i = schedules?.firstIndex(where: { $0.id == s.id }) { schedules?[i].enabled = on }
         } catch { errorText = String(loc: "Couldn't update that schedule.") }
     }
@@ -136,7 +140,8 @@ struct SchedulesSection: View {
         guard let client = app.client else { return }
         do {
             try await client.deleteSchedule(s.id)
-            schedules?.removeAll { $0.id == s.id }
+            errorText = nil
+            withAnimation { schedules?.removeAll { $0.id == s.id } }
         } catch { errorText = String(loc: "Couldn't delete that schedule.") }
     }
 }
@@ -203,7 +208,6 @@ struct ScheduleEditorSheet: View {
                         ListSectionLabel("When")
                         DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
                             .labelsHidden().datePickerStyle(.wheel)
-                            .colorScheme(.dark)
                             .frame(maxWidth: .infinity)
                         // The circles stay 34pt and the gap between them becomes the
                         // slack in a 44pt target, so a mis-tap no longer picks the

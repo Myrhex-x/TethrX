@@ -86,7 +86,7 @@ struct TaskListCard: View {
         }
         .padding(Grok.pad)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
+        .background(Grok.panel)
         .overlay(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous)
             .stroke(Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Grok.R.card, style: .continuous))

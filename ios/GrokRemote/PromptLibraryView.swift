@@ -15,43 +15,48 @@ struct PromptLibraryView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Write the tasks you want run, whenever they occur to you. They're kept on this phone, and you can tap one into any session later.")
-                        .font(Grok.sans(14)).foregroundStyle(Grok.textDim).lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    searchField
-
-                    let results = snippets.matching(query)
-                    if results.isEmpty {
-                        emptyState
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(results) { prompt in
-                                Button { editing = prompt } label: { PromptRow(prompt: prompt) }
-                                    .buttonStyle(.plain)
-                            }
+            let results = snippets.matching(query)
+            List {
+                if !results.isEmpty {
+                    Section {
+                        ForEach(results) { prompt in
+                            Button { editing = prompt } label: { PromptRow(prompt: prompt) }
+                                .buttonStyle(RowPressStyle())
+                                .listRowInsets(EdgeInsets())
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        withAnimation { snippets.delete(prompt.id) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
+                    } footer: {
+                        if query.isEmpty {
+                            Text("Write the tasks you want run, whenever they occur to you. They're kept on this phone, and you can tap one into any session later.")
                         }
                     }
                 }
-                .padding(.horizontal, Grok.gutter).padding(.vertical, 20)
             }
-            .background(Grok.bg)
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
+            .listStyle(.insetGrouped)
+            .overlay {
+                if results.isEmpty { emptyState }
+            }
+            // The system search field, in the bar where every Apple list keeps it.
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: Text("Search"))
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .navigationTitle("Prompts")
             .navigationBarTitleDisplayMode(.inline)
-            .grokBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { dismiss() }.foregroundStyle(Grok.text).fontWeight(.semibold)
+                    Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { creating = true } label: {
-                        Image(systemName: "square.and.pencil").fontWeight(.semibold)
+                        Image(systemName: "square.and.pencil")
                     }
-                    .foregroundStyle(Grok.text)
                     .accessibilityLabel(Text("New prompt"))
                 }
             }
@@ -61,43 +66,21 @@ struct PromptLibraryView: View {
         .sheet(item: $editing) { PromptEditor(prompt: $0) }
     }
 
-    private var searchField: some View {
-        FieldBox {
-            HStack(spacing: 9) {
-                Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(Grok.textFaint)
-                TextField("", text: $query, prompt: Text("search prompts…").foregroundColor(Grok.textFaint))
-                    .font(Grok.sans(16)).foregroundStyle(Grok.text)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                if !query.isEmpty {
-                    Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(Grok.textFaint)
-                            // A 13pt glyph was a 13pt target. The negative padding
-                            // gives back the height the 44pt frame would otherwise
-                            // add to the field, which is already 44pt tall.
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                            .padding(.vertical, -13)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Clear search"))
-                }
-            }
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: query.isEmpty ? "square.and.pencil" : "magnifyingglass")
-                .font(.system(size: 22)).foregroundStyle(Grok.textFaint)
-            (query.isEmpty ? Text("No prompts yet.") : Text("Nothing matches that."))
-                .font(Grok.sans(15)).foregroundStyle(Grok.textDim)
-            if query.isEmpty {
+    @ViewBuilder private var emptyState: some View {
+        if query.isEmpty {
+            ContentUnavailableView {
+                Label("No prompts yet", systemImage: "square.and.pencil")
+            } description: {
+                Text("Write the tasks you want run, whenever they occur to you. They're kept on this phone, and you can tap one into any session later.")
+            } actions: {
                 Button { creating = true } label: { Text("Write your first prompt") }
-                    .buttonStyle(PillButton(kind: .subtle))
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
             }
+        } else {
+            // The system's own "No Results" page, worded and translated by iOS.
+            ContentUnavailableView.search(text: query)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 34)
     }
 }
 
@@ -107,25 +90,20 @@ struct PromptRow: View {
     let prompt: Prompt
 
     var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: "text.alignleft")
-                .font(.system(size: 11)).foregroundStyle(Grok.textFaint).padding(.top, 3)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(prompt.title).font(Grok.sans(16)).foregroundStyle(Grok.text)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(prompt.title).font(.body).foregroundStyle(Grok.text)
                     .lineLimit(2).multilineTextAlignment(.leading)
                 if !prompt.body.isEmpty {
-                    Text(prompt.body).font(Grok.sans(14)).foregroundStyle(Grok.textFaint).lineLimit(1)
+                    Text(prompt.body).font(.subheadline).foregroundStyle(Grok.textDim).lineLimit(1)
                 }
             }
             Spacer(minLength: 6)
-            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Grok.textFaint)
+            RowChevron()
         }
-        .padding(.horizontal, 13).padding(.vertical, 12)
+        .padding(.horizontal, 16).padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Grok.raised)
-        .overlay(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous).stroke(Grok.hairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: Grok.R.small, style: .continuous))
+        .contentShape(Rectangle())
     }
 }
 

@@ -208,6 +208,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                     await app.queueReply(sessionId: sessionId, text: text)
                 }
             }
+            // The watch link starts here for the same reason. A message from the watch
+            // (an approval tapped on the wrist, a request for the list) launches this
+            // app in the background with no scene, so the scene's `.task` never runs
+            // and the message had no delegate to land on. `start()` is idempotent; the
+            // scene's own call is harmless.
+            WatchLink.shared.start()
         }
         return true
     }

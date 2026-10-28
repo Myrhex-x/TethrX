@@ -293,7 +293,7 @@ private struct MarkdownTable: View {
                         cell(c < header.count ? header[c] : "", bold: true)
                     }
                 }
-                .background(Grok.raised)
+                .background(Grok.panel)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     Divider().overlay(Grok.hairline)
                     GridRow {
