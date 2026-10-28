@@ -95,10 +95,25 @@ enum Grok {
     /// Reserved for what IS code: commands, diffs, file contents, ids. Everywhere
     /// else, prose belongs in the sans face.
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: UIFontMetrics.default.scaledValue(for: size), weight: weight, design: .monospaced)
+        .system(size: scaled(size), weight: weight, design: .monospaced)
     }
     static func sans(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: UIFontMetrics.default.scaledValue(for: size), weight: weight)
+        .system(size: scaled(size), weight: weight)
+    }
+
+    /// The largest text size the app lays out for. GrokRemoteApp caps SwiftUI's own
+    /// text styles at the same size (`.dynamicTypeSize(...accessibility1)`).
+    static let largestTextSize = UIContentSizeCategory.accessibilityMedium
+
+    /// `size` at the reader's text size, capped where the app caps it. UIFontMetrics
+    /// reads the system setting directly and never saw that cap, so every font built
+    /// here kept growing to the largest accessibility size (13pt became about 40pt)
+    /// while the system text styles beside it stopped, and fixed-height chips clipped.
+    static func scaled(_ size: CGFloat) -> CGFloat {
+        let reader = UIApplication.shared.preferredContentSizeCategory
+        let capped = reader > largestTextSize ? largestTextSize : reader
+        return UIFontMetrics.default.scaledValue(for: size,
+                                                 compatibleWith: UITraitCollection(preferredContentSizeCategory: capped))
     }
     /// Body copy, at the size Grok actually uses. Bigger than a terminal wants.
     static func body(_ weight: Font.Weight = .regular) -> Font { sans(17, weight) }
@@ -528,7 +543,10 @@ private struct ChipModifier: ViewModifier {
             .foregroundStyle(on ? Grok.onInk : Grok.textDim)
             .labelStyle(ChipLabelStyle(iconOnly: iconOnly))
             .padding(.horizontal, iconOnly ? 0 : 11)
-            .frame(width: iconOnly ? Grok.control : nil, height: Grok.control)
+            // At least the control height, and taller when the text needs it: a fixed
+            // height clipped the label at the larger text sizes.
+            .frame(width: iconOnly ? Grok.control : nil)
+            .frame(minHeight: Grok.control)
             .background(on ? Grok.ink : Grok.ink.opacity(0.08))
             .clipShape(Capsule())
             .contentShape(Capsule())

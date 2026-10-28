@@ -27,6 +27,30 @@ enum WidgetBridge {
         guard let defaults = UserDefaults(suiteName: suiteName),
               let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(data, forKey: key)
+        // Every poll used to reload the widget, though `updatedAt` alone had changed.
+        // Background wakes (the watch asking for the list) count against the widget's
+        // daily budget, and a spent budget is how later, real changes got dropped.
+        // A change reloads at once; the same state reloads at most every ten minutes,
+        // which keeps the widget's "may be out of date" clock honest.
+        var unchanged = snapshot
+        unchanged.updatedAt = .distantPast
+        let fingerprint = try? JSONEncoder().encode(unchanged)
+        let now = Date()
+        if fingerprint == lastFingerprint, let last = lastReload, now.timeIntervalSince(last) < 600 { return }
+        lastFingerprint = fingerprint
+        lastReload = now
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    /// No computer to report on (it was forgotten, or disconnected on purpose). Left
+    /// in place, the last computer's "needs you", and its tap target, stayed up.
+    static func clear() {
+        UserDefaults(suiteName: suiteName)?.removeObject(forKey: key)
+        lastFingerprint = nil
+        lastReload = nil
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private static var lastFingerprint: Data?
+    private static var lastReload: Date?
 }

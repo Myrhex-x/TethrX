@@ -363,6 +363,12 @@ struct PermissionOption: Identifiable, Equatable, Codable {
     var kind: String
     var id: String { optionId }
     var isAllow: Bool { kind.lowercased().contains("allow") }
+    /// grok's standing answers ("always allow", "allow edits for this session"), as
+    /// opposed to an answer for this one request.
+    var isStanding: Bool {
+        let words = "\(kind) \(optionId)".lowercased()
+        return words.contains("always") || words.contains("session")
+    }
 }
 
 /// A grok slash command advertised over ACP (built-ins like /compact plus skills).

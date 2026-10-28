@@ -1277,6 +1277,52 @@
         }
       }
     },
+    "1 day" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 día"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 jour"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 giorno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 dia"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 天"
+          }
+        }
+      }
+    },
     "1 file" : {
       "localizations" : {
         "fr" : {
@@ -18368,6 +18414,52 @@
         }
       }
     },
+    "Reusable prompts you write on this phone. They need no computer, and any session can use one from its Prompts button." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederverwendbare Prompts, die du auf diesem Telefon schreibst. Sie brauchen keinen Computer, und jede Session kann einen über ihre Schaltfläche Prompts verwenden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompts reutilizables que escribes en este teléfono. No necesitan ordenador, y cualquier sesión puede usar uno desde su botón Prompts."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Des prompts réutilisables que vous écrivez sur ce téléphone. Ils ne demandent aucun ordinateur, et chaque session peut en utiliser un via son bouton Prompts."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt riutilizzabili che scrivi su questo telefono. Non richiedono un computer, e ogni sessione può usarne uno dal suo pulsante Prompt."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この iPhone で書く再利用可能なプロンプトです。コンピュータは不要で、どのセッションでも「プロンプト」ボタンから使えます。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompts reutilizáveis que você escreve neste telefone. Não precisam de computador, e qualquer sessão pode usar um pelo botão Prompts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在这部手机上写的可重复使用的提示词。无需电脑，任何会话都可以通过其“提示词”按钮使用。"
+          }
+        }
+      }
+    },
     "RUNNING" : {
       "localizations" : {
         "de" : {
@@ -26245,6 +26337,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "思考中 %lld 秒"
+          }
+        }
+      }
+    },
+    "This computer's bridge is too old for plugins. Update it to manage them from here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Bridge auf diesem Computer ist zu alt für Plugins. Aktualisiere sie, um Plugins von hier zu verwalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El bridge de este ordenador es demasiado antiguo para los plugins. Actualízalo para gestionarlos desde aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le bridge de cet ordinateur est trop ancien pour les plugins. Mettez-le à jour pour les gérer d'ici."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il bridge di questo computer è troppo vecchio per i plugin. Aggiornalo per gestirli da qui."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このコンピュータのブリッジはプラグインに対応していません。ここから管理するにはブリッジを更新してください。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O bridge deste computador é antigo demais para plugins. Atualize-o para gerenciá-los daqui."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台电脑上的桥接版本太旧，不支持插件。更新后即可在这里管理插件。"
           }
         }
       }

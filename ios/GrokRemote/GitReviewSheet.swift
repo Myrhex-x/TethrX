@@ -231,7 +231,13 @@ struct GitReviewSheet: View {
             status = s
             dir = s.dir ?? dir      // adopt the bridge's default repo on first load
         }
-        catch { errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription }
+        catch {
+            errorText = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+            // The files on screen are still the previous repo's, and Commit and Discard
+            // act on `dir`. It goes back to the repo they belong to: a switch that failed
+            // to load must never leave Discard pointed at changes nobody has seen.
+            if let shown = status?.dir, shown != dir { dir = shown }
+        }
     }
 
     private func commit() async {

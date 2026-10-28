@@ -87,7 +87,9 @@ private struct SharePayloadLoader: View {
     /// Decoding a 48MP photo into a UIImage first needs about 190MB of bitmap, and a
     /// share extension is killed at around 120MB, so sharing a big photo just closed
     /// the sheet.
-    private static func loadImageData(_ provider: NSItemProvider) async -> Data? {
+    // Nonisolated: this struct is a View, so it would otherwise run on the main thread,
+    // and decoding three large photos there froze the share sheet.
+    nonisolated private static func loadImageData(_ provider: NSItemProvider) async -> Data? {
         let raw = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier)
         var image: UIImage?
         if let url = raw as? URL { image = thumbnail(CGImageSourceCreateWithURL(url as CFURL, nil)) }
@@ -97,7 +99,7 @@ private struct SharePayloadLoader: View {
         return image.jpegData(compressionQuality: 0.72)
     }
 
-    private static func thumbnail(_ source: CGImageSource?) -> UIImage? {
+    nonisolated private static func thumbnail(_ source: CGImageSource?) -> UIImage? {
         guard let source else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -109,7 +111,7 @@ private struct SharePayloadLoader: View {
         return UIImage(cgImage: cg)
     }
 
-    private static func downscale(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+    nonisolated private static func downscale(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
         let longest = max(image.size.width, image.size.height)
         guard longest > maxDimension else { return image }
         let scale = maxDimension / longest

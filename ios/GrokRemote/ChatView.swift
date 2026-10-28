@@ -22,6 +22,11 @@ struct ChatView: View {
     @State private var showDetails = false
     @State private var showGit = false
     @State private var showFiles = false
+    @State private var showPrompts = false
+    /// Whether this chat is the screen on top. A chat covered by another one (opened
+    /// from a notification) still hears the app come back to the foreground.
+    @State private var visible = false
+    @EnvironmentObject private var snippets: SnippetStore
     @FocusState private var composerFocused: Bool
     /// Whether the composer's chip row is wider than the space it has. Only then is
     /// a fade at its trailing edge telling the truth.
@@ -144,9 +149,10 @@ struct ChatView: View {
                 }
             }
         }
-        .onAppear { vm.start() }
+        .onAppear { visible = true; vm.start() }
         .task { await runTypingCheckIfAsked() }
         .onDisappear {
+            visible = false
             // Swiping back mid-dictation used to leave the mic hot (privacy dot on,
             // other apps' audio ducked) until the object happened to deallocate.
             if dictation.isRecording { dictation.stop() }
@@ -162,7 +168,9 @@ struct ChatView: View {
                 if dictation.isRecording { dictation.stop() }
                 vm.stop()
             case .active:
-                vm.start()
+                // Only the chat on screen. A covered one restarted its stream unseen, and
+                // the computer, seeing it watched, held back its approval alerts.
+                if visible { vm.start() }
             default:
                 break   // .inactive is a transient (control centre, call banner), not a departure
             }
@@ -187,7 +195,14 @@ struct ChatView: View {
         // attached photo with it. Put them back so retry is one tap.
         .onChange(of: vm.failedSend?.text) { _, _ in
             guard let failed = vm.failedSend else { return }
-            if draft.trimmingCharacters(in: .whitespaces).isEmpty { draft = failed.text }
+            // Typing during a slow send used to mean the failed message was simply
+            // dropped. It goes back in front of whatever has been typed since.
+            let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            if typed.isEmpty {
+                draft = failed.text
+            } else if !failed.text.isEmpty, !draft.contains(failed.text) {
+                draft = failed.text + "\n\n" + draft
+            }
             if attachments.isEmpty {
                 attachments = failed.images
                 attachmentThumbs = failed.thumbnails
@@ -195,6 +210,10 @@ struct ChatView: View {
             vm.failedSend = nil
         }
         .sheet(isPresented: $showDetails) { SessionDetailsSheet(vm: vm) }
+        .sheet(isPresented: $showPrompts) {
+            PromptLibraryView(onPick: { prompt in insertPrompt(prompt.text) })
+                .environmentObject(snippets)
+        }
         .sheet(isPresented: $showGit) { GitReviewSheet(client: vm.client, session: vm.session, demo: vm.isDemo) }
         .sheet(isPresented: $showFiles) { FileBrowserSheet(client: vm.client, session: vm.session) }
         .onChange(of: pickedItems) { _, items in
@@ -246,6 +265,11 @@ struct ChatView: View {
                         stripButton("Changes") { showGit = true }
                     }
                     stripButton("Session") { showDetails = true }
+                    // Saved prompts, into the message box. Without this they could be
+                    // written and kept, and never used in a session.
+                    if !snippets.items.isEmpty {
+                        stripButton("Prompts") { showPrompts = true }
+                    }
                     stripButton("Find") {
                         withAnimation(.easeOut(duration: 0.15)) { finding.toggle() }
                         if finding { findFocused = true } else { findQuery = "" }
@@ -332,7 +356,7 @@ struct ChatView: View {
         .padding(.horizontal, Grok.gutter).padding(.bottom, 6)
         .onChange(of: findQuery) { _, _ in
             findCursor = 0
-            if let first = findMatches.first { scrollTarget = first.id }
+            if let first = findMatches.first { jump(to: first.id) }
         }
     }
 
@@ -340,8 +364,15 @@ struct ChatView: View {
     private func step(_ delta: Int, in matches: [ChatItem]) {
         guard !matches.isEmpty else { return }
         findCursor = (findCursor + delta + matches.count) % matches.count
-        scrollTarget = matches[findCursor].id
+        jump(to: matches[findCursor].id)
         Haptics.select()
+    }
+
+    /// Bring an item into view. Through nil, so going to the same match again (one
+    /// match and Next, or the same word searched twice) still counts as a change.
+    private func jump(to id: UUID) {
+        scrollTarget = nil
+        DispatchQueue.main.async { scrollTarget = id }
     }
 
     private func stripButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
@@ -1001,13 +1032,14 @@ struct ChatView: View {
     private func runTypingCheckIfAsked() async {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
-        // `-chatSheet details|changes|files` opens that sheet, for screenshots.
+        // `-chatSheet details|changes|files|prompts` opens that sheet, for screenshots.
         if let s = args.firstIndex(of: "-chatSheet"), s + 1 < args.count {
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             switch args[s + 1] {
             case "details": showDetails = true
             case "changes": showGit = true
             case "files":   showFiles = true
+            case "prompts": showPrompts = true
             default:        break
             }
         }
@@ -1024,6 +1056,20 @@ struct ChatView: View {
             try? await Task.sleep(nanoseconds: 60_000_000)
         }
         #endif
+    }
+
+    /// A saved prompt goes into the message box, after anything already typed, ready to
+    /// edit or send. Nothing is sent by picking it.
+    private func insertPrompt(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            draft = trimmed
+        } else {
+            draft += (draft.hasSuffix("\n") ? "" : "\n") + trimmed
+        }
+        dictated = draft
+        composerFocused = true
     }
 
     private func insertCommand(_ cmd: SlashCommand) {
@@ -1207,6 +1253,8 @@ struct ThoughtTrace: View {
     let item: ChatItem
     var highlight: String = ""
     @State private var expanded = true
+    /// Whether the fold has been set from `live` yet (see the onAppear below).
+    @State private var seeded = false
     @Environment(\.readingScale) private var readingScale
 
     private var live: Bool { item.endedAt == nil }
@@ -1267,7 +1315,13 @@ struct ThoughtTrace: View {
             guard ended != nil else { return }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { expanded = false }
         }
-        .onAppear { expanded = live }
+        // Once. A lazy list calls onAppear every time a row scrolls back into view,
+        // which folded a thought you had opened as soon as you scrolled past it.
+        .onAppear {
+            guard !seeded else { return }
+            seeded = true
+            expanded = live
+        }
     }
 
     private var trace: some View {
@@ -1612,6 +1666,8 @@ struct ToolLine: View {
     let item: ChatItem
     var highlight: String = ""
     @State private var showOutput = false
+    /// Whether a failed tool's output has been opened for you yet.
+    @State private var outputSeeded = false
 
     private var output: String? {
         guard let o = item.toolOutput, !o.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
@@ -1677,7 +1733,12 @@ struct ToolLine: View {
             }
         }
         // A failure is exactly when you want the output without hunting for it.
-        .onAppear { if item.toolStatus == "failed" { showOutput = true } }
+        // Once, for the same reason: output you closed reopened on every scroll past.
+        .onAppear {
+            guard !outputSeeded else { return }
+            outputSeeded = true
+            if item.toolStatus == "failed" { showOutput = true }
+        }
         .onChange(of: item.toolStatus) { _, status in if status == "failed" { showOutput = true } }
         // A find hit inside collapsed output is a hit you cannot see.
         .onChange(of: highlight) { _, query in
@@ -1886,7 +1947,10 @@ struct PermissionCard: View {
     /// command to see all of it.
     @State private var expanded = false
 
-    private var denyOptions: [PermissionOption] { item.options.filter { !$0.isAllow } }
+    /// The no-answers, this-request-only first: the main No button never "always rejects".
+    private var denyOptions: [PermissionOption] {
+        item.options.filter { !$0.isAllow && !$0.isStanding } + item.options.filter { !$0.isAllow && $0.isStanding }
+    }
     private var folderName: String? {
         guard let folder, !folder.isEmpty else { return nil }
         return (folder as NSString).lastPathComponent
@@ -1993,7 +2057,12 @@ struct PermissionCard: View {
     /// as text. `ViewThatFits` keeps that honest in German and at large type sizes,
     /// where the same two labels need two lines.
     @ViewBuilder private var actions: some View {
-        let allow = item.options.first(where: { $0.isAllow })
+        // Yes means yes ONCE. grok sometimes lists "always allow" first, and taking the
+        // first allow option made the main button a standing grant, with allow-once
+        // nowhere on the card.
+        let allow = item.options.first(where: { $0.kind == "allow_once" })
+            ?? item.options.first(where: { $0.isAllow && !$0.isStanding })
+            ?? item.options.first(where: { $0.isAllow })
         VStack(spacing: 4) {
             HStack(spacing: 8) {
                 if let deny = denyOptions.first {
@@ -2344,9 +2413,11 @@ struct SessionDetailsSheet: View {
     /// "auto" for a session that is in fact running high.
     private var effortText: String {
         switch vm.effort {
-        case "medium": return String(loc: "Medium")
-        case "low":    return String(loc: "Low")
-        default:       return String(loc: "High")
+        case "xhigh":   return String(loc: "Extra high")
+        case "medium":  return String(loc: "Medium")
+        case "low":     return String(loc: "Low")
+        case "minimal": return String(loc: "Minimal")
+        default:        return String(loc: "High")
         }
     }
 

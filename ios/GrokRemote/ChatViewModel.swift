@@ -100,8 +100,11 @@ final class ChatViewModel {
         self.approvalPolicy = session.effectiveApprovalPolicy
         self.usage = session.usage
         self.queued = session.queue ?? []
+        // Opening a session that is blocked on you: no dots under the approval card.
+        self.waitingOnYou = session.waiting != nil
         // Hand each activity's update token to the bridge, so the lock-screen
         // status keeps moving after the app is closed.
+        liveActivity.bind(sessionId: session.id)
         liveActivity.onPushToken = { [client, session] token in
             Task { try? await client.registerLiveActivity(kind: "update-token", token: token, sessionId: session.id) }
         }
@@ -123,10 +126,14 @@ final class ChatViewModel {
 
     /// Change plan mode / reasoning effort / auto-approve for this session, live.
     func setConfig(planMode: Bool? = nil, effort: String? = nil, autoApprove: Bool? = nil, model: String? = nil) async {
+        // Everything goes back if the computer never heard. Only the model used to: a
+        // plan-mode or effort change that failed on a flaky link left the chip showing
+        // a setting grok was not using, so it built without a plan, or kept approving.
+        let previous = (planMode: self.planMode, effort: self.effort, model: self.model,
+                        approvalPolicy: self.approvalPolicy)
         if let planMode { self.planMode = planMode }
         if let effort { self.effort = effort }
         if let autoApprove { self.autoApprove = autoApprove }
-        let previousModel = self.model
         if let model { self.model = model }
         if isDemo { return }   // locals updated — that's the whole demo behavior
         do {
@@ -137,7 +144,10 @@ final class ChatViewModel {
             if model != nil { self.model = updated.model ?? self.model }
             self.approvalPolicy = updated.effectiveApprovalPolicy
         } catch {
-            self.model = previousModel
+            self.planMode = previous.planMode
+            self.effort = previous.effort
+            self.model = previous.model
+            self.approvalPolicy = previous.approvalPolicy
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -293,7 +303,9 @@ final class ChatViewModel {
             busy = true
             await enqueue(trimmed)
         } catch {
-            busy = false
+            // A 409 means a turn IS running (photos cannot be queued, so they land
+            // here): saying idle let the composer send into it and fail again.
+            busy = Self.isConflict(error)
             pendingEcho = []
             dropOptimisticEcho()
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
@@ -302,6 +314,14 @@ final class ChatViewModel {
             // the typed message and up to three re-picked photos are simply gone.
             failedSend = FailedSend(text: trimmed, images: images, thumbnails: thumbnails)
         }
+    }
+
+    /// Whether a turn's text is the message sent from here. The bridge may prefix a
+    /// handoff summary, but the text it reports back is what was typed.
+    private static func sameMessage(_ sent: String, _ reported: String) -> Bool {
+        let a = sent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let b = reported.trimmingCharacters(in: .whitespacesAndNewlines)
+        return b.isEmpty || a == b
     }
 
     private func dropOptimisticEcho() {
@@ -352,13 +372,16 @@ final class ChatViewModel {
         cancelling = true
         defer { cancelling = false }
         do {
-            try await client.cancelOrThrow(sessionId: session.id)
-            // Only clear follow-ups the bridge confirmed dropping — wiping them
-            // locally on a failed call left them running while the UI said gone.
+            // The queue goes FIRST. The computer starts the next follow-up the moment
+            // the cancelled turn unwinds, so clearing it afterwards usually came too
+            // late and Stop started the very thing it was meant to stop. Only clear
+            // follow-ups the bridge confirmed dropping: wiping them locally on a failed
+            // call left them running while the screen said they were gone.
             if !queued.isEmpty {
                 try await client.clearQueue(sessionId: session.id)
                 queued.removeAll()
             }
+            try await client.cancelOrThrow(sessionId: session.id)
         } catch {
             errorMessage = String(loc: "Couldn't reach the computer to stop the turn. It may still be running.")
         }
@@ -384,6 +407,9 @@ final class ChatViewModel {
         } catch {
             queued.removeAll { $0.id == pending.id }
             errorMessage = (error as? BridgeError)?.errorDescription ?? error.localizedDescription
+            // The composer was already cleared for it: put the words back, as a failed
+            // send does, instead of losing them with the chip.
+            failedSend = FailedSend(text: t, images: [], thumbnails: [])
         }
     }
 
@@ -575,11 +601,18 @@ final class ChatViewModel {
                 item.images = pendingEcho
                 pendingEcho = []
             }
-            if !isReplay, let id = optimisticEcho, let i = items.lastIndex(where: { $0.id == id }) {
-                // Already on screen since the tap on Send; adopt the bridge's record.
-                if !item.text.isEmpty { items[i].text = item.text }
-                items[i].imageCount = max(items[i].imageCount, item.imageCount)
-                if items[i].images.isEmpty { items[i].images = item.images }
+            if !isReplay, let id = optimisticEcho, let i = items.lastIndex(where: { $0.id == id }),
+               Self.sameMessage(items[i].text, item.text) {
+                // Already on screen since the tap on Send: this is that turn. It moves to
+                // the end, after anything a replay delivered meanwhile (every index into
+                // `items` was reset above, so moving it is safe), and keeps its photos.
+                // A turn that started from somewhere else (a queued follow-up, the watch)
+                // is a different message and never takes this one's place.
+                var echo = items.remove(at: i)
+                if !item.text.isEmpty { echo.text = item.text }
+                echo.imageCount = max(echo.imageCount, item.imageCount)
+                if echo.images.isEmpty { echo.images = item.images }
+                items.append(echo)
                 optimisticEcho = nil
             } else {
                 items.append(item)
@@ -665,8 +698,11 @@ final class ChatViewModel {
             items.append(item)
 
         case "permission_resolved":
+            // The computer's record of the outcome wins over anything set here. A tap
+            // that got a 409 marked the card "cancelled" while the watch's Allow had in
+            // fact run the command, and this event could no longer correct it.
             if let rid = event["requestId"] as? String,
-               let idx = items.firstIndex(where: { $0.role == .permission && $0.requestId == rid && $0.decided == nil }) {
+               let idx = items.lastIndex(where: { $0.role == .permission && $0.requestId == rid }) {
                 items[idx].decided = (event["optionId"] as? String) ?? "cancelled"
             }
 
@@ -684,7 +720,7 @@ final class ChatViewModel {
 
         case "plan_resolved":
             if let rid = event["requestId"] as? String,
-               let idx = items.firstIndex(where: { $0.role == .plan && $0.requestId == rid && $0.decided == nil }) {
+               let idx = items.lastIndex(where: { $0.role == .plan && $0.requestId == rid }) {
                 items[idx].decided = (event["approved"] as? Bool == true) ? "approved" : "rejected"
             }
 

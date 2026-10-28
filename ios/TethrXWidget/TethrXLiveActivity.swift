@@ -14,7 +14,7 @@ struct TethrXLiveActivity: Widget {
                     Text(context.attributes.sessionName)
                         .font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
                         .lineLimit(1)
-                    Text(LocalizedStringKey(context.state.detail))
+                    detailText(context.state.detail)
                         .font(.system(size: 12, design: .monospaced)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 }
                 Spacer(minLength: 6)
@@ -23,6 +23,9 @@ struct TethrXLiveActivity: Widget {
             .padding(16)
             .activityBackgroundTint(Color.black)
             .activitySystemActionForegroundColor(.white)
+            // Tapping the card opens its session. Without a link it opened whatever
+            // screen the app was last on, which is rarely the one asking for you.
+            .widgetURL(sessionURL(context.attributes.sessionId))
         } dynamicIsland: { context in
             DynamicIsland {
                 // The leading/trailing regions sit BESIDE the sensor cutout, where
@@ -45,7 +48,7 @@ struct TethrXLiveActivity: Widget {
                             Text(context.attributes.sessionName)
                                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                                 .lineLimit(1)
-                            Text(LocalizedStringKey(context.state.detail))
+                            detailText(context.state.detail)
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundStyle(.secondary).lineLimit(1)
                         }
@@ -65,6 +68,24 @@ struct TethrXLiveActivity: Widget {
             } minimal: {
                 Image(systemName: glyph(context.state.phase))
             }
+            .widgetURL(sessionURL(context.attributes.sessionId))
+        }
+    }
+
+    private func sessionURL(_ sessionId: String) -> URL? {
+        URL(string: "tethrx://session/\(sessionId)")
+    }
+
+    /// The fixed phrases are translated; anything else (a command, a tool name) is shown
+    /// exactly as it is. Read as Markdown, a command's `*`, backticks and backslashes
+    /// were reformatted or disappeared.
+    private func detailText(_ detail: String) -> Text {
+        switch detail {
+        case "Grok is working…", "Waiting for your approval", "Plan ready to review",
+             "Finished", "Something went wrong":
+            return Text(LocalizedStringKey(detail))
+        default:
+            return Text(verbatim: detail)
         }
     }
 

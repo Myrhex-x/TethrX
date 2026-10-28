@@ -19,6 +19,8 @@
 			<array>
 				<!-- CA92.1: access info stored only by this app, for app functionality. -->
 				<string>CA92.1</string>
+				<!-- 1C8F.1: info shared only within this app's App Group (group.com.tethrx.app). -->
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 	</array>

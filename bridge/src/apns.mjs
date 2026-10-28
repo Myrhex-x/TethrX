@@ -17,6 +17,27 @@ const b64url = (x) => Buffer.from(x).toString("base64url");
 // settles: the send stalls forever and takes the token pruning with it.
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/** APNs refuses a payload over 4 KB outright, and a refused alert simply never arrives:
+ *  an approval for a long heredoc used to be the one alert that never came. */
+const MAX_PAYLOAD_BYTES = 4096;
+
+/** At most `max` characters, with an ellipsis when anything was cut. Counts code
+ *  points, so an emoji is never split in half. */
+export function clipText(text, max) {
+  const chars = Array.from(String(text ?? ""));
+  return chars.length <= max ? chars.join("") : chars.slice(0, Math.max(0, max - 1)).join("") + "\u2026";
+}
+
+/** One line for a lock-screen card: whitespace and line breaks collapsed, then cut. */
+export function oneLine(text, max = 120) {
+  return clipText(String(text ?? "").replace(/\s+/g, " ").trim(), max);
+}
+
+/** A Live Activity state with its text sized for a lock screen and a 4 KB push. */
+function fitContentState(state = {}) {
+  return { ...state, ...(state.detail !== undefined ? { detail: oneLine(state.detail, 120) } : {}) };
+}
+
 export class Apns {
   constructor({ stateDir, keyPath, keyId, teamId, topic }) {
     this.devicesPath = join(stateDir, "devices.json");
@@ -169,8 +190,8 @@ export class Apns {
       event: "start",
       "attributes-type": "TethrXActivityAttributes",
       attributes,
-      "content-state": contentState,
-      alert: { title: alertTitle || "", body: alertBody || "" },
+      "content-state": fitContentState(contentState),
+      alert: { title: oneLine(alertTitle || "", 120), body: oneLine(alertBody || "", 200) },
     };
     const results = await Promise.all(this.la.startTokens.map((t) => this._sendLa(t, aps)));
     const dead = new Set();
@@ -187,7 +208,7 @@ export class Apns {
     const r = await this._sendLa(token, {
       timestamp: Math.floor(Date.now() / 1000),
       event: "update",
-      "content-state": contentState,
+      "content-state": fitContentState(contentState),
     });
     // An activity's update token dies on its own (the user swiped it away, the app
     // was reinstalled). Keeping it meant every later update in the session kept
@@ -199,13 +220,17 @@ export class Apns {
   async laEnd(sessionId, contentState) {
     const token = this.la.sessions[sessionId];
     if (!token) return;
+    // Forget it BEFORE the push goes out. A queued follow-up or an approved plan starts
+    // its turn in the same tick this one ends, and while the end was in flight that
+    // turn found the old token, sent "working" to the card being ended, and so never
+    // push-started a card of its own.
+    this.clearLaSession(sessionId);
     await this._sendLa(token, {
       timestamp: Math.floor(Date.now() / 1000),
       event: "end",
-      "content-state": contentState,
+      "content-state": fitContentState(contentState),
       "dismissal-date": Math.floor(Date.now() / 1000) + 180,
     });
-    this.clearLaSession(sessionId);
   }
 
   /** Cached provider JWT (valid up to 1h; APNs rejects >1h and <20min-refreshed spam). */
@@ -258,9 +283,9 @@ export class Apns {
     let jwt;
     try { jwt = this._providerToken(); }
     catch (e) { this._logOnce("sign", `cannot sign the provider token, check the .p8 key: ${e.message}`); return; }
-    const payloadStr = JSON.stringify({
+    const build = (bodyText) => JSON.stringify({
       aps: {
-        alert: { title, body },
+        alert: { title: clipText(title, 120), body: bodyText },
         sound: "default",
         "thread-id": sessionId || "",
         ...(category ? { category } : {}),
@@ -270,6 +295,14 @@ export class Apns {
       ...(allowOptionId ? { allowOptionId } : {}),
       ...(rejectOptionId ? { rejectOptionId } : {}),
     });
+    // The body is what grows (a whole command, a whole summary). Cut it until the
+    // payload fits: a notification with the start of a command beats none at all.
+    let limit = 1000;
+    let payloadStr = build(clipText(body, limit));
+    while (Buffer.byteLength(payloadStr) > MAX_PAYLOAD_BYTES && limit > 40) {
+      limit = Math.floor(limit / 2);
+      payloadStr = build(clipText(body, limit));
+    }
     const client = http2.connect("https://api.push.apple.com");
     client.on("error", () => {});
     try {

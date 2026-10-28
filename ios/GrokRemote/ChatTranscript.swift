@@ -46,9 +46,12 @@ struct ChatTranscript: View, Equatable {
 
     /// Show the animated "grok is thinking" dots while busy and no text is streaming yet.
     private var showTyping: Bool {
-        guard vm.busy else { return false }
+        guard vm.busy, !vm.waitingOnYou else { return false }
         switch vm.items.last?.role {
         case .assistant, .thought: return false
+        // Grok is not working while it waits for an answer: dots under an approval
+        // card said the opposite of the card.
+        case .permission, .plan: return vm.items.last?.decided != nil
         default: return true
         }
     }
@@ -118,6 +121,9 @@ struct ChatTranscript: View, Equatable {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .simultaneousGesture(DragGesture(minimumDistance: 6).onChanged { _ in lastUserScroll = Date() })
+                // A finger is not the only way to scroll. A trackpad, a mouse wheel and a
+                // keyboard move it too, and the system reports each as the reader's.
+                .modifier(ReaderScrollWatcher(lastUserScroll: $lastUserScroll))
                 .onPreferenceChange(BottomOffsetKey.self) { minY in
                     // The sentinel is not rendered at all, which means we are scrolled
                     // well away from the bottom, not at it.
@@ -131,7 +137,10 @@ struct ChatTranscript: View, Equatable {
                         // a turn ends) is layout, and the tail is brought back instead.
                         // Each of those used to end following and leave the last line
                         // of a reply under the composer.
-                        if Date().timeIntervalSince(lastUserScroll) < 1.0 {
+                        // With VoiceOver the reader moves through the conversation item
+                        // by item, and the view scrolls to follow them: pulling it back
+                        // to the end made the history unreadable. Theirs to leave.
+                        if Date().timeIntervalSince(lastUserScroll) < 1.0 || UIAccessibility.isVoiceOverRunning {
                             atBottom = false
                         } else if !finding {
                             DispatchQueue.main.async { scrollToBottom(proxy) }
@@ -294,5 +303,24 @@ struct ChatTranscript: View, Equatable {
     /// tail in view when the reader was at it.
     private func contentGrew(_ proxy: ScrollViewProxy) {
         if atBottom, !finding { scrollToBottom(proxy) }
+    }
+}
+
+/// Marks the moment the reader moves the transcript themselves, by any input the system
+/// reports as theirs (iOS 18 and later; the drag gesture covers a finger on iOS 17).
+private struct ReaderScrollWatcher: ViewModifier {
+    @Binding var lastUserScroll: Date
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollPhaseChange { _, phase in
+                switch phase {
+                case .tracking, .interacting, .decelerating: lastUserScroll = Date()
+                default: break
+                }
+            }
+        } else {
+            content
+        }
     }
 }

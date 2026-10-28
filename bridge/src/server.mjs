@@ -25,7 +25,7 @@
 
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFile, readdir, stat, writeFile, open as openFile, realpath } from "node:fs/promises";
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -422,9 +422,31 @@ async function serveStatic(res, urlPath) {
 
 // ---- turn execution --------------------------------------------------------
 
+// The option that says yes to this request ONCE. grok sometimes lists "always allow"
+// (or "allow edits for this session") first, and the first option matching "allow"
+// is what every one-tap Approve used: the lock screen, the watch, the session list,
+// and the auto-approve policy. One tap quietly told grok to stop asking about that
+// tool for the rest of the session, and switching back to Ask did not undo it.
+function allowOnceOption(options = []) {
+  const allows = options.filter((o) => /allow/i.test(o.kind || o.optionId || ""));
+  return allows.find((o) => o.kind === "allow_once")
+    || allows.find((o) => !/always|session/i.test(`${o.kind || ""} ${o.optionId || ""}`))
+    || null;
+}
+/** The option that says no to this request once (never "always reject"). */
+function rejectOnceOption(options = []) {
+  const rejects = options.filter((o) => !/allow/i.test(o.kind || o.optionId || ""));
+  return rejects.find((o) => o.kind === "reject_once")
+    || rejects.find((o) => !/always/i.test(`${o.kind || ""} ${o.optionId || ""}`))
+    || rejects[0] || null;
+}
+
 // Push a notification via ntfy, but only when nobody is actively watching this
 // session (so you're alerted precisely when the app is backgrounded).
 async function pushNotify(session, { title, message, priority = "default", tags, actions, category, requestId, allowOptionId, rejectOptionId }) {
+  // A session deleted mid-turn still unwinds through its catch and finally; a "Turn
+  // failed" alert for a conversation you just threw away is only noise.
+  if (session.dead) return;
   if (session.subscriberCount > 0) return;   // someone's watching live — no need to alert
   // Native push straight to the phone (when an APNs key is configured).
   apns.send({
@@ -434,10 +456,15 @@ async function pushNotify(session, { title, message, priority = "default", tags,
   // Optional ntfy fallback.
   if (config.ntfy) {
     try {
-      const headers = { Title: title, Priority: priority };
+      // The title rides in the query string. As a header, fetch refuses anything
+      // outside Latin-1, so a session named in Japanese or with an emoji never
+      // notified at all, and the error was swallowed.
+      const target = new URL(config.ntfy);
+      target.searchParams.set("title", title);
+      const headers = { Priority: priority };
       if (tags) headers.Tags = tags;
       if (actions) headers.Actions = actions;
-      await fetch(config.ntfy, { method: "POST", headers, body: message });
+      await fetch(target, { method: "POST", headers, body: String(message).slice(0, 3500) });
     } catch { /* best-effort */ }
   }
 }
@@ -460,11 +487,28 @@ function remindAboutApproval(session, event, step = 0) {
   timer.unref?.();
 }
 
+/** A plan waits for you exactly as an approval does (and the stall watchdog leaves
+ *  plans alone), so it gets the same reminders. Without them, a plan drafted while
+ *  you were watching never pushed at all once you looked away. */
+function notifyPlan(session, requestId, step = 0) {
+  pushNotify(session, {
+    title: step ? `${displayTitle(session)}: plan still waiting` : `${displayTitle(session)}: plan ready`,
+    message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard",
+  });
+  if (step >= APPROVAL_REMINDERS.length) return;
+  const timer = setTimeout(() => {
+    if (session.dead || session.waitingOn?.kind !== "plan") return;
+    if (requestId && session.waitingOn?.requestId && session.waitingOn.requestId !== requestId) return;
+    notifyPlan(session, requestId, step + 1);
+  }, APPROVAL_REMINDERS[step]);
+  timer.unref?.();
+}
+
 // Push an approval alert with Approve/Reject buttons (when a public URL is set) so
 // you can resolve a permission from the lock screen without opening the app.
 function notifyPermission(session, event, reminderStep = 0) {
-  const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId));
-  const reject = (event.options || []).find((o) => /reject|deny/i.test(o.kind || o.optionId));
+  const allow = allowOnceOption(event.options);
+  const reject = rejectOnceOption(event.options);
 
   let actions;
   if (config.publicUrl && event.requestId) {
@@ -481,8 +525,9 @@ function notifyPermission(session, event, reminderStep = 0) {
       : `${displayTitle(session)}: approval needed`,
     message: event.command || event.title || "Grok wants to run a tool",
     priority: "high", tags: "warning", actions,
-    // Drives Approve/Reject buttons on the iOS notification itself.
-    category: "PERMISSION",
+    // Drives Approve/Reject buttons on the iOS notification itself. With no allow-once
+    // answer to send, the phone shows Reject and Reply only.
+    category: allow ? "PERMISSION" : "PERMISSION_NO_ALLOW",
     requestId: event.requestId,
     allowOptionId: allow?.optionId,
     rejectOptionId: reject?.optionId,
@@ -746,6 +791,12 @@ function laTurnStart(session) {
 function laWaiting(session, detail) {
   apns.laUpdate(session.id, { phase: "waiting", detail: detail || "Waiting for your approval" }).catch(() => {});
 }
+/** Back to "working" once the request is answered. The card used to keep saying
+ *  APPROVE, with the command on it, for the rest of the turn. */
+function laWorking(session) {
+  if (!apns.enabled || session.status !== "running") return;
+  apns.laUpdate(session.id, { phase: "working", detail: "Grok is working…" }).catch(() => {});
+}
 function laTurnEnd(session, phase, detail) {
   apns.laEnd(session.id, { phase, detail }).catch(() => {});
 }
@@ -919,7 +970,8 @@ function forkSettings(session) {
   return {
     cwd: session.cwd, model: session.model, effort: session.effort,
     transport: session.transport, planMode: session.planMode,
-    autoApprove: session.autoApprove, folder: session.folder,
+    autoApprove: session.autoApprove, approvalPolicy: session.approvalPolicy,
+    folder: session.folder,
   };
 }
 
@@ -1013,17 +1065,27 @@ async function spawnAcp(session) {
       }
       if (event.kind === "permission_request") {
         if (session.shouldAutoApprove(event)) {
-          const allow = (event.options || []).find((o) => /allow/i.test(o.kind || o.optionId)) || event.options?.[0];
+          // Allow once, never "always": the policy can be switched back to Ask, and an
+          // "always" answer would outlive it. With no allow-once option on offer, the
+          // request is shown to you instead. (The old fallback, the first option of
+          // any kind, could be a rejection.)
+          const allow = allowOnceOption(event.options);
           if (allow) {
             const acp = session.acp, rid = event.requestId, oid = allow.optionId;
-            setImmediate(() => acp?.resolvePermission(rid, oid)); // defer out of the stdout read handler
+            // Deferred out of the stdout read handler. A grok that exits in this
+            // instant makes resolvePermission throw, and an exception escaping a
+            // setImmediate would take the whole bridge down.
+            setImmediate(() => {
+              try { acp?.resolvePermission(rid, oid); }
+              catch (e) { console.error(`[bridge] auto-approve failed: ${e.message}`); }
+            });
             return; // answered by policy — no card
           }
         }
         // Carry the ids a client needs to answer this without asking anything else.
         const opts = event.options || [];
-        const allowOpt = opts.find((o) => /allow/i.test(o.kind || o.optionId || ""));
-        const denyOpt = opts.find((o) => !/allow/i.test(o.kind || o.optionId || ""));
+        const allowOpt = allowOnceOption(opts);
+        const denyOpt = rejectOnceOption(opts);
         session.setWaiting("permission", event.command || event.title || event.tool, {
           requestId: event.requestId, allow: allowOpt?.optionId, deny: denyOpt?.optionId,
         });
@@ -1032,10 +1094,11 @@ async function spawnAcp(session) {
       }
       if (event.kind === "permission_resolved" || event.kind === "plan_resolved") {
         session.clearWaiting();
+        laWorking(session);
       }
       if (event.kind === "plan_review") {
         session.setWaiting("plan", "Plan ready to review", { requestId: event.requestId });
-        pushNotify(session, { title: `${displayTitle(session)}: plan ready`, message: "Grok drafted a plan; review to proceed.", priority: "high", tags: "clipboard" });
+        notifyPlan(session, event.requestId);
         laWaiting(session, "Plan ready to review");
       }
       if (event.kind === "models") { adoptModelCatalog(event.models, event.current); return; }
@@ -1098,11 +1161,12 @@ function startAcpTurn(session, body) {
   session.lastTurnSummary = null;
   // A compacted session carries its predecessor's summary; prepend it to the
   // first prompt so grok has the context without a wasted ingest turn.
-  if (session.seedContext) {
+  // Cleared only once the turn that carries it has gone through: a first turn that
+  // failed (grok signed out, a spawn failure) used to throw the summary away for good.
+  const handoff = session.seedContext || null;
+  if (handoff) {
     body.displayText = body.displayText ?? body.text;
-    body.text = `[Handoff from a previous session — treat this as prior context]\n${session.seedContext}\n[End of handoff]\n\n${body.text}`;
-    session.seedContext = null;
-    store.save();
+    body.text = `[Handoff from a previous session — treat this as prior context]\n${handoff}\n[End of handoff]\n\n${body.text}`;
   }
   session.emit({
     kind: "turn_start",
@@ -1118,6 +1182,7 @@ function startAcpTurn(session, body) {
       const acp = await ensureAcp(session);
       const result = await acp.prompt(body.text);
       noteGrokAuth(true);
+      if (handoff && session.seedContext === handoff) { session.seedContext = null; store.save(); }
       session.addUsage(result);                                    // fold grok's token report in
       usageHistory.record(result.usage);                           // day-by-day rollup
       session.emit({ kind: "usage", usage: session.usage });       // live meter update
@@ -1330,9 +1395,21 @@ async function handle(req, res) {
   // running activity.
   if (pathname === "/api/live-activity" && req.method === "POST") {
     const body = await readJsonOrEmpty(req);
+    // A session this bridge does not have is refused, so a phone paired with several
+    // computers can find the one that owns a card by asking until one accepts.
+    if (body.kind === "update-token" && !store.get(body.sessionId)) {
+      return send(res, 404, { ok: false, error: "no such session" });
+    }
     const ok = body.kind === "start-token" ? apns.addLaStartToken(body.token)
       : body.kind === "update-token" ? apns.setLaUpdateToken(body.sessionId, body.token)
       : false;
+    // A push-started card's token reaches us only once iOS wakes the app, which can be
+    // after its turn already ended. Nothing would ever end that card then: it said
+    // "working" until the next turn. End it now.
+    if (ok && body.kind === "update-token") {
+      const target = store.get(body.sessionId);
+      if (target && target.status !== "running") laTurnEnd(target, "done", "Finished");
+    }
     return send(res, ok ? 200 : 400, { ok });
   }
 
@@ -1519,6 +1596,7 @@ async function handle(req, res) {
   if (sm && req.method === "PATCH") {
     const body = await readJsonOrEmpty(req);
     const updated = schedules.update(sm[1], body);
+    if (typeof updated === "string") return send(res, 400, { error: updated });
     return updated ? send(res, 200, updated) : send(res, 404, { error: "no such schedule" });
   }
   if (sm && req.method === "DELETE") {
@@ -1670,13 +1748,19 @@ async function handle(req, res) {
 
     if (sub === "cancel" && req.method === "POST") {
       const cancelled = session.cancel();
+      // Stopping a turn whose plan was just approved means stopping the build too.
+      if (cancelled) session._executeOnComplete = false;
       // session/cancel is a notification a wedged agent never reads, so a turn that is
       // genuinely stuck stayed "running" forever and every later message 409'd. Give it
       // a moment to stop politely, then take the process down so the turn unwinds.
       if (cancelled && session.status === "running") {
         const acp = session.acp;
+        const turn = session.turnCount;
         setTimeout(() => {
-          if (session.status === "running" && session.acp === acp) {
+          // The SAME turn, still running. A grok that stopped politely goes straight on
+          // to the next queued follow-up on this very process, and this used to kill
+          // that one five seconds in.
+          if (session.status === "running" && session.acp === acp && session.turnCount === turn) {
             try { acp?.stop(); } catch { /* ignore */ }
           }
         }, 5000).unref?.();
@@ -1744,7 +1828,9 @@ async function handle(req, res) {
       // Nothing has been said yet, so there is nothing to carry over: a branch of an
       // empty session is just a second session with the same settings. Burning a grok
       // turn to summarize silence would be slow, costly and useless.
-      let seedContext = null;
+      // A session compacted a moment ago and not yet used still carries its own
+      // handoff; its branch inherits that rather than starting with nothing.
+      let seedContext = session.turnCount === 0 ? (session.seedContext || null) : null;
       if (session.turnCount > 0) {
         const handoff = await summarizeForHandoff(session, "Summarizing, to branch this session…");
         if (handoff.error) { drainQueue(session); return send(res, 500, { error: handoff.error }); }
@@ -1874,15 +1960,24 @@ async function handle(req, res) {
       const rel = url.searchParams.get("path") || "";
       const full = resolvePath(base, "." + sep + rel);
       if (full !== base && !full.startsWith(base + sep)) return send(res, 403, { error: "outside the session folder" });
+      // The check above is on the path as written. A symlink inside the project (to /,
+      // to ~) led straight out of it, and the viewer then read anything at all. Compare
+      // where both really are.
+      let realBase, realFull;
+      try { [realBase, realFull] = await Promise.all([realpath(base), realpath(full)]); }
+      catch { return send(res, 404, { error: sub === "files" ? "can't read that folder" : "can't read that file" }); }
+      if (realFull !== realBase && !realFull.startsWith(realBase + sep)) {
+        return send(res, 403, { error: "outside the session folder" });
+      }
 
       if (sub === "files") {
         try {
-          const entries = await readdir(full, { withFileTypes: true });
+          const entries = await readdir(realFull, { withFileTypes: true });
           const out = [];
           for (const e of entries) {
             if (e.name === ".git") continue;                       // noise, and huge
             let size = 0;
-            if (e.isFile()) { try { size = (await stat(join(full, e.name))).size; } catch { /* ignore */ } }
+            if (e.isFile()) { try { size = (await stat(join(realFull, e.name))).size; } catch { /* ignore */ } }
             out.push({ name: e.name, dir: e.isDirectory(), size });
           }
           out.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
@@ -1893,16 +1988,23 @@ async function handle(req, res) {
       }
 
       try {
-        const st = await stat(full);
+        const st = await stat(realFull);
         if (!st.isFile()) return send(res, 400, { error: "not a file" });
         const LIMIT = 262_144;   // 256KB is plenty for a phone screen
-        const buf = await readFile(full);
+        // Only the part that is shown is read. Reading the whole file first meant a
+        // multi-gigabyte log took that much memory on the computer, to show 256 KB.
+        const handle = await openFile(realFull, "r");
+        let buf;
+        try {
+          buf = Buffer.alloc(Math.min(st.size, LIMIT));
+          const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+          buf = buf.subarray(0, bytesRead);
+        } finally { await handle.close(); }
         const head = buf.subarray(0, Math.min(buf.length, 8192));
         if (head.includes(0)) return send(res, 200, { path: rel, size: st.size, binary: true });
-        const truncated = buf.length > LIMIT;
         return send(res, 200, {
-          path: rel, size: st.size, binary: false, truncated,
-          content: buf.subarray(0, LIMIT).toString("utf8"),
+          path: rel, size: st.size, binary: false, truncated: st.size > LIMIT,
+          content: buf.toString("utf8"),
         });
       } catch {
         return send(res, 404, { error: "can't read that file" });
@@ -2073,6 +2175,7 @@ server.listen(config.port, listenHost, async () => {
   // marked sessions dead. They are unreachable but still hold the conversation.
   const orphans = store.sweepOrphanHistory(readdirSync);
   if (orphans) console.log(`[bridge] removed ${orphans} orphaned transcript${orphans === 1 ? "" : "s"}`);
+  if (!store.loadedCleanly) console.log("[bridge] session store not read cleanly: keeping every transcript, none swept");
   const version = await grokVersion(config.grokBin);
   const reachable = config.host === "0.0.0.0" ? "<this-machine-ip>" : config.host;
   console.log(`\n  ${config.name} bridge running`);

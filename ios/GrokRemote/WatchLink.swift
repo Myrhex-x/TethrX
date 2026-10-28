@@ -536,17 +536,29 @@ extension WatchLink: WCSessionDelegate {
                     guard let requestId = event["requestId"] as? String else { break }
                     let command = (event["command"] as? String) ?? (event["title"] as? String)
                         ?? (event["tool"] as? String) ?? ""
-                    // The same test the bridge uses to pick the ids it publishes in
-                    // `waiting`, so the two copies of a request always agree.
+                    // The same choice the bridge makes for the ids it publishes in
+                    // `waiting`, so the two copies of a request always agree: allow ONCE,
+                    // never "always allow", which grok sometimes lists first and which a
+                    // tap on the wrist must never quietly grant.
                     let options = (event["options"] as? [[String: Any]]) ?? []
+                    func label(_ option: [String: Any]) -> String {
+                        "\(option["kind"] as? String ?? "") \(option["optionId"] as? String ?? "")".lowercased()
+                    }
                     func isAllow(_ option: [String: Any]) -> Bool {
                         let kind = (option["kind"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                         return (kind ?? option["optionId"] as? String ?? "").lowercased().contains("allow")
                     }
+                    let allows = options.filter(isAllow)
+                    let rejects = options.filter { !isAllow($0) }
+                    let allowOnce = allows.first { ($0["kind"] as? String) == "allow_once" }
+                        ?? allows.first { !label($0).contains("always") && !label($0).contains("session") }
+                    let rejectOnce = rejects.first { ($0["kind"] as? String) == "reject_once" }
+                        ?? rejects.first { !label($0).contains("always") }
+                        ?? rejects.first
                     pending = Self.permission(
                         requestId: requestId, command: command,
-                        allow: options.first(where: isAllow)?["optionId"] as? String,
-                        deny: options.first(where: { !isAllow($0) })?["optionId"] as? String)
+                        allow: allowOnce?["optionId"] as? String,
+                        deny: rejectOnce?["optionId"] as? String)
                 case "plan_review":
                     guard let requestId = event["requestId"] as? String else { break }
                     let plan = (event["planContent"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

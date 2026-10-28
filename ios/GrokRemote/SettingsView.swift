@@ -24,7 +24,9 @@ struct SettingsView: View {
     @State private var grokUpdating = false
     @State private var grokUpdateNote: String?
     @State private var plugins: [GrokPlugin]?
-    @State private var pluginsSupported = true     // false = bridge too old; hide the section
+    @State private var pluginsSupported = true     // false = bridge too old for plugins
+    /// The computer the plugin list on screen came from.
+    @State private var pluginsLoadedFor: String?
     @State private var pluginsFailed = false
     @State private var pluginBusy: String?         // name (or "install") of the in-flight action
     @State private var pluginError: String?
@@ -33,6 +35,8 @@ struct SettingsView: View {
     @ObservedObject private var watch = WatchLink.shared
     @EnvironmentObject private var language: AppLanguage
     @State private var path: [SettingsPage] = []
+    /// Whether the anchor page has been pushed for this presentation.
+    @State private var anchored = false
     @AppStorage(Appearance.storageKey) private var appearanceRaw = Appearance.fallback.rawValue
     @AppStorage(ReadingSize.storageKey) private var readingRaw = ReadingSize.fallback.rawValue
 
@@ -93,6 +97,11 @@ struct SettingsView: View {
                         .navigationBarTitleDisplayMode(.inline)
                 }
             .task {
+                // Once per sheet. A `.task` on the stack's root runs again every time the
+                // root comes back into view, so Back from the anchored page pushed it
+                // straight back and the index could never be reached.
+                guard !anchored else { return }
+                anchored = true
                 #if DEBUG
                 // Headless screenshots: `-settingsAnchor plugins` opens on that page.
                 let args = ProcessInfo.processInfo.arguments
@@ -749,6 +758,15 @@ struct SettingsView: View {
             } footer: {
                 Text("Plugins bundle skills, agents, and tools for Grok, and can run code on your computer when Grok uses them. Install only sources you trust. Browse the marketplace with /plugins in the Grok terminal.")
             }
+        } else {
+            // Said, rather than a blank page. And the loader lives here too: inside the
+            // other branch only, one 404 left the page blank for good, even after
+            // switching to a computer whose bridge has plugins.
+            Section {
+                Text("This computer's bridge is too old for plugins. Update it to manage them from here.")
+                    .foregroundStyle(Grok.textDim)
+                    .task(id: pluginsReloadKey) { await loadPlugins() }
+            }
         }
     }
 
@@ -806,6 +824,14 @@ struct SettingsView: View {
         guard let client = app.client, app.connected else {
             if plugins == nil { pluginsFailed = true }
             return
+        }
+        // Another computer: nothing about the last one's plugins applies. A failed load
+        // used to leave the previous computer's list on screen as if it were this one's.
+        if pluginsLoadedFor != app.activeBridgeId {
+            plugins = nil
+            pluginsFailed = false
+            pluginsSupported = true
+            pluginsLoadedFor = app.activeBridgeId
         }
         do {
             plugins = try await client.grokPlugins()
@@ -867,7 +893,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
         } footer: {
-            Text("Reusable prompts you write on this phone. They need no computer, and appear above the composer in every session.")
+            Text("Reusable prompts you write on this phone. They need no computer, and any session can use one from its Prompts button.")
         }
     }
 

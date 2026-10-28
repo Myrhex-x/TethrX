@@ -5,8 +5,11 @@
 // missed via Last-Event-ID), and the set of live SSE subscribers.
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, rmSync, renameSync, openSync, writeSync, fsyncSync, closeSync } from "node:fs";
 import { join, dirname } from "node:path";
+
+/** How far event numbering jumps when a session is loaded back from disk. */
+const EVENT_ID_GAP_AFTER_RESTART = 1000;
 
 const HISTORY_LIMIT = 5000;
 
@@ -29,7 +32,11 @@ const APPROVAL_POLICIES = new Set(["ask", "reads", "all"]);
  */
 export function writeAtomic(path, data, mode = 0o600) {
   const tmp = `${path}.tmp`;
-  writeFileSync(tmp, data, { mode });
+  // Flushed to disk before the rename. Without it, a power cut right after a save can
+  // leave the renamed file empty, and an unreadable session store is the one state
+  // this bridge has to treat with the most care (see SessionStore._load).
+  const fd = openSync(tmp, "w", mode);
+  try { writeSync(fd, data); fsyncSync(fd); } finally { closeSync(fd); }
   renameSync(tmp, path);
 }
 
@@ -393,6 +400,9 @@ export class SessionStore {
   constructor(persistPath) {
     this._byId = new Map();
     this._persistPath = persistPath || null;
+    /** Whether the list was read from an intact store file. Only then is a transcript
+     *  with no session really an orphan. */
+    this.loadedCleanly = false;
     this._historyDir = persistPath ? join(dirname(persistPath), "history") : null;
     // 0700: transcripts are private. This directory was being created world-readable.
     if (this._historyDir) { try { mkdirSync(this._historyDir, { recursive: true, mode: 0o700 }); } catch { /* ignore */ } }
@@ -439,6 +449,9 @@ export class SessionStore {
     s.waitingOn = null;
     if (s.acp) { try { s.acp.stop(); } catch { /* ignore */ } }
     s.acp = null;
+    // A headless turn has no process handle here: its abort signal is what ends it.
+    // Without this, `grok -p` went on editing files for a session that was gone.
+    if (s._abort) { try { s._abort.abort(); } catch { /* ignore */ } }
     this._byId.delete(id);
     if (s.historyPath) { try { rmSync(s.historyPath, { force: true }); } catch { /* ignore */ } }
     this.save();
@@ -481,9 +494,15 @@ export class SessionStore {
         const s = new Session(meta);   // meta.id restores the original id
         s.historyPath = this._historyPathFor(s.id);
         s.loadHistory();               // restore the conversation so it can be followed
+        // A bridge that died mid-turn lost up to a few seconds of unsaved events, and
+        // a phone may already have seen their ids. Numbering on from a little further
+        // ahead keeps every new event above anything it could have seen, so its
+        // Last-Event-ID never skips the start of the next turn. Ids only need to rise.
+        s._nextEventId += EVENT_ID_GAP_AFTER_RESTART;
         this._byId.set(s.id, s);
       } catch { /* skip one bad record rather than losing every session */ }
     }
+    this.loadedCleanly = true;
   }
 
   /**
@@ -492,6 +511,10 @@ export class SessionStore {
    */
   sweepOrphanHistory(readdir) {
     if (!this._historyDir) return 0;
+    // Never after a store that could not be read (or was missing): every transcript
+    // would look orphaned, and this deleted all of them. Keeping a stray file is cheap;
+    // losing every conversation is not.
+    if (!this.loadedCleanly) return 0;
     let removed = 0;
     try {
       for (const name of readdir(this._historyDir)) {

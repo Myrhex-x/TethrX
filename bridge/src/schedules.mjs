@@ -40,6 +40,8 @@ export class ScheduleStore {
 
   /** Validate + create. Returns the schedule, or a string describing what's wrong. */
   create({ sessionId, prompt, hour, minute, weekdays, enabled }) {
+    const badDays = invalidWeekdays(weekdays);
+    if (badDays) return badDays;
     const p = String(prompt || "").trim();
     if (!sessionId) return "missing sessionId";
     if (!p) return "missing prompt";
@@ -59,9 +61,12 @@ export class ScheduleStore {
     return s;
   }
 
+  /** Returns the schedule, null when there is none, or a string describing what's wrong. */
   update(id, patch) {
     const s = this._byId.get(id);
     if (!s) return null;
+    const badDays = invalidWeekdays(patch.weekdays);
+    if (badDays) return badDays;
     const timing = () => `${s.hour}:${s.minute}:${s.weekdays}`;
     const was = timing();
     if (typeof patch.enabled === "boolean") {
@@ -115,16 +120,27 @@ function runKey(d) {
  * The latest moment this schedule was due at or before `now`, or null if it has
  * never come due. Walking back day by day (rather than testing today's weekday)
  * is what lets a run survive being noticed late.
+ *
+ * Each day's moment is built from that day's own date. Shifting one Date back a
+ * day at a time carried a time the clocks skipped (02:30 on the spring-forward
+ * night becomes 03:30) into the day before, which made yesterday's 02:30 run look
+ * missed and pushed a false "skipped" notice.
  */
 function lastDue(s, now) {
-  const d = new Date(now.getTime());
-  d.setHours(s.hour, s.minute, 0, 0);
-  if (d.getTime() > now.getTime()) d.setDate(d.getDate() - 1);
-  for (let back = 0; back < 8; back++) {                    // 0=Sunday … 6=Saturday
+  for (let back = 0; back <= 8; back++) {                   // 0=Sunday … 6=Saturday
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back, s.hour, s.minute, 0, 0);
+    if (d.getTime() > now.getTime()) continue;
     if (!s.weekdays.length || s.weekdays.includes(d.getDay())) return d;
-    d.setDate(d.getDate() - 1);
   }
   return null;
+}
+
+/** Weekdays must be whole numbers 0-6. Anything else used to be dropped quietly, and
+ *  an empty list means "every day": [9] became a schedule that ran daily. */
+function invalidWeekdays(weekdays) {
+  if (weekdays === undefined || weekdays === null) return null;
+  if (!Array.isArray(weekdays)) return "weekdays must be a list of days 0-6";
+  return weekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) ? null : "weekdays must be 0-6 (0 is Sunday)";
 }
 
 /** Occurrences before the schedule existed (or before its time was last moved) are not misses. */

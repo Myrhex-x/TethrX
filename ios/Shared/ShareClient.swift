@@ -68,7 +68,16 @@ struct ShareClient {
 
     /// Start a new session on the bridge, for sharing without picking an existing one.
     func createSession() async throws -> Session {
-        let (data, resp) = try await session.data(for: try request("/api/sessions", method: "POST", json: [:]))
+        // The app's own defaults, so this is the session the app would have started.
+        var body: [String: Any] = [:]
+        if let d = SharedConfig.sessionDefaults() {
+            if !d.cwd.isEmpty { body["cwd"] = d.cwd }
+            if !d.model.isEmpty { body["model"] = d.model }
+            if !d.effort.isEmpty { body["effort"] = d.effort }
+            body["planMode"] = d.planMode
+            body["autoApprove"] = d.autoApprove
+        }
+        let (data, resp) = try await session.data(for: try request("/api/sessions", method: "POST", json: body))
         try check(resp)
         return try JSONDecoder().decode(Session.self, from: data)
     }

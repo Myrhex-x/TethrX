@@ -980,9 +980,15 @@ struct InlineAnswer: View {
     var nested = false
     @EnvironmentObject var app: AppState
     @State private var working = false
-    @State private var confirmDestructive = false
+    /// The request the "Run …?" dialog is about. The row's session is replaced by every
+    /// poll, so the dialog must answer THIS request or nothing, never whatever the row
+    /// holds by the time it is confirmed.
+    @State private var confirming: String?
 
     private var isPlan: Bool { session.waiting?.kind == "plan" }
+    /// A permission can be approved from here only with an allow-once option to send.
+    /// Without one, Approve sent no option at all, which the computer reads as cancel.
+    private var canApprove: Bool { isPlan || session.waiting?.allow != nil }
     private var command: String { session.waiting?.commandText ?? "" }
     /// Only the start of the command is known (an older bridge cut it). It is judged
     /// and shown as what it is, and approving it always asks first.
@@ -1032,7 +1038,12 @@ struct InlineAnswer: View {
                     // Approving a deletion from a list row, without having read the
                     // conversation, is the one tap worth interrupting.
                     // So is approving a command whose end this card cannot show.
-                    if risk?.level == .destructive || cut { confirmDestructive = true } else { answer(true) }
+                    guard let requestId = session.waiting?.requestId else { return }
+                    if risk?.level == .destructive || cut {
+                        confirming = requestId
+                    } else {
+                        answer(true, requestId: requestId)
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         if working { ProgressView().controlSize(.mini).tint(Grok.onInk) }
@@ -1047,9 +1058,10 @@ struct InlineAnswer: View {
                     .background(Grok.accent, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(working)
+                .disabled(working || !canApprove)
+                .opacity(canApprove ? 1 : 0.4)
 
-                Button { answer(false) } label: {
+                Button { answer(false, requestId: session.waiting?.requestId) } label: {
                     (isPlan ? Text("Keep planning") : Text("Deny"))
                         .lineLimit(1).minimumScaleFactor(0.75)
                         .font(Grok.sans(13, .semibold))
@@ -1069,9 +1081,12 @@ struct InlineAnswer: View {
             .stroke(risk?.level == .destructive ? Grok.danger.opacity(0.4) : Grok.hairlineStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: nested ? 0 : Grok.R.small, style: .continuous))
         .padding(.bottom, nested ? 0 : 12)
-        .confirmationDialog(Text("Run \u{201C}\(shownCommand)\u{201D}?"), isPresented: $confirmDestructive,
+        .confirmationDialog(Text("Run \u{201C}\(shownCommand)\u{201D}?"),
+                            isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
                             titleVisibility: .visible) {
-            Button("Approve", role: .destructive) { answer(true) }
+            Button("Approve", role: .destructive) {
+                if let requestId = confirming { answer(true, requestId: requestId) }
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
             if cut {
@@ -1080,12 +1095,17 @@ struct InlineAnswer: View {
                 Text(risk.reason)
             }
         }
+        // Answered elsewhere while the dialog was up, or answered and followed at once by
+        // the next request: the dialog is about something no longer on screen.
+        .onChange(of: session.waiting?.requestId) { _, id in
+            if id != confirming { confirming = nil }
+        }
     }
 
-    private func answer(_ allow: Bool) {
+    private func answer(_ allow: Bool, requestId: String?) {
         working = true
         Task {
-            _ = await app.answerWaiting(session, allow: allow)
+            _ = await app.answerWaiting(session, allow: allow, requestId: requestId)
             working = false
         }
     }

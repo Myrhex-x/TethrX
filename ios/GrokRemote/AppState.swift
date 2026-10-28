@@ -36,18 +36,18 @@ final class AppState: ObservableObject {
     /// by a second bridge, a network that blocks it, a regenerated certificate — can
     /// fall back instead of stranding the app on an address that can never connect.
     @Published var plainBase: String { didSet { store("bridge.plainBase", plainBase) } }
-    @Published var defaultCwd: String { didSet { store("bridge.cwd", defaultCwd) } }
-    @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort) } }   // "", high, medium, low
+    @Published var defaultCwd: String { didSet { store("bridge.cwd", defaultCwd); publishSessionDefaults() } }
+    @Published var defaultEffort: String { didSet { store("bridge.effort", defaultEffort); publishSessionDefaults() } }   // "", high, medium, low
     /// "" = whatever grok picks on that computer.
-    @Published var defaultModel: String { didSet { store("bridge.model", defaultModel) } }
+    @Published var defaultModel: String { didSet { store("bridge.model", defaultModel); publishSessionDefaults() } }
     /// The connected computer's models, for the pickers. Nil until fetched, and on
     /// bridges that predate the endpoint.
     @Published var modelCatalog: GrokModelCatalog?
     /// A Settings page to put back on screen after the whole interface rebuilds (a
     /// language change does that). Read once by the session list.
     @Published var reopenSettingsPage: String?
-    @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode") } }
-    @Published var defaultAutoApprove: Bool { didSet { UserDefaults.standard.set(defaultAutoApprove, forKey: "bridge.autoApprove") } }
+    @Published var defaultPlanMode: Bool { didSet { UserDefaults.standard.set(defaultPlanMode, forKey: "bridge.planMode"); publishSessionDefaults() } }
+    @Published var defaultAutoApprove: Bool { didSet { UserDefaults.standard.set(defaultAutoApprove, forKey: "bridge.autoApprove"); publishSessionDefaults() } }
     /// True after the user taps Disconnect — suppresses launch auto-reconnect until they
     /// manually Connect again. Persisted so an explicit Disconnect survives relaunch.
     @Published var userDisconnected: Bool { didSet { UserDefaults.standard.set(userDisconnected, forKey: "bridge.userDisconnected") } }
@@ -61,10 +61,11 @@ final class AppState: ObservableObject {
     @Published var demoMode = false
 
     @Published var health: HealthInfo?
-    @Published var sessions: [SessionInfo] = [] { didSet { sessionsAt = Date() } }
-    /// When `sessions` was last set from its source. The watch is told how old the
-    /// list is by this, not by when it happened to be pushed: re-sending a cached
-    /// list made an hour-old list read "Updated 0 sec ago" on the wrist.
+    @Published var sessions: [SessionInfo] = []
+    /// When `sessions` was last read from the computer. The watch is told how old the
+    /// list is by this, not by when it happened to be pushed: re-sending a cached list
+    /// made an hour-old list read "Updated 0 sec ago" on the wrist. Local edits
+    /// (rename, delete, clearing it on a switch) do not count as reading it.
     private(set) var sessionsAt = Date()
     @Published var lastUsage: UsageReport?      // for the home-screen widget
     @Published var connected = false
@@ -128,7 +129,16 @@ final class AppState: ObservableObject {
     /// Mirror the paired computers into the App Group, and make sure each token lives
     /// in the shared Keychain group — the share extension is a separate process and
     /// can read neither the app's own defaults nor its private Keychain items.
+    /// The new-session defaults, for the share sheet (see SharedConfig.SessionDefaults).
+    /// The model only if this computer offers it, as `newSession()` sends it.
+    func publishSessionDefaults() {
+        SharedConfig.publish(sessionDefaults: .init(
+            cwd: defaultCwd, model: defaultModelIfOffered ?? "", effort: defaultEffort,
+            planMode: defaultPlanMode, autoApprove: defaultAutoApprove))
+    }
+
     private func publishToSharedGroup() {
+        publishSessionDefaults()
         SharedConfig.publish(
             bridges: savedBridges.map {
                 SharedConfig.Bridge(id: $0.id, name: $0.name, address: $0.address, pin: $0.pin)
@@ -155,12 +165,18 @@ final class AppState: ObservableObject {
         let serverId = health?.serverId
         let name = (health?.host?.isEmpty == false) ? health!.host! : (URL(string: addr)?.host ?? addr)
         let host = URL(string: addr)?.host
-        let index = savedBridges.firstIndex { b in
-            if let serverId, b.serverId == serverId { return true }               // same install, any address
-            if b.address == addr { return true }
-            if let host, URL(string: b.address)?.host == host { return true }     // http→https upgrade
-            return false
-        }
+        // The install's own id first, across the whole list. Matching by address in the
+        // same pass let an entry for ANOTHER computer that happened to share this IP (a
+        // home Mac and an office Mac on 192.168.1.10) win: connecting to one overwrote
+        // the other's name, id and token. An address only identifies an entry that has
+        // no id of its own, or the same one.
+        let index = serverId.flatMap { id in savedBridges.firstIndex { $0.serverId == id } }
+            ?? savedBridges.firstIndex { b in
+                if let known = b.serverId, let serverId, known != serverId { return false }
+                if b.address == addr { return true }
+                if let host, URL(string: b.address)?.host == host { return true } // http→https upgrade
+                return false
+            }
         if let i = index {
             savedBridges[i].name = name
             savedBridges[i].address = addr
@@ -265,6 +281,7 @@ final class AppState: ObservableObject {
             token = ""
             pin = ""
             userDisconnected = true
+            WidgetBridge.clear()
         }
         persistBridges()
     }
@@ -285,6 +302,17 @@ final class AppState: ObservableObject {
         guard !demoMode else { return nil }
         guard let url = URL(string: normalizedBase), !token.isEmpty, !normalizedBase.isEmpty else { return nil }
         return BridgeClient(config: .init(baseURL: url, token: token, pin: pin.isEmpty ? nil : pin))
+    }
+
+    /// An address typed or picked by hand belongs to whichever computer answers there,
+    /// so the previous computer's certificate pin and fallback address go with it. Kept,
+    /// they skipped the upgrade to pinned HTTPS (this computer stayed on plain HTTP for
+    /// good) and were saved against the wrong machine.
+    func setAddressByHand(_ address: String) {
+        guard address != baseURLString else { return }
+        baseURLString = address
+        pin = ""
+        plainBase = ""
     }
 
     /// Accepts "192.168.1.10:4180" or a full URL; defaults to http and trims a trailing slash.
@@ -326,7 +354,10 @@ final class AppState: ObservableObject {
     private func establish(with c: BridgeClient) async throws {
         // Short probe: a live bridge replies instantly, and failing fast is what lets
         // the pinned-HTTPS fallback below happen while the user is still watching.
-        let h = try await c.health(timeout: 8)
+        // No token on it: /api/health answers without one, and this probe goes out
+        // before the upgrade to pinned HTTPS, so on a plain address it was the pairing
+        // token crossing the network in clear for nothing.
+        let h = try await c.health(timeout: 8, authenticated: false)
         // The user can flip into the demo (or Forget the computer) while this was
         // awaiting — `client` is nil then, and finishing the connect would fight it.
         guard !demoMode else { throw CancellationError() }
@@ -336,6 +367,7 @@ final class AppState: ObservableObject {
         // property that goes nil the moment credentials are cleared mid-flight.
         guard let live = client else { throw CancellationError() }
         sessions = try await live.listSessions()
+        sessionsAt = Date()
         connected = true
         rememberCurrentBridge()                                             // keep the paired-computer list current
         lastUsage = try? await live.usage()
@@ -366,19 +398,17 @@ final class AppState: ObservableObject {
     private func recoverFromDeadPin() async -> Bool {
         guard !pin.isEmpty else { return false }
         let fallback = plainFallbackAddress()
-        guard !fallback.isEmpty, fallback != normalizedBase else { return false }
+        guard !fallback.isEmpty, fallback != normalizedBase,
+              let plainURL = URL(string: fallback), let host = plainURL.host else { return false }
+        let prevPin = pin
 
-        let prevBase = baseURLString, prevPin = pin
-        baseURLString = fallback
-        pin = ""
-        guard let plain = client else {
-            baseURLString = prevBase; pin = prevPin
-            return false
-        }
-        var recovered = false
-        defer { if !recovered { baseURLString = prevBase; pin = prevPin } }
-
-        // No credential on the wire yet: /api/health is unauthenticated by design.
+        // The probe runs on a client of its own. It used to write the plaintext address
+        // into the saved settings and clear the pin first: for the whole probe, every
+        // other caller (a notification's Approve, a pull to refresh, Siri) sent the
+        // pairing token over plain HTTP, and an app killed in that window came back
+        // unpinned for good.
+        let plain = BridgeClient(config: .init(baseURL: plainURL, token: token, pin: nil))
+        // No credential on the wire: /api/health is unauthenticated by design.
         guard let h = try? await plain.health(timeout: 8, authenticated: false) else { return false }
 
         guard let tls = h.tls, !tls.fingerprint.isEmpty else {
@@ -395,17 +425,18 @@ final class AppState: ObservableObject {
             return false
         }
 
-        // Provably the same bridge, and its TLS port is back. Climb straight back up
-        // rather than spending a single request on the plaintext channel.
-        guard let host = URL(string: fallback)?.host else { return false }
-        baseURLString = "https://\(host):\(tls.port)"
-        pin = prevPin
-        guard let pinned = client else { return false }
+        // Provably the same bridge, and its TLS port is back. Only now does the saved
+        // address move, and only to the pinned one.
+        let pinnedAddress = "https://\(host):\(tls.port)"
+        guard let pinnedURL = URL(string: pinnedAddress) else { return false }
+        let pinned = BridgeClient(config: .init(baseURL: pinnedURL, token: token, pin: prevPin))
+        let prevBase = baseURLString
+        baseURLString = pinnedAddress
         do {
             try await establish(with: pinned)
-            recovered = true
             return true
         } catch {
+            baseURLString = prevBase
             return false
         }
     }
@@ -452,6 +483,10 @@ final class AppState: ObservableObject {
         bootstrapping = true
         await connect()
         bootstrapping = false
+        // A notification from ANOTHER computer, tapped while this one is asleep: the list
+        // that would open it never appears (the welcome screen does), so nothing went
+        // looking for the session. Look on the other computers here.
+        if !connected, let id = pendingOpenSessionId { await locateAndOpen(id) }
     }
 
     // MARK: Demo mode
@@ -460,6 +495,7 @@ final class AppState: ObservableObject {
         demoMode = true
         health = DemoData.health
         sessions = DemoData.sessions
+        sessionsAt = Date()
         modelCatalog = DemoData.models
         Haptics.tap()
     }
@@ -483,6 +519,7 @@ final class AppState: ObservableObject {
             // put the previous computer's sessions back on screen.
             guard !switching, activeBridgeId == bridgeAtStart, normalizedBase == baseAtStart else { return }
             sessions = list
+            sessionsAt = Date()
             publishWidgetSnapshot()
         }
         catch { if !quiet { errorMessage = friendly(error) } }
@@ -571,10 +608,12 @@ final class AppState: ObservableObject {
               s.title.trimmingCharacters(in: .whitespaces).isEmpty || s.title == "New session"
         else {
             sessions = live
+            sessionsAt = Date()
             return
         }
         try? await client.deleteSession(id)
         sessions = live.filter { $0.id != id }
+        sessionsAt = Date()
     }
 
     func deleteSession(_ id: String) async {
@@ -591,8 +630,16 @@ final class AppState: ObservableObject {
     /// The bridge now sends the request and option ids with the waiting state, so
     /// this needs nothing from the transcript. Opening a conversation, scrolling to
     /// the bottom and tapping there was three steps for a yes/no.
-    func answerWaiting(_ session: SessionInfo, allow: Bool) async -> Bool {
+    /// `requestId` is the request the tap was about. The row's session is replaced by
+    /// every poll, so an answer is sent only if that is still the request it holds.
+    func answerWaiting(_ session: SessionInfo, allow: Bool, requestId expected: String? = nil) async -> Bool {
         guard let waiting = session.waiting, let requestId = waiting.requestId else { return false }
+        if let expected, expected != requestId {
+            errorMessage = String(loc: "That approval was no longer pending. Grok isn't waiting on it.")
+            return false
+        }
+        // No allow-once option to send: sending nil would cancel the request instead.
+        if allow, waiting.kind != "plan", waiting.allow == nil { return false }
         if demoMode {
             // The tour has no computer; clearing the block is the whole visible effect.
             if let i = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -662,14 +709,24 @@ final class AppState: ObservableObject {
     /// 404 that was silently swallowed — the button "worked" and grok stayed blocked
     /// forever. Try the active computer first, then every other paired one.
     @discardableResult
-    func resolvePermission(sessionId: String, requestId: String, optionId: String) async -> Bool {
-        if let client, (try? await client.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
-            return true
-        }
-        for bridge in savedBridges where bridge.id != activeBridgeId {
-            guard let other = client(for: bridge) else { continue }
-            if (try? await other.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)) != nil {
+    func resolvePermission(sessionId: String, requestId: String, optionId: String, reason: String? = nil) async -> Bool {
+        var candidates: [BridgeClient] = []
+        if let client { candidates.append(client) }
+        candidates += savedBridges.filter { $0.id != activeBridgeId }.compactMap { client(for: $0) }
+        for candidate in candidates {
+            do {
+                try await candidate.resolvePermission(sessionId: sessionId, requestId: requestId,
+                                                      optionId: optionId, reason: reason)
                 return true
+            } catch BridgeError.badStatus(let code) where code == 409 {
+                // This computer owns the session and the request was already answered
+                // (on the watch, on the Mac, or a reminder tapped twice). Asking the
+                // other computers after this only spent the few seconds of background
+                // time this launch has, and ended by claiming the tap never arrived.
+                errorMessage = String(loc: "That approval was no longer pending. Grok isn't waiting on it.")
+                return true
+            } catch {
+                continue   // not this computer's session, or it is out of reach
             }
         }
         // Nothing accepted it, so grok is still blocked while the notification cleared
@@ -737,9 +794,21 @@ final class AppState: ObservableObject {
     func loadModels() async {
         guard let client, !demoMode else { return }
         let bridgeAtStart = activeBridgeId
-        guard let catalog = try? await client.models(), activeBridgeId == bridgeAtStart else { return }
+        let owner = activeBridgeId ?? normalizedBase
+        guard let catalog = try? await client.models() else {
+            // A catalog is a fact about one computer. Kept after adding or switching to
+            // a computer that has none (bridges before 0.1.24), the chip offered the
+            // previous computer's models, and a default from that list was sent here.
+            if activeBridgeId == bridgeAtStart, modelCatalogOwner != owner { modelCatalog = nil }
+            return
+        }
+        guard activeBridgeId == bridgeAtStart else { return }
         modelCatalog = catalog.models.isEmpty ? nil : catalog
+        modelCatalogOwner = owner
+        publishSessionDefaults()   // the default model may only now be known to be offered
     }
+    /// Which computer `modelCatalog` came from (its saved id, or its address).
+    private var modelCatalogOwner: String?
 
     /// The default model, but only if this computer offers it. A model chosen while
     /// paired to another machine would otherwise be sent to one that refuses it.
@@ -772,8 +841,18 @@ final class AppState: ObservableObject {
 
     /// Register the update token of a (possibly push-started) activity for its session.
     func registerLiveActivityUpdate(sessionId: String, token: String) async {
-        guard !sessionId.isEmpty, let client else { return }
-        try? await client.registerLiveActivity(kind: "update-token", token: token, sessionId: sessionId)
+        guard !sessionId.isEmpty else { return }
+        // To the computer that owns the session, which need not be the active one: a
+        // card another paired computer push-started never got its token, so that
+        // computer could not move it or end it. A bridge refuses a session it does not
+        // have (0.1.25 and later), so the first one that accepts is the owner.
+        var candidates: [BridgeClient] = []
+        if let client { candidates.append(client) }
+        candidates += savedBridges.filter { $0.id != activeBridgeId }.compactMap { client(for: $0) }
+        for candidate in candidates {
+            if (try? await candidate.registerLiveActivity(kind: "update-token", token: token,
+                                                          sessionId: sessionId)) != nil { return }
+        }
     }
 
     /// Folders the user created that may not have any sessions in them yet. Merged
@@ -886,6 +965,7 @@ final class AppState: ObservableObject {
         sessions = []
         errorMessage = nil
         userDisconnected = true       // stay on the pairing screen next launch, don't auto-reconnect
+        WidgetBridge.clear()          // and the widget stops reporting on it
     }
 
     /// Debug-only: `-autoconnect` connects on launch, `-openSession <id>` deep-opens

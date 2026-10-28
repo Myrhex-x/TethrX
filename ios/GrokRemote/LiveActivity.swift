@@ -13,6 +13,13 @@ final class LiveActivityManager {
     /// Called with the activity's APNs update token (hex) once iOS issues it.
     var onPushToken: ((String) -> Void)?
 
+    /// The session this manager speaks for, known from the start. A chat opened while
+    /// a turn was already running never called `start()`, so its `end()` had no session
+    /// to sweep and the card stayed on WORKING.
+    func bind(sessionId: String) {
+        if self.sessionId == nil { self.sessionId = sessionId }
+    }
+
     func start(sessionName: String, sessionId: String, phase: String, detail: String) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         self.sessionId = sessionId
@@ -21,8 +28,12 @@ final class LiveActivityManager {
         // swipe back mid-turn, a restored scene) left its activity running and unowned:
         // the lock screen kept saying WORKING until the system's own limit expired,
         // hours later. Adopt it instead of stacking a second card on top.
+        // Only one that is still showing: a card just ended for the turn before this one
+        // (a queued follow-up starts at once) is on its way off the screen, and adopting
+        // it meant this turn had no card at all.
         if let existing = Activity<TethrXActivityAttributes>.activities
-            .first(where: { $0.attributes.sessionId == sessionId }) {
+            .first(where: { $0.attributes.sessionId == sessionId
+                            && ($0.activityState == .active || $0.activityState == .stale) }) {
             activity = existing
             observePushToken(existing)
             update(phase: phase, detail: detail)
@@ -74,5 +85,47 @@ final class LiveActivityManager {
         self.activity = nil
         let state = TethrXActivityAttributes.ContentState(phase: phase, detail: detail)
         Task { await activity.end(.init(state: state, staleDate: nil), dismissalPolicy: .after(.now + 4)) }
+    }
+}
+
+/// Hands ActivityKit's tokens to the bridges for the life of the process.
+///
+/// Started from the app delegate, not from a scene: iOS delivers a push-started card's
+/// update token by waking the app in the background with no scene at all, and a scene's
+/// `.task` never runs then. Without that token the bridge could neither move the card
+/// to "waiting" nor end it.
+@MainActor
+enum LiveActivityTokens {
+    private static var started = false
+
+    static func startObserving(_ app: AppState) {
+        guard !started else { return }
+        started = true
+        if #available(iOS 17.2, *) {
+            Task {
+                for await tokenData in Activity<TethrXActivityAttributes>.pushToStartTokenUpdates {
+                    await app.registerLiveActivityStart(hex(tokenData))
+                }
+            }
+        }
+        // Cards that already exist (started while the app was not running) and every
+        // card from here on.
+        for activity in Activity<TethrXActivityAttributes>.activities { observe(activity, app) }
+        Task {
+            for await activity in Activity<TethrXActivityAttributes>.activityUpdates { observe(activity, app) }
+        }
+    }
+
+    private static func observe(_ activity: Activity<TethrXActivityAttributes>, _ app: AppState) {
+        let sessionId = activity.attributes.sessionId
+        Task {
+            for await tokenData in activity.pushTokenUpdates {
+                await app.registerLiveActivityUpdate(sessionId: sessionId, token: hex(tokenData))
+            }
+        }
+    }
+
+    private static func hex(_ data: Data) -> String {
+        data.map { String(format: "%02x", $0) }.joined()
     }
 }

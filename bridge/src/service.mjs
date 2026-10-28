@@ -232,8 +232,10 @@ async function install(flags) {
   }
   if (running) {
     console.log(`\n  A bridge is already running on port ${port}.`);
-    console.log("  Stop it first (Ctrl+C in its terminal), then run this again.");
-    console.log(`  Or install this service on a different port:  --port ${Number(port) + 2}\n`);
+    console.log("  Stop it first (Ctrl+C in its terminal), then run this again.\n");
+    // No "or use another port" here any more. A second bridge shares this one's state
+    // folder: both fire every schedule, and each rewrites the session list from its own
+    // memory, so sessions created through one vanish from the other.
     return 1;
   }
 

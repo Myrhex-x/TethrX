@@ -178,11 +178,12 @@ struct UsageHistorySheet: View {
         }
     }
 
+    // One and many are separate phrases: "%lld turns" alone read "1 turns".
     private func dayCountLabel(_ n: Int) -> String {
-        String(format: String(loc: "%lld days"), n)
+        n == 1 ? String(loc: "1 day") : String(format: String(loc: "%lld days"), n)
     }
 
     private func turnsLabel(_ n: Int) -> String {
-        String(format: String(loc: "%lld turns"), n)
+        n == 1 ? String(loc: "1 turn") : String(format: String(loc: "%lld turns"), n)
     }
 }

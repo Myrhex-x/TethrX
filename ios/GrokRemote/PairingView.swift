@@ -161,7 +161,7 @@ struct PairingView: View {
                         ForEach(discovery.found) { bridge in
                             Button {
                                 Haptics.tap()
-                                app.baseURLString = bridge.address
+                                app.setAddressByHand(bridge.address)
                                 focus = .token
                             } label: {
                                 HStack(spacing: 10) {
@@ -194,7 +194,8 @@ struct PairingView: View {
                 }
                 .padding(.vertical, 2)
 
-                field(label: "Bridge address", placeholder: path == .tailscale ? "100.x.y.z:4180" : "192.168.1.10:4180", text: $app.baseURLString, secure: false)
+                field(label: "Bridge address", placeholder: path == .tailscale ? "100.x.y.z:4180" : "192.168.1.10:4180",
+                      text: Binding(get: { app.baseURLString }, set: { app.setAddressByHand($0) }), secure: false)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .focused($focus, equals: .address).submitLabel(.next).onSubmit { focus = .token }
                 field(label: "Pairing token", placeholder: "from the pairing page", text: $app.token, secure: true)

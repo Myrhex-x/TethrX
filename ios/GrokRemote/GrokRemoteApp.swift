@@ -39,7 +39,8 @@ struct TethrXApp: App {
                 // runs even for a background launch with no scene. Only scene-scoped
                 // work belongs here.
                 push.refreshIfEnabled()            // re-register if the user enabled push before
-                observeLiveActivities()
+                // Live Activity tokens are observed from the app delegate, which also runs
+                // for the background launch that delivers a push-started card's token.
                 // Activating early matters: a watch that asks for a snapshot wakes the
                 // phone in the background, and the session must already be listening.
                 WatchLink.shared.start()
@@ -75,35 +76,6 @@ struct TethrXApp: App {
             Task { if let fresh = await app.newSession() { app.pendingOpenSessionId = fresh.id } }
         default:
             break
-        }
-    }
-
-    /// Live Activity plumbing for bridge-driven lock-screen status:
-    /// - the push-to-start token lets the bridge START an activity with the app
-    ///   closed (iOS 17.2+);
-    /// - each activity (however started) yields an update token, registered per
-    ///   session so the bridge can move it through working → waiting → done.
-    /// iOS launches the app briefly in the background for a push-started activity,
-    /// which is what makes the update-token handoff possible at all.
-    private func observeLiveActivities() {
-        if #available(iOS 17.2, *) {
-            Task {
-                for await tokenData in Activity<TethrXActivityAttributes>.pushToStartTokenUpdates {
-                    let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-                    await app.registerLiveActivityStart(hex)
-                }
-            }
-        }
-        Task {
-            for await activity in Activity<TethrXActivityAttributes>.activityUpdates {
-                let sessionId = activity.attributes.sessionId
-                Task {
-                    for await tokenData in activity.pushTokenUpdates {
-                        let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-                        await app.registerLiveActivityUpdate(sessionId: sessionId, token: hex)
-                    }
-                }
-            }
         }
     }
 }
@@ -179,7 +151,15 @@ struct SplitRootView: View {
             Task { await app.discardUnusedSession() }
         }
         .onChange(of: app.pendingOpenSessionId) { _, _ in openPending() }
-        .onChange(of: app.sessions) { _, _ in openPending() }
+        .onChange(of: app.sessions) { _, list in
+            openPending()
+            // Deleted (here or on another device) while open in the detail column: its
+            // stream ended in a 404, and the composer kept taking messages that could
+            // only fail. A switch is handled below; this is the session going away.
+            if let open = selected, !app.switching, !list.contains(where: { $0.id == open.id }) {
+                selected = nil
+            }
+        }
         // The detail column belongs to the computer it was opened on. Left in place
         // across a switch it kept streaming from the old one through the old client.
         .onChange(of: app.activeBridgeId) { _, _ in selected = nil }

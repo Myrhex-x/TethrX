@@ -18,9 +18,15 @@ export function acquire() {
     // -i no idle sleep, -m no disk sleep, -s no system sleep (while on AC).
     // -w <our pid> makes caffeinate exit if the bridge is killed, rather than
     // surviving as an orphan that keeps the machine awake indefinitely.
-    proc = spawn("/usr/bin/caffeinate", ["-i", "-m", "-s", "-w", String(process.pid)], { stdio: "ignore" });
-    proc.on("exit", () => { proc = null; });
-    proc.on("error", () => { proc = null; });
+    const child = spawn("/usr/bin/caffeinate", ["-i", "-m", "-s", "-w", String(process.pid)], { stdio: "ignore" });
+    proc = child;
+    // Only ever forget THIS child. A turn that ends as the next one starts (a queued
+    // follow-up, an approved plan) kills one caffeinate and spawns another in the
+    // same tick; the old one's exit arrives later and used to null the new one, which
+    // then could never be killed and kept the Mac awake for as long as the bridge ran.
+    const forget = () => { if (proc === child) proc = null; };
+    child.on("exit", forget);
+    child.on("error", forget);
   } catch {
     proc = null;
   }

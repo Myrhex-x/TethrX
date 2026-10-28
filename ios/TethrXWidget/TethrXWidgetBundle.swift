@@ -29,6 +29,8 @@ struct TethrXSnapshot: Codable {
 struct StatusEntry: TimelineEntry {
     let date: Date
     let snapshot: TethrXSnapshot?
+    /// The snapshot is old enough that "working" or "needs you" may no longer be true.
+    var stale = false
 }
 
 struct StatusProvider: TimelineProvider {
@@ -47,10 +49,22 @@ struct StatusProvider: TimelineProvider {
         completion(StatusEntry(date: Date(), snapshot: load()))
     }
 
+    /// How long "working" or "needs you" is taken at its word with no fresher snapshot.
+    static let staleAfter: TimeInterval = 30 * 60
+
     func getTimeline(in context: Context, completion: @escaping (Timeline<StatusEntry>) -> Void) {
         // The app reloads timelines whenever it publishes; this is just a safety net.
-        let entry = StatusEntry(date: Date(), snapshot: load())
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900))))
+        let now = Date()
+        let snapshot = load()
+        var entries = [StatusEntry(date: now, snapshot: snapshot)]
+        // Only a running app publishes. Lock the phone mid-turn and the last snapshot
+        // said "working" (or "needs you") for hours after it stopped being true, so
+        // past this point the widget says to look rather than repeating it.
+        if let snapshot, GrokState.of(snapshot) == .working || GrokState.of(snapshot) == .needsYou {
+            let staleAt = max(now, snapshot.updatedAt.addingTimeInterval(Self.staleAfter))
+            entries.append(StatusEntry(date: staleAt, snapshot: snapshot, stale: true))
+        }
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(900))))
     }
 }
 
@@ -159,6 +173,7 @@ struct StatusWidgetView: View {
     /// The second line: what is waiting, what is running, or which computer this is.
     private var detail: String {
         guard let snapshot else { return String(localized: "Open TethrX to connect") }
+        if entry.stale { return String(localized: "Open TethrX to refresh") }
         if snapshot.waitingCount > 0 {
             return snapshot.waitingName.isEmpty ? String(localized: "an approval is pending") : snapshot.waitingName
         }

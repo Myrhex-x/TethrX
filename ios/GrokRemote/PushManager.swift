@@ -17,8 +17,9 @@ final class PushManager: NSObject, ObservableObject {
     var onToken: ((String) -> Void)?
     /// Tapping a notification should open that session.
     var onOpenSession: ((String) -> Void)? { didSet { flushPending() } }
-    /// Approve/Reject tapped on the notification — resolve it against the bridge.
-    var onPermissionDecision: ((_ sessionId: String, _ requestId: String, _ optionId: String) async -> Void)? {
+    /// Approve/Reject tapped on the notification, or a Reply typed into an approval
+    /// (a rejection with its reason): resolve it against the bridge.
+    var onPermissionDecision: ((_ sessionId: String, _ requestId: String, _ optionId: String, _ reason: String?) async -> Void)? {
         didSet { flushPending() }
     }
     /// Typed straight into the notification — queued on the bridge for that session.
@@ -29,7 +30,7 @@ final class PushManager: NSObject, ObservableObject {
     // On a cold launch the notification response arrives before the app has wired these
     // handlers up. iOS never redelivers it, so hold onto it and replay once we can act.
     private var pendingOpen: String?
-    private var pendingDecision: (sessionId: String, requestId: String, optionId: String)?
+    private var pendingDecision: (sessionId: String, requestId: String, optionId: String, reason: String?)?
     private var pendingReply: (sessionId: String, text: String)?
 
     private func flushPending() {
@@ -39,7 +40,7 @@ final class PushManager: NSObject, ObservableObject {
         }
         if let decision = pendingDecision, let handler = onPermissionDecision {
             pendingDecision = nil
-            Task { await handler(decision.sessionId, decision.requestId, decision.optionId) }
+            Task { await handler(decision.sessionId, decision.requestId, decision.optionId, decision.reason) }
         }
         if let reply = pendingReply, let handler = onReply {
             pendingReply = nil
@@ -81,7 +82,13 @@ final class PushManager: NSObject, ObservableObject {
                                                    actions: [reply],
                                                    intentIdentifiers: [], options: [])
 
-        UNUserNotificationCenter.current().setNotificationCategories([permission, replyCategory])
+        // A request with no allow-once answer on offer (grok sometimes offers only
+        // "always allow"): Approve from a lock screen would have nothing to send, so
+        // these get Reject and Reply only, and allowing it is done in the app.
+        let permissionNoAllow = UNNotificationCategory(identifier: "PERMISSION_NO_ALLOW",
+                                                       actions: [reject, replyWhileWaiting],
+                                                       intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([permission, permissionNoAllow, replyCategory])
     }
 
     /// Ask permission and register for remote notifications (user opted in).
@@ -157,6 +164,18 @@ extension PushManager: UNUserNotificationCenterDelegate {
             switch action {
             case "REPLY":
                 guard !sessionId.isEmpty, !replyText.isEmpty else { break }
+                // On an approval, Reply means "no, and here is why": it answers the
+                // request with the rejection and gives grok the words. Queued as a plain
+                // follow-up, it waited for a turn that was itself waiting on this very
+                // approval, so nothing moved while the notification looked answered.
+                if !requestId.isEmpty, let rejectId {
+                    if let handler = self.onPermissionDecision {
+                        await handler(sessionId, requestId, rejectId, replyText)
+                    } else {
+                        self.pendingDecision = (sessionId, requestId, rejectId, replyText)
+                    }
+                    break
+                }
                 if let handler = self.onReply { await handler(sessionId, replyText) }
                 else { self.pendingReply = (sessionId, replyText) }
 
@@ -165,9 +184,9 @@ extension PushManager: UNUserNotificationCenterDelegate {
                 if !sessionId.isEmpty, !requestId.isEmpty, let optionId {
                     if let handler = self.onPermissionDecision {
                         // Await the round trip so iOS doesn't suspend us mid-request.
-                        await handler(sessionId, requestId, optionId)
+                        await handler(sessionId, requestId, optionId, nil)
                     } else {
-                        self.pendingDecision = (sessionId, requestId, optionId)
+                        self.pendingDecision = (sessionId, requestId, optionId, nil)
                     }
                 }
             default:
@@ -196,11 +215,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             let push = PushManager.shared
             push.onToken = { token in Task { await app.registerDevice(token) } }
             push.onOpenSession = { id in Task { @MainActor in app.pendingOpenSessionId = id } }
-            push.onPermissionDecision = { sessionId, requestId, optionId in
+            push.onPermissionDecision = { sessionId, requestId, optionId, reason in
                 // The round trip has to outlive the brief background launch, or iOS
                 // suspends the process mid-request and grok is left blocked.
                 await Self.keepingAlive {
-                    await app.resolvePermission(sessionId: sessionId, requestId: requestId, optionId: optionId)
+                    await app.resolvePermission(sessionId: sessionId, requestId: requestId,
+                                                optionId: optionId, reason: reason)
                 }
             }
             push.onReply = { sessionId, text in
@@ -214,6 +234,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             // and the message had no delegate to land on. `start()` is idempotent; the
             // scene's own call is harmless.
             WatchLink.shared.start()
+            LiveActivityTokens.startObserving(app)
         }
         return true
     }

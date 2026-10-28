@@ -33,6 +33,28 @@ enum SharedConfig {
         defaults.set(activeId, forKey: activeKey)
     }
 
+    /// The app's defaults for a new session. The share sheet used to start one with an
+    /// empty request, so it ran in the bridge's default folder with the bridge's model,
+    /// effort and plan mode, whatever the app was set to.
+    struct SessionDefaults: Codable {
+        var cwd = ""
+        var model = ""
+        var effort = ""
+        var planMode = false
+        var autoApprove = false
+    }
+    private static let sessionDefaultsKey = "shared.sessionDefaults"
+
+    static func publish(sessionDefaults: SessionDefaults) {
+        guard let defaults, let data = try? JSONEncoder().encode(sessionDefaults) else { return }
+        defaults.set(data, forKey: sessionDefaultsKey)
+    }
+
+    static func sessionDefaults() -> SessionDefaults? {
+        guard let data = defaults?.data(forKey: sessionDefaultsKey) else { return nil }
+        return try? JSONDecoder().decode(SessionDefaults.self, from: data)
+    }
+
     static func bridges() -> [Bridge] {
         guard let data = defaults?.data(forKey: bridgesKey),
               let list = try? JSONDecoder().decode([Bridge].self, from: data) else { return [] }

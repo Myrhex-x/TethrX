@@ -6,12 +6,19 @@ import UIKit
 /// it's the app's standalone workspace, and the same prompts appear above the
 /// chat composer once a computer is connected.
 struct PromptLibraryView: View {
+    /// Set when opened from a chat: tapping a prompt hands it back (into the message
+    /// box) instead of opening it for editing.
+    var onPick: ((Prompt) -> Void)? = nil
+
     @EnvironmentObject var snippets: SnippetStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var query = ""
     @State private var editing: Prompt?
     @State private var creating = false
+    /// The prompt a swipe asked to delete, waiting for the confirmation the editor's
+    /// own Delete already asks for.
+    @State private var deleting: Prompt?
 
     var body: some View {
         NavigationStack {
@@ -20,16 +27,28 @@ struct PromptLibraryView: View {
                 if !results.isEmpty {
                     Section {
                         ForEach(results) { prompt in
-                            Button { editing = prompt } label: { PromptRow(prompt: prompt) }
-                                .buttonStyle(RowPressStyle())
-                                .listRowInsets(EdgeInsets())
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        withAnimation { snippets.delete(prompt.id) }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
+                            Button {
+                                if let onPick {
+                                    onPick(prompt)
+                                    dismiss()
+                                } else {
+                                    editing = prompt
                                 }
+                            } label: {
+                                PromptRow(prompt: prompt, picking: onPick != nil)
+                            }
+                            .buttonStyle(RowPressStyle())
+                            .listRowInsets(EdgeInsets())
+                            .accessibilityHint(onPick != nil ? Text("Puts this in the message box") : Text(""))
+                            // No full swipe: a prompt can be pages long and has no undo,
+                            // so a swipe asks first, as the editor's Delete does.
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    deleting = prompt
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     } footer: {
                         if query.isEmpty {
@@ -41,6 +60,15 @@ struct PromptLibraryView: View {
             .listStyle(.insetGrouped)
             .overlay {
                 if results.isEmpty { emptyState }
+            }
+            .confirmationDialog("Delete this prompt?",
+                                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                                titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    if let prompt = deleting { withAnimation { snippets.delete(prompt.id) } }
+                    deleting = nil
+                }
+                Button("Cancel", role: .cancel) { deleting = nil }
             }
             // The system search field, in the bar where every Apple list keeps it.
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
@@ -88,6 +116,8 @@ struct PromptLibraryView: View {
 
 struct PromptRow: View {
     let prompt: Prompt
+    /// Opened from a chat: the row puts the prompt into the message box, and says so.
+    var picking = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -99,7 +129,14 @@ struct PromptRow: View {
                 }
             }
             Spacer(minLength: 6)
-            RowChevron()
+            if picking {
+                Image(systemName: "arrow.up.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Grok.textFaint)
+                    .accessibilityHidden(true)
+            } else {
+                RowChevron()
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -36,6 +36,7 @@ struct AddComputerSheet: View {
                                 Button {
                                     Haptics.tap()
                                     address = bridge.address
+                                    scannedPin = ""      // a pin from an earlier scan is another computer's
                                 } label: {
                                     HStack(spacing: 10) {
                                         Image(systemName: "desktopcomputer").font(.system(size: 13)).foregroundStyle(Grok.textDim)
@@ -67,7 +68,10 @@ struct AddComputerSheet: View {
                         divider
                     }
 
-                    field("Bridge address", "192.168.1.10:4180", $address, secure: false)
+                    // Typing an address drops a pin left by an earlier scan: kept, it was
+                    // handed to whatever computer the typed address reached.
+                    field("Bridge address", "192.168.1.10:4180",
+                          Binding(get: { address }, set: { address = $0; scannedPin = "" }), secure: false)
                     field("Pairing token", "from the pairing page", $pairingToken, secure: true)
 
                     if let failure {
